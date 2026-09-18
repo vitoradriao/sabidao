@@ -223,6 +223,17 @@ def db_transaction():
             yield conn
 
 
+def db_advisory_xact_lock(key: str, *, connection) -> None:
+    """Serializa uma operacao pela chave durante a transacao atual."""
+    if connection is None:
+        raise ValueError("db_advisory_xact_lock exige uma conexao transacional.")
+    _execute_fetch(
+        connection,
+        "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0)) AS locked",
+        [key],
+    )
+
+
 def _parse_scalar(value: str) -> Any:
     lowered = value.lower()
     if lowered == "null":

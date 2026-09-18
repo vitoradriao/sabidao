@@ -27,13 +27,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from uuid import uuid4
 
 import httpx
 from langchain_text_splitters import MarkdownTextSplitter
 
 import config
 from bot_common import normalize_text
-from db import db_delete, db_insert, db_select, db_transaction, db_update, validate_database_config
+from db import (
+    db_advisory_xact_lock,
+    db_delete,
+    db_insert,
+    db_select,
+    db_transaction,
+    db_update,
+    validate_database_config,
+)
 from rag import (
     QUERY_MODULE_HINTS,
     create_document_embeddings,
@@ -1266,37 +1275,52 @@ def _build_chunk_row(
     return row
 
 
-def _insert_document_section(doc_id: str, section: AnalyticalSection, *, connection=None) -> str | None:
+def _document_sections_supported() -> bool:
     global _document_sections_available
-    if _document_sections_available is False:
-        return None
+    if _document_sections_available is not None:
+        return _document_sections_available
 
     try:
-        result = supabase_insert(
+        supabase_select(
             "document_sections",
-            {
-                "document_id": doc_id,
-                "section_index": section.section_index,
-                "heading_path": section.heading_path,
-                "title": section.title,
-                "module": section.module,
-                "answer_mode": section.answer_mode,
-                "semantic_context": section.semantic_context,
-                "entities": section.entities,
-                "metadata": {"source": "ingest.py"},
-            },
-            connection=connection,
+            select="id,retrieval_text,embedding",
+            filters={"limit": 1},
         )
-        section_id = str(result[0]["id"]) if result and result[0].get("id") else None
         _document_sections_available = True
-        return section_id
-    except Exception as e:
+    except Exception as exc:
         _document_sections_available = False
         logger.warning(
-            "Camada document_sections indisponivel (%s). Gravando contexto analitico apenas em metadata JSONB.",
-            e,
+            "Camada completa de document_sections indisponivel (%s). "
+            "Gravando contexto analitico apenas em metadata JSONB.",
+            exc,
         )
-        return None
+    return _document_sections_available
+
+
+def _prepare_section_retrieval_data(
+    title: str,
+    sections: list[AnalyticalSection],
+) -> list[tuple[AnalyticalSection, str, list[float]]]:
+    persisted_sections = [section for section in sections if section.section_id]
+    prepared: list[tuple[AnalyticalSection, str, list[float]]] = []
+    batch_size = max(1, config.EMBEDDING_BATCH_SIZE)
+    for batch_start in range(0, len(persisted_sections), batch_size):
+        section_batch = persisted_sections[batch_start : batch_start + batch_size]
+        payloads = [
+            _build_section_retrieval_text(title, section)
+            for section in section_batch
+        ]
+        embeddings = _embed_batch_with_retry(
+            payloads,
+            filename=f"{title}#sections",
+            first_chunk_index=batch_start,
+        )
+        if len(embeddings) != len(payloads):
+            raise RuntimeError(
+                f"embeddings de secoes incompletos: esperado {len(payloads)}, recebido {len(embeddings)}"
+            )
+        prepared.extend(zip(section_batch, payloads, embeddings))
+    return prepared
 
 
 def _persist_section_retrieval_data(
@@ -1306,20 +1330,8 @@ def _persist_section_retrieval_data(
     *,
     connection=None,
 ) -> None:
-    persisted_sections = [
-        section
-        for section in sections
-        if section.section_id
-    ]
-    if not persisted_sections:
-        return
-
-    payloads = [
-        _build_section_retrieval_text(title, section)
-        for section in persisted_sections
-    ]
-    embeddings = _embed_batch_with_retry(payloads, filename=f"{title}#sections", first_chunk_index=0)
-    for section, retrieval_text, embedding in zip(persisted_sections, payloads, embeddings):
+    prepared = _prepare_section_retrieval_data(title, sections)
+    for section, retrieval_text, embedding in prepared:
         supabase_update(
             "document_sections",
             {
@@ -1336,7 +1348,42 @@ def _persist_section_retrieval_data(
         )
 
 
-def _insert_chunk_rows(rows: list[dict]) -> set[int]:
+def _prepare_document_section_rows(
+    doc_id: str,
+    title: str,
+    sections: list[AnalyticalSection],
+) -> list[dict]:
+    if not _document_sections_supported():
+        return []
+
+    for section in sections:
+        section.section_id = str(uuid4())
+
+    prepared = _prepare_section_retrieval_data(title, sections)
+    return [
+        {
+            "id": section.section_id,
+            "document_id": doc_id,
+            "section_index": section.section_index,
+            "heading_path": section.heading_path,
+            "title": section.title,
+            "module": section.module,
+            "answer_mode": section.answer_mode,
+            "semantic_context": section.semantic_context,
+            "entities": section.entities,
+            "retrieval_text": retrieval_text,
+            "embedding": embedding_to_pgvector(embedding),
+            "metadata": {
+                "source": "ingest.py",
+                "document_id": str(doc_id),
+                "retrieval_ready": True,
+            },
+        }
+        for section, retrieval_text, embedding in prepared
+    ]
+
+
+def _insert_chunk_rows(rows: list[dict], *, connection) -> set[int]:
     if not rows:
         return set()
 
@@ -1344,29 +1391,183 @@ def _insert_chunk_rows(rows: list[dict]) -> set[int]:
     batch_size = max(1, int(config.INGEST_DB_BATCH_SIZE))
     for batch_start in range(0, len(rows), batch_size):
         batch_rows = rows[batch_start : batch_start + batch_size]
+        supabase_insert("document_chunks", batch_rows, connection=connection)
+        inserted_indices.update(int(row["chunk_index"]) for row in batch_rows)
+    return inserted_indices
+
+
+def _insert_rows_in_batches(table: str, rows: list[dict], *, connection) -> None:
+    batch_size = max(1, int(config.INGEST_DB_BATCH_SIZE))
+    for batch_start in range(0, len(rows), batch_size):
+        supabase_insert(
+            table,
+            rows[batch_start : batch_start + batch_size],
+            connection=connection,
+        )
+
+
+def _replace_document_atomically(
+    *,
+    filename: str,
+    document_row: dict,
+    section_rows: list[dict],
+    chunk_rows: list[dict],
+    force: bool,
+) -> bool:
+    """Troca uma fonte completa; em reindexes concorrentes, o ultimo commit vence."""
+    with db_transaction() as connection:
+        db_advisory_xact_lock(f"ingest:{filename}", connection=connection)
+        existing = supabase_select(
+            "documents",
+            select="id",
+            filters={"filename": f"eq.{filename}"},
+            connection=connection,
+        )
+        if existing and not force:
+            return False
+
+        if existing:
+            old_doc_id = existing[0]["id"]
+            logger.info("Substituindo documento anterior de forma atomica: %s", filename)
+            supabase_delete("documents", "id", old_doc_id, connection=connection)
+
+        supabase_insert("documents", document_row, connection=connection)
+        if section_rows:
+            _insert_rows_in_batches(
+                "document_sections",
+                section_rows,
+                connection=connection,
+            )
+        inserted_indices = _insert_chunk_rows(chunk_rows, connection=connection)
+        if len(inserted_indices) != len(chunk_rows):
+            raise RuntimeError(
+                f"troca incompleta: {len(inserted_indices)}/{len(chunk_rows)} chunks inseridos"
+            )
+    return True
+
+
+def _prepare_chunk_rows(
+    *,
+    doc_id: str,
+    filename: str,
+    title: str,
+    text: str,
+    doc_type: str,
+    source_type: str,
+    module: str,
+    doc_priority: int,
+    chunk_items: list[tuple[int, str, str, AnalyticalSection]],
+) -> tuple[list[dict], list[int]]:
+    rows: list[dict] = []
+    failed_chunks: list[int] = []
+    batch_size = max(1, config.EMBEDDING_BATCH_SIZE)
+    for batch_start in range(0, len(chunk_items), batch_size):
+        batch = chunk_items[batch_start : batch_start + batch_size]
+        clean_batch: list[tuple[int, str, str, AnalyticalSection]] = []
+
+        for chunk_index, storage_content, retrieval_content, section in batch:
+            clean_storage = storage_content.replace("\x00", "").strip()
+            clean_retrieval = retrieval_content.replace("\x00", "").strip()
+            if not clean_storage or not clean_retrieval:
+                failed_chunks.append(chunk_index)
+                continue
+            clean_batch.append((chunk_index, clean_storage, clean_retrieval, section))
+
+        for ctx_start in range(0, len(clean_batch), _CONTEXTUAL_BATCH_SIZE):
+            ctx_sub = clean_batch[ctx_start : ctx_start + _CONTEXTUAL_BATCH_SIZE]
+            ctx_pairs = [
+                (chunk_index, retrieval_content)
+                for chunk_index, _clean_storage, retrieval_content, _section in ctx_sub
+            ]
+            ctx_result = _contextualize_chunks_batch(
+                chunks_with_indices=ctx_pairs,
+                full_document=text,
+                filename=filename,
+            )
+            by_index = {
+                chunk_index: (clean_storage, section)
+                for chunk_index, clean_storage, _retrieval_content, section in ctx_sub
+            }
+            clean_batch[ctx_start : ctx_start + _CONTEXTUAL_BATCH_SIZE] = [
+                (
+                    chunk_index,
+                    by_index[chunk_index][0],
+                    contextualized_content,
+                    by_index[chunk_index][1],
+                )
+                for chunk_index, contextualized_content in ctx_result
+            ]
+
+        if not clean_batch:
+            continue
+
+        indices = [item[0] for item in clean_batch]
+        storage_contents = [item[1] for item in clean_batch]
+        retrieval_contents = [item[2] for item in clean_batch]
+        sections_for_batch = [item[3] for item in clean_batch]
+
         try:
-            with db_transaction() as connection:
-                supabase_insert("document_chunks", batch_rows, connection=connection)
-            inserted_indices.update(int(row["chunk_index"]) for row in batch_rows)
+            embeddings = _embed_batch_with_retry(retrieval_contents, filename, indices[0])
+            if len(embeddings) != len(clean_batch):
+                raise RuntimeError(
+                    f"embeddings incompletos: esperado {len(clean_batch)}, recebido {len(embeddings)}"
+                )
+            batch_rows = [
+                _build_chunk_row(
+                    doc_id=doc_id,
+                    chunk_index=chunk_index,
+                    clean_content=storage_content,
+                    filename=filename,
+                    doc_type=doc_type,
+                    source_type=source_type,
+                    module=module,
+                    title=title,
+                    doc_priority=doc_priority,
+                    embedding=embedding,
+                    section=section,
+                )
+                for chunk_index, storage_content, section, embedding in zip(
+                    indices,
+                    storage_contents,
+                    sections_for_batch,
+                    embeddings,
+                )
+            ]
+            rows.extend(batch_rows)
         except Exception as batch_error:
             logger.error(
-                "Erro ao inserir lote de chunks (%s registros): %s. Tentando chunk a chunk...",
-                len(batch_rows),
+                "Erro no lote de %s (chunk inicial %s): %s. Fallback chunk a chunk...",
+                filename,
+                batch_start,
                 batch_error,
             )
-            for row in batch_rows:
-                chunk_index = int(row.get("chunk_index", -1))
+            for chunk_index, storage_content, retrieval_content, section in clean_batch:
                 try:
-                    with db_transaction() as connection:
-                        supabase_insert("document_chunks", row, connection=connection)
-                    inserted_indices.add(chunk_index)
-                except Exception as row_error:
-                    logger.error(
-                        "Falha ao persistir chunk %s durante fallback de insert: %s",
+                    embedding = _embed_batch_with_retry(
+                        [retrieval_content],
+                        filename,
                         chunk_index,
-                        row_error,
+                    )[0]
+                    rows.append(
+                        _build_chunk_row(
+                            doc_id=doc_id,
+                            chunk_index=chunk_index,
+                            clean_content=storage_content,
+                            filename=filename,
+                            doc_type=doc_type,
+                            source_type=source_type,
+                            module=module,
+                            title=title,
+                            doc_priority=doc_priority,
+                            embedding=embedding,
+                            section=section,
+                        )
                     )
-    return inserted_indices
+                except Exception as chunk_error:
+                    failed_chunks.append(chunk_index)
+                    logger.error("Erro no chunk %s de %s: %s", chunk_index, filename, chunk_error)
+
+    return rows, sorted(set(failed_chunks))
 
 
 def _ingest_text_source(
@@ -1386,6 +1587,20 @@ def _ingest_text_source(
             "chunks_count": 0,
             "failed_chunks": 0,
             "error": "fonte vazia",
+        }
+
+    existing = supabase_select(
+        "documents",
+        select="id",
+        filters={"filename": f"eq.{filename}"},
+    )
+    if existing and not force:
+        logger.info("Pulando %s (ja indexado). Use --force para re-ingerir.", filename)
+        return {
+            "filename": filename,
+            "chunks_count": 0,
+            "failed_chunks": 0,
+            "skipped": True,
         }
 
     module = _infer_module(filename, title, source, doc_type)
@@ -1423,217 +1638,138 @@ def _ingest_text_source(
             model_cfg.get("llm_provider", "gemini"),
             model_cfg.get("contextual_model", config.CONTEXTUAL_RETRIEVAL_MODEL),
         )
-    # P1.3: Inferir prioridade do documento
+
+    if not chunk_items:
+        logger.error("Nenhum chunk valido gerado para %s.", filename)
+        return {
+            "filename": filename,
+            "chunks_count": 0,
+            "failed_chunks": 0,
+            "error": "nenhum chunk gerado",
+        }
+
     doc_priority = _infer_priority(filename, chunk_count=len(chunk_items))
-
-    total_inserted = 0
-    failed_chunks: list[int] = []
-    doc_id = None
-
+    doc_id = str(uuid4())
+    all_chunk_indices = [item[0] for item in chunk_items]
     try:
-        with db_transaction() as connection:
-            existing = supabase_select(
-                "documents",
-                select="id",
-                filters={"filename": f"eq.{filename}"},
-                connection=connection,
-            )
-
-            if existing and force:
-                old_doc_id = existing[0]["id"]
-                logger.info("Removendo documento anterior para re-ingestao: %s", filename)
-                supabase_delete("documents", "id", old_doc_id, connection=connection)
-            elif existing and not force:
-                logger.info("Pulando %s (ja indexado). Use --force para re-ingerir.", filename)
-                return {
-                    "filename": filename,
-                    "chunks_count": 0,
-                    "failed_chunks": 0,
-                    "skipped": True,
-                }
-
-            doc_result = supabase_insert(
-                "documents",
-                {
-                    "filename": filename,
-                    "title": title,
-                    "source": source,
-                    "doc_type": doc_type,
-                    "chunk_count": 0,
-                    "priority": doc_priority,
-                },
-                connection=connection,
-            )
-            doc_id = doc_result[0]["id"]
-            for section in sections:
-                section.section_id = _insert_document_section(doc_id, section, connection=connection)
-    except RuntimeError as exc:
-        if str(exc) != "nenhum chunk inserido":
-            raise
-        logger.error("Nenhum chunk inserido para %s. Transacao revertida.", filename)
-        return {
-            "filename": filename,
-            "chunks_count": 0,
-            "failed_chunks": len(failed_chunks),
-            "error": "nenhum chunk inserido",
-        }
-
-    try:
-        _persist_section_retrieval_data(
-            doc_id,
-            title,
-            sections,
+        section_rows = _prepare_document_section_rows(doc_id, title, sections)
+        chunk_rows, failed_chunks = _prepare_chunk_rows(
+            doc_id=doc_id,
+            filename=filename,
+            title=title,
+            text=text,
+            doc_type=doc_type,
+            source_type=source_type,
+            module=module,
+            doc_priority=doc_priority,
+            chunk_items=chunk_items,
         )
-    except Exception as section_error:
-        logger.warning(
-            "Nao foi possivel persistir retrieval por secao em %s: %s",
+    except Exception as preparation_error:
+        logger.error(
+            "Falha ao preparar reingestao de %s; versao anterior preservada: %s",
             filename,
-            section_error,
+            preparation_error,
         )
+        _save_failed_report_entry(
+            filename=filename,
+            source=source,
+            total_chunks=len(chunk_items),
+            failed_chunks=all_chunk_indices,
+            source_type=source_type,
+        )
+        return {
+            "filename": filename,
+            "chunks_count": 0,
+            "failed_chunks": len(all_chunk_indices),
+            "error": "falha ao preparar ingestao",
+        }
 
-    batch_size = max(1, config.EMBEDDING_BATCH_SIZE)
-    for batch_start in range(0, len(chunk_items), batch_size):
-        batch = chunk_items[batch_start : batch_start + batch_size]
-        clean_batch: list[tuple[int, str, str, AnalyticalSection]] = []
-
-        for chunk_index, storage_content, retrieval_content, section in batch:
-            clean_storage = storage_content.replace("\x00", "").strip()
-            clean_retrieval = retrieval_content.replace("\x00", "").strip()
-            if not clean_storage or not clean_retrieval:
-                failed_chunks.append(chunk_index)
-                continue
-            clean_batch.append((chunk_index, clean_storage, clean_retrieval, section))
-
-        if clean_batch:
-            for ctx_start in range(0, len(clean_batch), _CONTEXTUAL_BATCH_SIZE):
-                ctx_sub = clean_batch[ctx_start : ctx_start + _CONTEXTUAL_BATCH_SIZE]
-                ctx_pairs = [
-                    (chunk_index, retrieval_content)
-                    for chunk_index, _clean_storage, retrieval_content, _section in ctx_sub
-                ]
-                ctx_result = _contextualize_chunks_batch(
-                    chunks_with_indices=ctx_pairs,
-                    full_document=text,
-                    filename=filename,
-                )
-                by_index = {
-                    chunk_index: (clean_storage, section)
-                    for chunk_index, clean_storage, _retrieval_content, section in ctx_sub
-                }
-                clean_batch[ctx_start : ctx_start + _CONTEXTUAL_BATCH_SIZE] = [
-                    (chunk_index, by_index[chunk_index][0], contextualized_content, by_index[chunk_index][1])
-                    for chunk_index, contextualized_content in ctx_result
-                ]
-
-        if not clean_batch:
-            continue
-
-        rows = []
-        indices = [item[0] for item in clean_batch]
-        storage_contents = [item[1] for item in clean_batch]
-        retrieval_contents = [item[2] for item in clean_batch]
-        sections_for_batch = [item[3] for item in clean_batch]
-
-        try:
-            embeddings = _embed_batch_with_retry(retrieval_contents, filename, indices[0])
-            for chunk_index, storage_content, section, embedding in zip(
-                indices,
-                storage_contents,
-                sections_for_batch,
-                embeddings,
-            ):
-                rows.append(_build_chunk_row(
-                    doc_id=doc_id,
-                    chunk_index=chunk_index,
-                    clean_content=storage_content,
-                    filename=filename,
-                    doc_type=doc_type,
-                    source_type=source_type,
-                    module=module,
-                    title=title,
-                    doc_priority=doc_priority,
-                    embedding=embedding,
-                    section=section,
-                ))
-        except Exception as batch_error:
-            logger.error(
-                "Erro no lote de %s (chunk inicial %s): %s. Fallback chunk a chunk...",
-                filename,
-                batch_start,
-                batch_error,
-            )
-            for chunk_index, storage_content, retrieval_content, section in clean_batch:
-                try:
-                    embedding = _embed_batch_with_retry([retrieval_content], filename, chunk_index)[0]
-                    rows.append(_build_chunk_row(
-                        doc_id=doc_id,
-                        chunk_index=chunk_index,
-                        clean_content=storage_content,
-                        filename=filename,
-                        doc_type=doc_type,
-                        source_type=source_type,
-                        module=module,
-                        title=title,
-                        doc_priority=doc_priority,
-                        embedding=embedding,
-                        section=section,
-                    ))
-                except Exception as chunk_error:
-                    failed_chunks.append(chunk_index)
-                    logger.error("Erro no chunk %s de %s: %s", chunk_index, filename, chunk_error)
-
-        if rows:
-            inserted_indices = _insert_chunk_rows(rows)
-            total_inserted += len(inserted_indices)
-            for row in rows:
-                chunk_idx = int(row["chunk_index"])
-                if chunk_idx not in inserted_indices and chunk_idx not in failed_chunks:
-                    failed_chunks.append(chunk_idx)
-
-        logger.info("%s/%s chunks inseridos (%s)", total_inserted, len(chunk_items), filename)
-
-    if total_inserted == 0:
-        if doc_id is not None:
-            with db_transaction() as connection:
-                supabase_delete("documents", "id", doc_id, connection=connection)
-        logger.error("Nenhum chunk inserido para %s. Documento removido.", filename)
+    prepared_indices = {int(row["chunk_index"]) for row in chunk_rows}
+    missing_indices = sorted(set(all_chunk_indices) - prepared_indices)
+    failed_chunks = sorted(set(failed_chunks) | set(missing_indices))
+    if failed_chunks or len(chunk_rows) != len(chunk_items):
+        logger.error(
+            "Preparacao incompleta de %s (%s/%s chunks); versao anterior preservada.",
+            filename,
+            len(chunk_rows),
+            len(chunk_items),
+        )
+        _save_failed_report_entry(
+            filename=filename,
+            source=source,
+            total_chunks=len(chunk_items),
+            failed_chunks=failed_chunks,
+            source_type=source_type,
+        )
         return {
             "filename": filename,
             "chunks_count": 0,
             "failed_chunks": len(failed_chunks),
-            "error": "nenhum chunk inserido",
+            "error": "preparacao incompleta",
         }
 
-    with db_transaction() as connection:
-        supabase_update(
-            "documents",
-            {"chunk_count": total_inserted, "priority": doc_priority},
-            {"id": f"eq.{doc_id}"},
-            connection=connection,
+    document_row = {
+        "id": doc_id,
+        "filename": filename,
+        "title": title,
+        "source": source,
+        "doc_type": doc_type,
+        "chunk_count": len(chunk_rows),
+        "priority": doc_priority,
+    }
+    try:
+        replaced = _replace_document_atomically(
+            filename=filename,
+            document_row=document_row,
+            section_rows=section_rows,
+            chunk_rows=chunk_rows,
+            force=force,
         )
+    except Exception as persistence_error:
+        logger.error(
+            "Falha ao trocar %s; transacao revertida e versao anterior preservada: %s",
+            filename,
+            persistence_error,
+        )
+        _save_failed_report_entry(
+            filename=filename,
+            source=source,
+            total_chunks=len(chunk_items),
+            failed_chunks=all_chunk_indices,
+            source_type=source_type,
+        )
+        return {
+            "filename": filename,
+            "chunks_count": 0,
+            "failed_chunks": len(all_chunk_indices),
+            "error": "falha ao substituir documento",
+        }
+
+    if not replaced:
+        logger.info(
+            "Pulando %s: outro processo concluiu a ingestao enquanto esta fonte era preparada.",
+            filename,
+        )
+        return {
+            "filename": filename,
+            "chunks_count": 0,
+            "failed_chunks": 0,
+            "skipped": True,
+        }
 
     _save_failed_report_entry(
         filename=filename,
         source=source,
         total_chunks=len(chunk_items),
-        failed_chunks=failed_chunks,
+        failed_chunks=[],
         source_type=source_type,
     )
-
-    if failed_chunks:
-        logger.warning(
-            "%s chunk(s) pendentes em %s. Relatorio: %s",
-            len(failed_chunks),
-            filename,
-            config.FAILED_INGEST_REPORT,
-        )
-    else:
-        logger.info("%s indexado sem pendencias", filename)
+    logger.info("%s indexado sem pendencias", filename)
 
     return {
         "filename": filename,
-        "chunks_count": total_inserted,
-        "failed_chunks": len(failed_chunks),
+        "chunks_count": len(chunk_rows),
+        "failed_chunks": 0,
         "module": module,
     }
 
