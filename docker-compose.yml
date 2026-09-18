@@ -40,34 +40,6 @@ services:
       - ./documentos:/app/documentos:ro
       - ./runtime:/app/runtime
 
-  teams_bot:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: bot-maxima:latest
-    container_name: bot-maxima-teams
-    command: ["python", "bot_teams.py"]
-    env_file:
-      - .env
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      FAILED_INGEST_REPORT: /app/runtime/ingest_failures.json
-    ports:
-      - "3978:3978"
-    volumes:
-      - ./.env:/app/.env:ro
-      - ./documentos:/app/documentos:ro
-      - ./runtime:/app/runtime
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3978/api/health', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-
   ingest:
     build:
       context: .
@@ -88,21 +60,6 @@ services:
       - ./.env:/app/.env:ro
       - ./documentos:/app/documentos:ro
       - ./runtime:/app/runtime
-
-  teams_package:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: bot-maxima:latest
-    container_name: bot-maxima-teams-package
-    command: ["python", "scripts/build_teams_package.py"]
-    env_file:
-      - .env
-    profiles:
-      - tools
-    volumes:
-      - ./.env:/app/.env:ro
-      - ./teams_manifest/build:/app/teams_manifest/build
 
 volumes:
   postgres_data:

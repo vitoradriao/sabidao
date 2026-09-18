@@ -2,7 +2,7 @@
 
 [Documentação](docs/README.md) / Docker
 
-O Compose fornece PostgreSQL com pgvector, serviços separados para Discord e Teams e ferramentas de ingestão e geração do pacote Teams. Use Docker Engine ou Docker Desktop com Compose.
+O Compose fornece PostgreSQL com pgvector, o bot Discord e uma ferramenta de ingestão. Use Docker Engine ou Docker Desktop com Compose.
 
 ## 1. Preparar configuração e documentos
 
@@ -14,7 +14,7 @@ test -f .env || cp .env.example .env
 
 No Windows, `setup_maquina.bat` também cria esse arquivo sem substituir uma configuração existente.
 
-Preencha as credenciais de IA e dos canais utilizados. Dentro do Compose, `DATABASE_URL` deve apontar para `postgres`. Se alterar `POSTGRES_DB`, `POSTGRES_USER` ou `POSTGRES_PASSWORD`, ajuste a conexão do bot para os mesmos valores.
+Preencha `DISCORD_TOKEN`, as credenciais do provedor de IA e a conexão do banco. Dentro do Compose, `DATABASE_URL` deve apontar para `postgres`. Se alterar `POSTGRES_DB`, `POSTGRES_USER` ou `POSTGRES_PASSWORD`, ajuste a conexão do bot para os mesmos valores.
 
 Os serviços de IA não são iniciados pelo Compose. Se utilizar um provedor local, configure um endereço acessível pelos contêineres: `127.0.0.1` dentro de um contêiner aponta para ele próprio.
 
@@ -47,48 +47,15 @@ docker compose --profile tools run --rm ingest python ingest.py ./documentos --n
 
 A ingestão precisa de acesso ao banco e aos serviços de IA. Para atualização de fontes e recuperação de falhas, consulte o [guia de operação](docs/operacao.md).
 
-## 4. Iniciar os canais
-
-Inicie os canais para os quais você configurou credenciais.
-
-Discord:
+## 4. Iniciar o Discord
 
 ```sh
 docker compose up -d discord_bot
-```
-
-Teams, com geração do pacote:
-
-```sh
-docker compose --profile tools run --rm teams_package
-docker compose up -d teams_bot
-```
-
-Ambos:
-
-```sh
-docker compose up -d discord_bot teams_bot
-```
-
-O pacote é gravado em `teams_manifest/build/bot-azure.zip`. Consulte o [guia do Teams](GUIA_TEAMS.md) para instalar o aplicativo.
-
-## 5. Conferir o funcionamento
-
-```sh
 docker compose ps
-docker compose logs --tail=100 discord_bot teams_bot
-curl http://localhost:3978/api/health
+docker compose logs --tail=100 discord_bot
 ```
 
-O endpoint do Teams retorna:
-
-```json
-{"status":"ok","platform":"teams"}
-```
-
-Essa resposta confirma o serviço HTTP. Envie também uma pergunta sobre um documento conhecido para verificar o acesso ao banco e a geração da resposta.
-
-O endereço de mensagens no Azure Bot deve usar HTTPS público e terminar em `/api/messages`. Encaminhe as requisições ao serviço Teams, por padrão na porta `3978`. O mapeamento de portas e a verificação de saúde do Compose usam esse valor; ajuste ambos se mudar `TEAMS_PORT`.
+No Discord, use `!ping` e `!status` para conferir a disponibilidade. Envie também uma pergunta sobre um documento conhecido para verificar o acesso ao banco e a geração da resposta.
 
 ## Atualizar ou parar
 
@@ -97,7 +64,7 @@ No servidor de implantação:
 ```sh
 git pull
 docker compose build
-docker compose up -d discord_bot teams_bot
+docker compose up -d discord_bot
 ```
 
 Aplique as migrações necessárias conforme as instruções da versão.
@@ -115,6 +82,5 @@ docker compose down
 | `postgres_data` | Banco PostgreSQL em volume nomeado. |
 | `documentos/` | Fontes de conhecimento montadas como somente leitura. |
 | `runtime/` | Relatórios de execução e falhas da ingestão. |
-| `teams_manifest/build/` | Manifesto e pacote gerado para o Teams. |
 
 Credenciais locais, cópias de segurança, logs e arquivos temporários são excluídos do contexto de construção da imagem.

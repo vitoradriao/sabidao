@@ -2,14 +2,13 @@
 
 [Documentação](README.md) / Arquitetura
 
-O Sabidão é um assistente Python com dois canais de atendimento e uma lógica compartilhada de geração aumentada por recuperação (RAG). O repositório não contém uma interface web independente.
+O Sabidão é um assistente Python para atendimento no Discord, com uma lógica de geração aumentada por recuperação (RAG). O repositório não contém uma interface web independente.
 
 ```mermaid
 flowchart LR
     Documentos[Documentos revisados] --> Ingestao[Ingestão]
     Ingestao --> Banco[(PostgreSQL + pgvector)]
     Discord[Discord] --> RAG[Consulta e geração]
-    Teams[Microsoft Teams] --> RAG
     Banco --> RAG
     RAG <--> Modelos[Serviços de IA]
     RAG --> Resposta[Resposta com fontes ou indicação de falta de evidência]
@@ -20,7 +19,6 @@ flowchart LR
 | Arquivo | Responsabilidade |
 | --- | --- |
 | `bot.py` | Comandos, mensagens e feedback no Discord. |
-| `bot_teams.py` | Mensagens e comandos no Teams, além de `/api/messages` e `/api/health`. |
 | `bot_common.py` | Histórico das conversas, intervalos de uso e divisão das respostas. |
 | `rag.py` | Identificação da intenção, recuperação, reordenação opcional, geração e verificação das respostas. |
 | `db.py` | Conexões, consultas e chamadas às funções do banco. |
@@ -40,8 +38,8 @@ Os guias em `docs/` orientam quem mantém o projeto. As fontes em `documentos/` 
 
 ## Serviços e persistência
 
-O Compose define PostgreSQL, serviços separados para Discord e Teams e ferramentas de ingestão e geração do pacote Teams. Os serviços de IA são dependências externas dessa composição.
+O Compose define PostgreSQL, o bot Discord e a ferramenta de ingestão. Os serviços de IA são dependências externas dessa composição.
 
-O banco persiste no volume `postgres_data`. Os relatórios de execução ficam em `runtime/`, e os pacotes gerados do Teams ficam em `teams_manifest/build/`.
+O banco persiste no volume `postgres_data`. Os relatórios de execução ficam em `runtime/`.
 
 O perfil publicado usa 1536 dimensões por padrão. Alterações de modelo ou dimensão devem acompanhar o [esquema SQL](../sql/README.md).

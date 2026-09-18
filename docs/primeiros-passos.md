@@ -6,7 +6,7 @@
 
 - Python 3.11, utilizado pelo instalador Windows e pela imagem Docker.
 - PostgreSQL com pgvector, já preparado ou iniciado pelo Docker Compose.
-- Credenciais do provedor de IA e do canal que será utilizado.
+- Credenciais do provedor de IA e do bot Discord.
 - Documentos revisados para formar a base de conhecimento.
 
 Execute os comandos na raiz do repositório. Este guia usa o bot como processo Python local. Para executar tudo em contêineres, consulte o [guia Docker](../GUIA_DOCKER.md).
@@ -46,7 +46,6 @@ Edite `.env` com base no [arquivo de exemplo](../.env.example).
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL` | Credenciais e endereço quando usar o provedor compatível com OpenAI. |
 | `OPENAI_MODEL`, `OPENAI_EMBEDDING_MODEL` | Modelos disponíveis no serviço escolhido. |
 | `DISCORD_TOKEN` | Token necessário para executar o Discord. |
-| `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID` | Identificação e credenciais do aplicativo Teams. |
 
 A configuração de exemplo usa Gemini para respostas e embeddings. Se trocar o provedor, revise também os modelos de reformulação e enriquecimento de contexto em `.env.example`.
 
@@ -80,7 +79,7 @@ python ingest.py ./documentos --no-recursive
 
 O comando indexa os arquivos da pasta indicada sem percorrer suas subpastas. A ingestão consulta os serviços de IA e grava no banco. Para atualizar documentos existentes ou recuperar falhas, siga o [guia de operação](operacao.md).
 
-## 4. Iniciar um canal
+## 4. Iniciar o Discord
 
 Discord no Windows:
 
@@ -96,8 +95,6 @@ python bot.py
 
 Use `!ping`, `!status` e `!ajuda` para conferir a disponibilidade. Depois envie uma pergunta sobre um documento conhecido.
 
-A operação de produção do Teams fica no servidor Linux. Consulte o [guia do Teams](../GUIA_TEAMS.md) para gerar o pacote e configurar o endereço público.
-
 ## Problemas frequentes
 
 | Sintoma | O que conferir |
@@ -106,4 +103,3 @@ A operação de produção do Teams fica no servidor Linux. Consulte o [guia do 
 | Contêiner não alcança um provedor local de IA | `127.0.0.1` aponta para o próprio contêiner; use um endereço acessível pela rede do serviço. |
 | Erro de dimensão dos vetores | Confira o modelo, `EMBEDDING_DIMENSIONS` e o esquema SQL. |
 | Documento não aparece nas respostas | Confira o diretório usado, o resultado da ingestão e os relatórios de falha. |
-| Teams acusa dependência ausente | Instale `requirements.txt` no ambiente que executa o bot. |

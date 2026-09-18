@@ -19,7 +19,6 @@ htmlcov/
 # Dados locais e arquivos gerados
 documentos/
 ingest_failures.json
-teams_manifest/build/
 runtime/
 backups/
 logs/

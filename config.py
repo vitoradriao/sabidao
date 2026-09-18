@@ -3,7 +3,6 @@ config.py - Configuracoes centralizadas carregadas do .env
 """
 
 import os
-import re
 from pathlib import Path
 from dotenv import dotenv_values, load_dotenv
 
@@ -229,49 +228,6 @@ _RESPONSE_FORMAT_OVERRIDE = (
 if "Nao transforme toda a resposta em lista numerada" not in SYSTEM_PROMPT:
     SYSTEM_PROMPT = f"{SYSTEM_PROMPT}\n\n{_RESPONSE_FORMAT_OVERRIDE}"
 
-# System prompt variante para Teams (renderiza tabelas Markdown, ao contrario do Discord)
-SYSTEM_PROMPT_TEAMS = SYSTEM_PROMPT.replace(
-    (
-        "- NUNCA use tabelas Markdown (com | e -). O Discord NAO renderiza tabelas.\n"
-        "- Para dados tabulares, use bullets compactos agrupados por categoria. Exemplo:\n"
-        "  **Campo X**: valor - descricao\n"
-        "  **Campo Y**: valor - descricao\n"
-        "- Para mapas de status ou codigos, apresente primeiro uma frase de contexto, depois os codigos em bullets e finalize com a interpretacao pratica.\n"
-        "- Se houver muitos campos, agrupe por categoria usando subtitulos em negrito.\n"
-    ),
-    (
-        "- Use tabelas Markdown quando apropriado para apresentar dados tabelares. "
-        "O Teams renderiza tabelas corretamente.\n"
-        "- Para mapas de status ou codigos, use tabela Markdown apenas se ela melhorar a leitura; caso contrario, use bullets compactos com contexto antes e interpretacao depois.\n"
-        "- Se houver muitos campos, agrupe por categoria usando subtitulos em negrito.\n"
-    ),
-)
-
-# Microsoft Teams (sem defaults — credenciais devem estar no .env)
-_TEAMS_FORMAT_OVERRIDE = (
-    "## FORMATO TEAMS\n"
-    "- Use tabelas Markdown quando apropriado para dados realmente tabulares.\n"
-    "- Para mapas de status ou codigos, use tabela Markdown apenas se melhorar a leitura; caso contrario, use bullets compactos com contexto antes e interpretacao depois.\n"
-)
-
-if "Use tabelas Markdown quando apropriado" not in SYSTEM_PROMPT_TEAMS:
-    SYSTEM_PROMPT_TEAMS = f"{SYSTEM_PROMPT_TEAMS}\n\n{_TEAMS_FORMAT_OVERRIDE}"
-
-TEAMS_APP_ID = os.getenv("TEAMS_APP_ID")
-TEAMS_APP_PASSWORD = os.getenv("TEAMS_APP_PASSWORD")
-TEAMS_TENANT_ID = os.getenv("TEAMS_TENANT_ID")
-TEAMS_PORT = _env_int("TEAMS_PORT", 3978)
-TEAMS_ADMIN_IDS = [value.strip() for value in os.getenv("TEAMS_ADMIN_IDS", "").split(",") if value.strip()]
-TEAMS_MANIFEST_SHORT_NAME = os.getenv("TEAMS_MANIFEST_SHORT_NAME")
-TEAMS_MANIFEST_FULL_NAME = os.getenv("TEAMS_MANIFEST_FULL_NAME")
-TEAMS_MANIFEST_SHORT_DESCRIPTION = os.getenv("TEAMS_MANIFEST_SHORT_DESCRIPTION")
-TEAMS_MANIFEST_FULL_DESCRIPTION = os.getenv("TEAMS_MANIFEST_FULL_DESCRIPTION")
-TEAMS_MANIFEST_DEVELOPER_NAME = os.getenv("TEAMS_MANIFEST_DEVELOPER_NAME")
-TEAMS_MANIFEST_DEVELOPER_WEBSITE_URL = os.getenv("TEAMS_MANIFEST_DEVELOPER_WEBSITE_URL")
-TEAMS_MANIFEST_DEVELOPER_PRIVACY_URL = os.getenv("TEAMS_MANIFEST_DEVELOPER_PRIVACY_URL")
-TEAMS_MANIFEST_DEVELOPER_TERMS_URL = os.getenv("TEAMS_MANIFEST_DEVELOPER_TERMS_URL")
-TEAMS_MANIFEST_ACCENT_COLOR = os.getenv("TEAMS_MANIFEST_ACCENT_COLOR")
-
 # Bot - limites
 COOLDOWN_SECONDS = _env_float("COOLDOWN_SECONDS", 10.0)
 ASK_TIMEOUT_SECONDS = _env_float("ASK_TIMEOUT_SECONDS", 120.0)
@@ -284,7 +240,6 @@ ASK_MAX_TOKENS = _env_int("ASK_MAX_TOKENS", 8192)
 OPENAI_MAX_OUTPUT_TOKENS = _env_int("OPENAI_MAX_OUTPUT_TOKENS", ASK_MAX_TOKENS)
 CONFIDENCE_THRESHOLD = _env_float("CONFIDENCE_THRESHOLD", 0.65)
 DISCORD_MSG_LIMIT = _env_int("DISCORD_MSG_LIMIT", 1990)
-TEAMS_MSG_LIMIT = _env_int("TEAMS_MSG_LIMIT", 25000)
 
 # Derivados
 MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
@@ -292,17 +247,6 @@ MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 # Diretorio de documentos
 DOCS_DIR = os.getenv("DOCS_DIR", "./documentos")
 FAILED_INGEST_REPORT = os.getenv("FAILED_INGEST_REPORT", "./ingest_failures.json")
-
-# Jira - extracao Gatekeeper
-JIRA_URL = os.getenv("JIRA_URL", "")
-JIRA_BASE_URL = os.getenv("JIRA_BASE_URL", JIRA_URL)
-JIRA_USERNAME = os.getenv("JIRA_USERNAME", os.getenv("USERNAME", ""))
-JIRA_PASSWORD = os.getenv("JIRA_PASSWORD", os.getenv("PASSWORD", ""))
-JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN", "")
-JIRA_SESSION_COOKIE = os.getenv("JIRA_SESSION_COOKIE", "")
-JIRA_ASSIGNEE_ALIASES = os.getenv("JIRA_ASSIGNEE_ALIASES", "")
-JIRA_USER_SEARCH_PATH = os.getenv("JIRA_USER_SEARCH_PATH", "/rest/api/2/user/search")
-JIRA_REQUEST_TIMEOUT_SECONDS = _env_float("JIRA_REQUEST_TIMEOUT_SECONDS", 60.0)
 
 _ALLOWED_EMBEDDING_DIMENSIONS = {1536, 3072}
 if EMBEDDING_DIMENSIONS not in _ALLOWED_EMBEDDING_DIMENSIONS:
@@ -313,39 +257,6 @@ if EMBEDDING_DIMENSIONS not in _ALLOWED_EMBEDDING_DIMENSIONS:
 
 
 # Validacao
-def _required_shared_base():
-    return {}
-
-
-def _required_discord():
-    return {
-        "DISCORD_TOKEN": DISCORD_TOKEN,
-    }
-
-
-def _required_teams_runtime():
-    return {
-        "TEAMS_APP_ID": TEAMS_APP_ID,
-        "TEAMS_APP_PASSWORD": TEAMS_APP_PASSWORD,
-        "TEAMS_TENANT_ID": TEAMS_TENANT_ID,
-    }
-
-
-def _required_teams_manifest():
-    return {
-        "TEAMS_APP_ID": TEAMS_APP_ID,
-        "TEAMS_MANIFEST_SHORT_NAME": TEAMS_MANIFEST_SHORT_NAME,
-        "TEAMS_MANIFEST_FULL_NAME": TEAMS_MANIFEST_FULL_NAME,
-        "TEAMS_MANIFEST_SHORT_DESCRIPTION": TEAMS_MANIFEST_SHORT_DESCRIPTION,
-        "TEAMS_MANIFEST_FULL_DESCRIPTION": TEAMS_MANIFEST_FULL_DESCRIPTION,
-        "TEAMS_MANIFEST_DEVELOPER_NAME": TEAMS_MANIFEST_DEVELOPER_NAME,
-        "TEAMS_MANIFEST_DEVELOPER_WEBSITE_URL": TEAMS_MANIFEST_DEVELOPER_WEBSITE_URL,
-        "TEAMS_MANIFEST_DEVELOPER_PRIVACY_URL": TEAMS_MANIFEST_DEVELOPER_PRIVACY_URL,
-        "TEAMS_MANIFEST_DEVELOPER_TERMS_URL": TEAMS_MANIFEST_DEVELOPER_TERMS_URL,
-        "TEAMS_MANIFEST_ACCENT_COLOR": TEAMS_MANIFEST_ACCENT_COLOR,
-    }
-
-
 def _check_range(name: str, value, min_val=None, max_val=None):
     """Valida se valor numerico esta dentro do range esperado."""
     if min_val is not None and value < min_val:
@@ -354,10 +265,9 @@ def _check_range(name: str, value, min_val=None, max_val=None):
         raise EnvironmentError(f"{name} deve ser <= {max_val}, obtido: {value}")
 
 
-def validate(platform: str = "discord"):
+def validate():
     """
     Verifica se todas as variaveis obrigatorias estao definidas.
-    platform: 'discord' ou 'teams'
     """
     allowed_providers = {"gemini", "openai"}
     if LLM_PROVIDER not in allowed_providers:
@@ -371,7 +281,7 @@ def validate(platform: str = "discord"):
             f"Use um de: {', '.join(sorted(allowed_providers))}."
         )
 
-    required = dict(_required_shared_base())
+    required = {"DISCORD_TOKEN": DISCORD_TOKEN}
     if LLM_PROVIDER == "gemini":
         required["GEMINI_API_KEY"] = GEMINI_API_KEY
     else:
@@ -381,11 +291,6 @@ def validate(platform: str = "discord"):
         required.setdefault("GEMINI_API_KEY", GEMINI_API_KEY)
     else:
         required.setdefault("OPENAI_API_KEY", OPENAI_API_KEY)
-
-    if platform == "discord":
-        required.update(_required_discord())
-    elif platform == "teams":
-        required.update(_required_teams_runtime())
 
     missing = [name for name, val in required.items() if not val]
     if missing:
@@ -444,37 +349,3 @@ def validate(platform: str = "discord"):
                 "RAG_ENABLE_BUSINESS_RULES=true, mas BUSINESS_RULES_FILE nao existe "
                 f"ou nao e arquivo: {BUSINESS_RULES_FILE}"
             )
-
-
-def validate_teams_manifest():
-    """Valida as variaveis necessarias para gerar o pacote do Microsoft Teams."""
-    required = _required_teams_manifest()
-    missing = [name for name, val in required.items() if not val]
-    if missing:
-        raise EnvironmentError(
-            "Variaveis de ambiente obrigatorias para gerar o pacote do Teams nao definidas: "
-            f"{', '.join(missing)}. Verifique seu arquivo .env"
-        )
-
-    if not re.fullmatch(r"#[0-9A-Fa-f]{6}", TEAMS_MANIFEST_ACCENT_COLOR or ""):
-        raise EnvironmentError(
-            "TEAMS_MANIFEST_ACCENT_COLOR deve estar no formato #RRGGBB. "
-            f"Valor recebido: {TEAMS_MANIFEST_ACCENT_COLOR!r}"
-        )
-
-
-def get_teams_manifest_context() -> dict[str, str]:
-    """Retorna os valores usados para preencher o template do manifest do Teams."""
-    validate_teams_manifest()
-    return {
-        "TEAMS_APP_ID": TEAMS_APP_ID,
-        "TEAMS_MANIFEST_SHORT_NAME": TEAMS_MANIFEST_SHORT_NAME,
-        "TEAMS_MANIFEST_FULL_NAME": TEAMS_MANIFEST_FULL_NAME,
-        "TEAMS_MANIFEST_SHORT_DESCRIPTION": TEAMS_MANIFEST_SHORT_DESCRIPTION,
-        "TEAMS_MANIFEST_FULL_DESCRIPTION": TEAMS_MANIFEST_FULL_DESCRIPTION,
-        "TEAMS_MANIFEST_DEVELOPER_NAME": TEAMS_MANIFEST_DEVELOPER_NAME,
-        "TEAMS_MANIFEST_DEVELOPER_WEBSITE_URL": TEAMS_MANIFEST_DEVELOPER_WEBSITE_URL,
-        "TEAMS_MANIFEST_DEVELOPER_PRIVACY_URL": TEAMS_MANIFEST_DEVELOPER_PRIVACY_URL,
-        "TEAMS_MANIFEST_DEVELOPER_TERMS_URL": TEAMS_MANIFEST_DEVELOPER_TERMS_URL,
-        "TEAMS_MANIFEST_ACCENT_COLOR": TEAMS_MANIFEST_ACCENT_COLOR,
-    }

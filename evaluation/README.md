@@ -22,13 +22,7 @@ python evaluation/build_dataset.py --knowledge-gap-limit 20
 
 Para montar a base sem acrescentar essas lacunas, use `--knowledge-gap-limit 0`.
 
-Um arquivo de casos extraídos de tickets pode ser informado explicitamente:
-
-```sh
-python evaluation/build_dataset.py --tickets-file evaluation/datasets/tickets_cases.json
-```
-
-Esse arquivo é opcional e precisa ser preparado antes do comando. A saída padrão é `evaluation/datasets/maxpedido_eval_dataset.json`.
+A saída padrão é `evaluation/datasets/maxpedido_eval_dataset.json`.
 
 ## 2. Executar a avaliação
 

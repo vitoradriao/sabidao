@@ -1,9 +1,8 @@
-﻿"""
+"""
 Builds an offline evaluation dataset for maxPedido quality checks.
 
 Sources:
 - Seed cases (required)
-- Optional ticket cases file
 - Optional top knowledge gaps from Supabase
 """
 
@@ -119,16 +118,12 @@ def build_dataset(
     *,
     seed_file: Path,
     output_file: Path,
-    tickets_file: Path | None = None,
     gap_limit: int = 0,
 ) -> list[dict[str, Any]]:
     merged: list[dict[str, Any]] = []
 
     seed_cases = _load_cases(seed_file)
     merged.extend(seed_cases)
-
-    if tickets_file:
-        merged.extend(_load_cases(tickets_file))
 
     merged.extend(_build_gap_cases(gap_limit))
 
@@ -146,11 +141,6 @@ def main() -> int:
         help="Path to seed cases JSON file",
     )
     parser.add_argument(
-        "--tickets-file",
-        default="",
-        help="Optional path to ticket-derived cases JSON file",
-    )
-    parser.add_argument(
         "--output",
         default="evaluation/datasets/maxpedido_eval_dataset.json",
         help="Output dataset JSON file",
@@ -163,10 +153,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    tickets_file = Path(args.tickets_file) if args.tickets_file else None
     dataset = build_dataset(
         seed_file=Path(args.seed_file),
-        tickets_file=tickets_file,
         output_file=Path(args.output),
         gap_limit=max(0, args.knowledge_gap_limit),
     )

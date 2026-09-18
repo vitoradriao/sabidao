@@ -2,7 +2,7 @@
 
 ## Contexto e idioma
 
-Este repositório contém um assistente de suporte em Python para Discord e Microsoft Teams, com PostgreSQL e pgvector.
+Este repositório contém um assistente de suporte em Python para Discord, com PostgreSQL e pgvector.
 
 - Consulte este arquivo antes de tomar decisões sobre o código.
 - Use português na documentação, nas respostas ao usuário e nas descrições de alterações.

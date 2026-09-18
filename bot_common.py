@@ -1,5 +1,5 @@
 """
-bot_common.py — Logica compartilhada entre bot Discord e bot Teams.
+bot_common.py — Utilitarios de conversa e formatacao do bot Discord.
 Evita duplicacao de codigo de historico, cooldown, split e formatacao.
 """
 

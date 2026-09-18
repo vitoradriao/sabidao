@@ -1,2 +1,0 @@
-issue_key,summary,status,updated,confidence,needs_review,requires_attachment_review,primary_comment_ids,missing_context_sections,review_reason
-GATE-33,Mix do cliente,RESOLVIDO,2024-09-06T14:55:39.703-0300,0.6,sim,nao,393247,"Resultado apresentado, Resultado esperado","faltam campos de contexto: Resultado apresentado, Resultado esperado; sem comentario substantivo do assignee"

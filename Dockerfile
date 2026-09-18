@@ -13,6 +13,6 @@ RUN pip install --upgrade pip && \
 
 COPY . /app
 
-RUN mkdir -p /app/documentos /app/runtime /app/teams_manifest/build
+RUN mkdir -p /app/documentos /app/runtime
 
 CMD ["python", "bot.py"]

@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -29,8 +29,6 @@ class TestPromptFormatting(unittest.TestCase):
     def test_runtime_prompt_discourages_over_numbered_answers(self):
         self.assertIn("Nao transforme toda a resposta em lista numerada", config.SYSTEM_PROMPT)
 
-    def test_teams_prompt_keeps_table_guidance_even_with_env_prompt(self):
-        self.assertIn("Use tabelas Markdown quando apropriado", config.SYSTEM_PROMPT_TEAMS)
 
     def test_troubleshooting_instruction_limits_checklist_to_verifications(self):
         instruction = rag._intent_response_instruction({"intent": "troubleshooting"})
@@ -165,22 +163,20 @@ class TestCitationFormatting(unittest.TestCase):
             "O pedido precisa ser validado na integracao.\n\n"
             "**Fontes:**\n"
             "- `01-LAYOUT-INTEGRACAO.md`\n"
-            "- `03-GATEKEEPER-CASOS_RESOLVIDOS.md`"
+            "- `05-PEDIDOS-E-VENDAS.md`"
         )
-
         formatted, cited = rag._enforce_sources_section_only(
             answer,
-            allowed_sources={"01-layout-integracao.md", "03-gatekeeper-casos_resolvidos.md"},
+            allowed_sources={"01-layout-integracao.md", "05-pedidos-e-vendas.md"},
             source_display_map={
                 "01-layout-integracao.md": "01-LAYOUT-INTEGRACAO.md",
-                "03-gatekeeper-casos_resolvidos.md": "03-GATEKEEPER-CASOS_RESOLVIDOS.md",
+                "05-pedidos-e-vendas.md": "05-PEDIDOS-E-VENDAS.md",
             },
         )
-
         self.assertEqual(formatted.count("Fontes:"), 1)
         self.assertNotIn("**Fontes:**", formatted)
         self.assertIn("- 01-LAYOUT-INTEGRACAO.md", formatted)
-        self.assertEqual(cited, {"01-layout-integracao.md", "03-gatekeeper-casos_resolvidos.md"})
+        self.assertEqual(cited, {"01-layout-integracao.md", "05-pedidos-e-vendas.md"})
 
 
 class TestAnalyticalContextFormatting(unittest.TestCase):

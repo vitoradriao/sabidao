@@ -16,8 +16,8 @@ class TestAnalyticalIngest(unittest.TestCase):
             (root / "base.md").write_text("# Base\n\nConteudo", encoding="utf-8")
             (root / "docbkp").mkdir()
             (root / "docbkp" / "backup.md").write_text("# Backup\n\nConteudo", encoding="utf-8")
-            (root / "gatekeeper_markdowns").mkdir()
-            (root / "gatekeeper_markdowns" / "GATE-1.md").write_text("# Ticket\n\nConteudo", encoding="utf-8")
+            (root / "rascunhos").mkdir()
+            (root / "rascunhos" / "rascunho.md").write_text("# Rascunho\n\nConteudo", encoding="utf-8")
 
             _docs_path, files = ingest._collect_local_files(directory=str(root), recursive=True)
 

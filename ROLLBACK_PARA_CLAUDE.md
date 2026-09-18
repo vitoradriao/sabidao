@@ -16,7 +16,6 @@
 | `.env.example` | Mesmo que `.env` (template). |
 | `ingest.py` | Contextual Retrieval usa `_gemini_generate` em vez de `get_anthropic`. |
 | `bot.py` | `config.CLAUDE_MODEL` → `config.GEMINI_MODEL` (linha 294). |
-| `bot_teams.py` | `config.CLAUDE_MODEL` → `config.GEMINI_MODEL` (linha 160). |
 | `requirements.txt` | Removido `anthropic>=0.42.0`. |
 
 ---
@@ -365,20 +364,6 @@ embed.add_field(name="Modelo", value=config.CLAUDE_MODEL, inline=False)
 
 ---
 
-## 8. `bot_teams.py` — Linha 160
-
-**TROCAR:**
-```python
-f"- Modelo: {config.GEMINI_MODEL}\n"
-```
-
-**PARA:**
-```python
-f"- Modelo: {config.CLAUDE_MODEL}\n"
-```
-
----
-
 ## Checklist de Reversão
 
 - [ ] `pip install anthropic>=0.42.0`
@@ -396,7 +381,6 @@ f"- Modelo: {config.CLAUDE_MODEL}\n"
 - [ ] Reverter `ask()` para Anthropic (mensagens + error handling)
 - [ ] Reverter contextual retrieval em `ingest.py`
 - [ ] Trocar `config.GEMINI_MODEL` → `config.CLAUDE_MODEL` em `bot.py`
-- [ ] Trocar `config.GEMINI_MODEL` → `config.CLAUDE_MODEL` em `bot_teams.py`
 - [ ] Testar bot com `py bot.py`
 
 ---
