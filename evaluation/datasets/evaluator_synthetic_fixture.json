@@ -1,0 +1,112 @@
+[
+  {
+    "id": "correct-answer",
+    "question": "Qual valor habilita o recurso?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "expected_facts": [
+      {
+        "id": "enabled-value",
+        "accepted_phrases": ["o valor S habilita o recurso"]
+      }
+    ],
+    "reference_evidence": [
+      {
+        "source": "parametros.md",
+        "contains": ["valor S"]
+      }
+    ],
+    "fixture_response": {
+      "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+      "chunks": [
+        {
+          "filename": "parametros.md",
+          "content": "Use o valor S para habilitar o recurso.",
+          "similarity": 0.8
+        }
+      ],
+      "trace": {
+        "query_plan": {"intent": "configuration"},
+        "abstained": false,
+        "cited_files": ["parametros.md"],
+        "grounding_errors": []
+      }
+    }
+  },
+  {
+    "id": "wrong-answer-valid-citation",
+    "question": "Qual valor habilita o recurso na resposta errada?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "expected_facts": [
+      {
+        "id": "enabled-value",
+        "accepted_phrases": ["o valor S habilita o recurso"]
+      }
+    ],
+    "reference_evidence": [
+      {
+        "source": "parametros.md",
+        "contains": ["valor S"]
+      }
+    ],
+    "fixture_response": {
+      "answer": "O valor N habilita o recurso. [Fonte: parametros.md]",
+      "chunks": [
+        {
+          "filename": "parametros.md",
+          "content": "Use o valor S para habilitar o recurso.",
+          "similarity": 0.8
+        }
+      ],
+      "trace": {
+        "query_plan": {"intent": "configuration"},
+        "abstained": false,
+        "cited_files": ["parametros.md"],
+        "grounding_errors": []
+      }
+    }
+  },
+  {
+    "id": "correct-abstention",
+    "question": "Qual é o código inexistente?",
+    "expected_behavior": "no_answer",
+    "expected_intent": "general",
+    "fixture_response": {
+      "answer": "Não encontrei informações suficientes na base de conhecimento.",
+      "chunks": [],
+      "trace": {
+        "query_plan": {"intent": "general"},
+        "abstained": true,
+        "abstention_reason": "no_chunks",
+        "cited_files": [],
+        "grounding_errors": []
+      }
+    }
+  },
+  {
+    "id": "incorrect-abstention",
+    "question": "Qual valor habilita o recurso quando há evidência?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "expected_facts": ["o valor S habilita o recurso"],
+    "reference_evidence": ["parametros.md"],
+    "fixture_response": {
+      "answer": "Não encontrei informações suficientes na base de conhecimento.",
+      "chunks": [
+        {
+          "filename": "parametros.md",
+          "content": "Use o valor S para habilitar o recurso.",
+          "similarity": 0.8
+        }
+      ],
+      "trace": {
+        "query_plan": {"intent": "configuration"},
+        "abstained": true,
+        "abstention_reason": "model_insufficient_evidence",
+        "cited_files": [],
+        "grounding_errors": []
+      }
+    }
+  }
+]

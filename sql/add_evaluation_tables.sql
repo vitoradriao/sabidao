@@ -26,12 +26,18 @@ CREATE TABLE IF NOT EXISTS evaluation_results (
     expected_intent TEXT,
     predicted_intent TEXT,
     abstained BOOLEAN NOT NULL DEFAULT FALSE,
-    citation_ok BOOLEAN NOT NULL DEFAULT FALSE,
+    behavior_match BOOLEAN,
+    factual_correctness BOOLEAN,
+    retrieval_relevance BOOLEAN,
+    citation_validity BOOLEAN,
+    citation_ok BOOLEAN,
+    intent_match BOOLEAN,
     grounded BOOLEAN NOT NULL DEFAULT FALSE,
     top_similarity FLOAT,
     latency_ms INTEGER,
-    score FLOAT NOT NULL DEFAULT 0,
+    score FLOAT,
     trace JSONB NOT NULL DEFAULT '{}'::jsonb,
+    evaluation_details JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -51,8 +57,21 @@ SELECT
     r.created_at,
     AVG(er.score)::FLOAT AS avg_score,
     AVG(CASE WHEN er.grounded THEN 1 ELSE 0 END)::FLOAT AS grounded_rate,
-    AVG(CASE WHEN er.citation_ok THEN 1 ELSE 0 END)::FLOAT AS citation_ok_rate,
-    AVG(CASE WHEN er.abstained THEN 1 ELSE 0 END)::FLOAT AS abstain_rate
+    AVG(CASE WHEN er.citation_validity THEN 1 WHEN NOT er.citation_validity THEN 0 END)::FLOAT
+        AS citation_ok_rate,
+    AVG(CASE WHEN er.abstained THEN 1 ELSE 0 END)::FLOAT AS abstain_rate,
+    AVG(CASE WHEN er.factual_correctness THEN 1 WHEN NOT er.factual_correctness THEN 0 END)::FLOAT
+        AS factual_correctness_rate,
+    AVG(CASE WHEN er.retrieval_relevance THEN 1 WHEN NOT er.retrieval_relevance THEN 0 END)::FLOAT
+        AS retrieval_relevance_rate,
+    AVG(CASE WHEN er.behavior_match THEN 1 WHEN NOT er.behavior_match THEN 0 END)::FLOAT
+        AS behavior_match_rate,
+    AVG(CASE WHEN er.intent_match THEN 1 WHEN NOT er.intent_match THEN 0 END)::FLOAT
+        AS intent_accuracy,
+    COUNT(er.score) AS score_evaluated,
+    COUNT(er.factual_correctness) AS factual_correctness_evaluated,
+    COUNT(er.retrieval_relevance) AS retrieval_relevance_evaluated,
+    COUNT(er.citation_validity) AS citation_validity_evaluated
 FROM evaluation_runs r
 LEFT JOIN evaluation_results er ON er.run_id = r.id
 GROUP BY r.id, r.dataset_name, r.model, r.embedding_model, r.total_cases, r.created_at;
