@@ -1,136 +1,77 @@
-# Bot Maxima
+<!-- Apresentação do repositório -->
+<p align="center">
+  <img src="docs/assets/sabidao-banner.svg" alt="Sabidão — suporte técnico com respostas baseadas na sua documentação" width="100%">
+</p>
 
-Bot de suporte com RAG para Discord e Microsoft Teams.
+# Sabidão
 
-## O que vai no GitHub
+Assistente de suporte técnico para **maxPedido e integrações Máxima**, disponível no Discord e no Microsoft Teams. Consulta documentos, responde com referências às fontes e permite revisar correções para melhorar as próximas respostas.
 
-Este repositório fica pronto para `git clone` em outra maquina, com:
+**Python 3.11** · **PostgreSQL + pgvector** · **Discord e Teams** · **Docker Compose**
 
-- codigo do bot
-- scripts de bootstrap e inicializacao
-- `.env.example` completo
-- template do manifest do Teams
-- fallback versionado para `BUSINESS_RULES_FILE`
+[Primeiros passos](docs/primeiros-passos.md) · [Documentação](docs/README.md) · [Arquitetura](docs/arquitetura.md) · [Como contribuir](CONTRIBUTING.md)
 
-Arquivos locais e secretos nao vao para o GitHub:
+## O que o Sabidão oferece
 
-- `.env`
-- `.venv`
-- `documentos/`
-- `teams_manifest/build/`
+| Recurso | Para que serve |
+| --- | --- |
+| Consulta à base de conhecimento | Recupera trechos e seções relevantes dos documentos. |
+| Respostas com fontes | Identifica os documentos utilizados e aplica verificações de fundamentação. |
+| Atendimento em dois canais | Compartilha a mesma lógica de consulta entre Discord e Teams. |
+| Correções revisadas | Permite propor, aprovar e publicar ajustes nas respostas. |
+| Avaliação de qualidade | Compara respostas com cenários de referência antes de mudanças na operação. |
 
-## Setup em uma maquina nova
+## Comece por aqui
 
-Clone o repositório e rode:
-
-```powershell
-setup_maquina.bat
-```
-
-Depois preencha o `.env` com as credenciais reais.
-
-Para ambiente Docker, use `DATABASE_URL` apontando para o servico `postgres`
-definido no `docker-compose.yml`.
-
-## Iniciar
-
-Discord:
+Clone o repositório e prepare o ambiente no Windows com Python 3.11:
 
 ```powershell
-iniciar.bat
+git clone https://github.com/vitoradriao/bot-maxima.git
+cd bot-maxima
+.\setup_maquina.bat
 ```
 
-Teams:
+O instalador cria o ambiente virtual, instala as dependências e gera o arquivo `.env` quando ele ainda não existe. Preencha as credenciais e siga os [primeiros passos](docs/primeiros-passos.md) para preparar o banco e indexar os documentos.
 
-```powershell
-gerar_manifest_teams.bat
-iniciar_teams.bat
-```
+Para executar os serviços em contêineres, siga o [guia Docker](GUIA_DOCKER.md). Para registrar e instalar o aplicativo no Teams, consulte o [guia do Teams](GUIA_TEAMS.md).
 
-## Teams
+> A configuração de exemplo publicada usa Gemini e vetores de 1536 dimensões. O modelo de embeddings, a dimensão configurada e o esquema do banco precisam ser compatíveis.
 
-O pacote do Teams e gerado a partir do `.env`.
+## Organização do projeto
 
-Principais campos:
+| Caminho | Responsabilidade |
+| --- | --- |
+| `bot.py`, `bot_teams.py` | Entrada dos canais Discord e Teams. |
+| `bot_common.py` | Histórico, limites de uso e formatação compartilhada. |
+| `rag.py`, `db.py`, `config.py` | Consulta, geração de respostas, acesso ao banco e configuração. |
+| `ingest.py` | Leitura, divisão e indexação dos documentos. |
+| `docs/` | Documentação do projeto e identidade visual. |
+| `scripts/` | Extração, empacotamento e ferramentas de manutenção. |
+| `sql/`, `docker/` | Esquemas, migrações e inicialização do banco. |
+| `tests/`, `evaluation/` | Testes automatizados e avaliação das respostas. |
+| `bootstrap/` | Documento de referência para as regras de negócio. |
+| `teams_manifest/` | Modelo do manifesto e ícones do aplicativo Teams. |
+| `documentos/` | Fontes de conhecimento utilizadas pelo assistente. |
 
-- `TEAMS_APP_ID`
-- `TEAMS_APP_PASSWORD`
-- `TEAMS_TENANT_ID`
-- `TEAMS_MANIFEST_*`
+A documentação de desenvolvimento fica em `docs/`; os conteúdos consultados pelo bot ficam em `documentos/`. Arquivos temporários, logs, cópias de segurança e relatórios gerados são ignorados pelo Git. Arquivos já versionados continuam no histórico, mesmo quando estão em uma pasta ignorada.
 
-Guia rapido:
+## Comandos do Discord
 
-- [GUIA_TEAMS.md](./GUIA_TEAMS.md)
-- [GUIA_DOCKER.md](./GUIA_DOCKER.md)
+Com o prefixo padrão `!`:
 
-## Docker
+| Comando | Uso |
+| --- | --- |
+| `!ping` | Verificar se o bot está disponível. |
+| `!status` | Consultar o estado da base. |
+| `!ajuda` | Listar os comandos disponíveis. |
+| `!ask sua pergunta` | Fazer uma pergunta à base de conhecimento. |
+| `!fontes` | Listar documentos indexados. |
+| `!limpar` | Limpar o histórico da conversa. |
 
-Arquivos prontos:
+## Próximos passos
 
-- `Dockerfile`
-- `docker-compose.yml`
-- `.dockerignore`
-
-Subida rapida:
-
-```sh
-docker compose build
-docker compose up -d postgres
-```
-
-Depois da inicializacao do banco, rode a ingestao inicial:
-
-```sh
-docker compose --profile tools run --rm ingest
-```
-
-Com os documentos indexados, suba os bots:
-
-```sh
-docker compose up -d discord_bot teams_bot
-```
-
-Gerar pacote do Teams:
-
-```sh
-docker compose --profile tools run --rm teams_package
-```
-
-## Observacoes de implantacao
-
-- o endpoint do Teams precisa ser HTTPS publico
-- o bot do Teams roda no servidor Linux; esta maquina nao executa mais o runtime
-- o servidor recebe atualizacoes do projeto via `git pull`
-- nao usar `ngrok` neste ambiente; a porta deve ficar aberta/publicada no servidor Linux
-- para ambiente corporativo, o ideal e hospedar em infraestrutura da empresa ou Azure
-- `documentos/` nao e versionado; se a operacao depender de ingestao local ou base documental local,
-  copie essa pasta separadamente para a maquina nova
-
-## Extracao Gatekeeper
-
-O pipeline dataset-first para tickets do Gatekeeper fica em `scripts/extract_jira_gatekeeper_filipe.py`.
-
-Para uso simples no Windows, abra `abrir_extrator_gatekeeper.bat`.
-Isso abre uma janela com botao `Extrair tickets` e grava os `.md` em
-`documentos/gatekeeper_markdowns` por padrao.
-
-Variaveis principais no `.env`:
-
-- `JIRA_URL` ou `JIRA_BASE_URL`
-- `JIRA_USERNAME` + `JIRA_API_TOKEN`
-- ou `JIRA_USERNAME` + `JIRA_PASSWORD`
-- ou `JIRA_SESSION_COOKIE`
-- `JIRA_ASSIGNEE_ALIASES`
-
-Exemplo de execucao:
-
-```powershell
-py scripts\extract_jira_gatekeeper_filipe.py --limit 20 --no-llm
-```
-
-Saida padrao:
-
-- `datasets/gatekeeper_filipe/raw`
-- `datasets/gatekeeper_filipe/normalized`
-- `datasets/gatekeeper_filipe/gold`
-- `datasets/gatekeeper_filipe/review`
+- [Preparar o ambiente e iniciar o bot](docs/primeiros-passos.md).
+- [Entender o fluxo de uma resposta](docs/arquitetura.md).
+- [Atualizar documentos e extrair tickets](docs/operacao.md).
+- [Avaliar a qualidade das respostas](evaluation/README.md).
+- [Contribuir com o projeto](CONTRIBUTING.md).

@@ -1,172 +1,98 @@
-# Docker
+# Executar com Docker
 
-Este projeto pode rodar em Docker com dois containers separados:
+[Documentação](docs/README.md) / Docker
 
-- `discord_bot`
-- `teams_bot`
+O Compose fornece PostgreSQL com pgvector, serviços separados para Discord e Teams e ferramentas de ingestão e geração do pacote Teams. Use Docker Engine ou Docker Desktop com Compose.
 
-Tambem existem dois servicos utilitarios:
+## 1. Preparar configuração e documentos
 
-- `ingest`
-- `teams_package`
-
-## 1. Preparar a maquina
-
-Instale:
-
-- Docker Desktop ou Docker Engine com Compose
-- acesso a internet para baixar a imagem base e dependencias
-
-Confirme:
+Na raiz do repositório, crie `.env` a partir do exemplo caso ainda não exista:
 
 ```sh
-docker --version
-docker compose version
+test -f .env || cp .env.example .env
 ```
 
-## 2. Clonar o repositorio
+No Windows, `setup_maquina.bat` também cria esse arquivo sem substituir uma configuração existente.
 
-```sh
-git clone https://github.com/VitorYunguiar/bot-maxima.git
-cd bot-maxima
-```
+Preencha as credenciais de IA e dos canais utilizados. Dentro do Compose, `DATABASE_URL` deve apontar para `postgres`. Se alterar `POSTGRES_DB`, `POSTGRES_USER` ou `POSTGRES_PASSWORD`, ajuste a conexão do bot para os mesmos valores.
 
-## 3. Criar o `.env`
+Os serviços de IA não são iniciados pelo Compose. Se utilizar um provedor local, configure um endereço acessível pelos contêineres: `127.0.0.1` dentro de um contêiner aponta para ele próprio.
 
-Se ainda nao existir:
+Revise os documentos em `documentos/`. Essa pasta é montada como somente leitura em `/app/documentos` e não é copiada para a imagem.
 
-```sh
-cp .env.example .env
-```
-
-Preencha no minimo:
-
-- Discord:
-  - `DISCORD_TOKEN`
-- LLM/embeddings:
-  - `LLM_PROVIDER`
-  - `OPENAI_API_KEY` ou `GEMINI_API_KEY`
-- Banco:
-  - `DATABASE_URL`
-- Teams:
-  - `TEAMS_APP_ID`
-  - `TEAMS_APP_PASSWORD`
-  - `TEAMS_TENANT_ID`
-  - `TEAMS_MANIFEST_*`
-
-## 4. Copiar os documentos
-
-Se a base documental for local, copie a pasta `documentos/` para o clone.
-
-O compose monta essa pasta em modo leitura dentro dos containers:
-
-- host: `./documentos`
-- container: `/app/documentos`
-
-## 5. Build da imagem
+## 2. Construir a imagem e preparar o banco
 
 ```sh
 docker compose build
-```
-
-## 6. Subir o PostgreSQL local
-
-O servico `postgres` cria extensoes, tabelas e funcoes automaticamente
-na primeira inicializacao, usando os scripts da pasta `sql/` na ordem
-definida pelo bootstrap do container.
-
-```sh
 docker compose up -d postgres
+docker compose ps postgres
+docker compose logs --tail=100 postgres
 ```
 
-Para acompanhar a inicializacao:
+Aguarde o banco ficar saudável. Em um volume novo, a inicialização aplica o esquema de 1536 dimensões e as migrações listadas em `docker/postgres/init/00-bootstrap.sh`.
 
-```sh
-docker compose logs -f postgres
-```
+Volumes existentes não são reinicializados. Para atualizá-los, consulte o [guia SQL](sql/README.md).
 
-## 7. Ingestao inicial
-
-Depois que o `postgres` estiver saudavel, indexe os documentos da pasta local no banco vetorial:
+## 3. Indexar os documentos
 
 ```sh
 docker compose --profile tools run --rm ingest
 ```
 
-## 8. Gerar o pacote do Teams
+Para definir explicitamente que somente os arquivos da raiz de `documentos/` serão processados:
 
 ```sh
-docker compose --profile tools run --rm teams_package
+docker compose --profile tools run --rm ingest python ingest.py ./documentos --no-recursive
 ```
 
-Arquivos gerados:
+A ingestão precisa de acesso ao banco e aos serviços de IA. Para atualização de fontes e recuperação de falhas, consulte o [guia de operação](docs/operacao.md).
 
-- `teams_manifest/build/manifest.json`
-- `teams_manifest/build/bot-azure.zip`
+## 4. Iniciar os canais
 
-## 9. Subir os bots
+Inicie os canais para os quais você configurou credenciais.
 
-Discord + Teams:
-
-```sh
-docker compose up -d discord_bot teams_bot
-```
-
-So Discord:
+Discord:
 
 ```sh
 docker compose up -d discord_bot
 ```
 
-So Teams:
+Teams, com geração do pacote:
 
 ```sh
+docker compose --profile tools run --rm teams_package
 docker compose up -d teams_bot
 ```
 
-## 10. Ver logs
-
-Discord:
+Ambos:
 
 ```sh
-docker compose logs -f discord_bot
+docker compose up -d discord_bot teams_bot
 ```
 
-Teams:
+O pacote é gravado em `teams_manifest/build/bot-azure.zip`. Consulte o [guia do Teams](GUIA_TEAMS.md) para instalar o aplicativo.
+
+## 5. Conferir o funcionamento
 
 ```sh
-docker compose logs -f teams_bot
-```
-
-## 11. Testar o bot do Teams
-
-Healthcheck local:
-
-```sh
+docker compose ps
+docker compose logs --tail=100 discord_bot teams_bot
 curl http://localhost:3978/api/health
 ```
 
-Resultado esperado:
+O endpoint do Teams retorna:
 
 ```json
 {"status":"ok","platform":"teams"}
 ```
 
-O `Messaging endpoint` do Azure Bot deve apontar para:
+Essa resposta confirma o serviço HTTP. Envie também uma pergunta sobre um documento conhecido para verificar o acesso ao banco e a geração da resposta.
 
-```text
-https://SEU-DOMINIO-Ou-REVERSE-PROXY/api/messages
-```
+O endereço de mensagens no Azure Bot deve usar HTTPS público e terminar em `/api/messages`. Encaminhe as requisições ao serviço Teams, por padrão na porta `3978`. O mapeamento de portas e a verificação de saúde do Compose usam esse valor; ajuste ambos se mudar `TEAMS_PORT`.
 
-Se voce publicar direto da maquina com NAT/reverse proxy corporativo, a TI precisa expor a porta 3978 com HTTPS.
+## Atualizar ou parar
 
-## 12. Parar tudo
-
-```sh
-docker compose down
-```
-
-## 13. Atualizar o projeto
+No servidor de implantação:
 
 ```sh
 git pull
@@ -174,9 +100,21 @@ docker compose build
 docker compose up -d discord_bot teams_bot
 ```
 
-## Observacoes
+Aplique as migrações necessárias conforme as instruções da versão.
 
-- `runtime/` guarda o `ingest_failures.json` persistido fora do container
-- `postgres_data` guarda o banco local em volume nomeado
-- `documentos/` nao vai para a imagem; ele e montado como volume
-- o Docker reduz variacao de ambiente, mas nao impede totalmente que um admin do host inspecione a imagem
+Para parar os serviços e manter o volume do banco:
+
+```sh
+docker compose down
+```
+
+## Dados persistentes
+
+| Local | Conteúdo |
+| --- | --- |
+| `postgres_data` | Banco PostgreSQL em volume nomeado. |
+| `documentos/` | Fontes de conhecimento montadas como somente leitura. |
+| `runtime/` | Relatórios de execução e falhas da ingestão. |
+| `teams_manifest/build/` | Manifesto e pacote gerado para o Teams. |
+
+Credenciais locais, cópias de segurança, logs e arquivos temporários são excluídos do contexto de construção da imagem.

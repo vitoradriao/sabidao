@@ -1,76 +1,78 @@
-# Teams
+# Microsoft Teams
 
-## Preencher o `.env`
+[Documentação](docs/README.md) / Microsoft Teams
 
-Configure no `.env`:
+O bot do Teams compartilha a base de conhecimento e a lógica de consulta do Discord. A operação de produção fica no servidor Linux; a máquina Windows é utilizada para edição, verificações locais e preparação das atualizações.
 
-- `TEAMS_APP_ID`
-- `TEAMS_APP_PASSWORD`
-- `TEAMS_TENANT_ID`
-- `TEAMS_ADMIN_IDS`
-- `TEAMS_PORT`
-- `TEAMS_MANIFEST_SHORT_NAME`
-- `TEAMS_MANIFEST_FULL_NAME`
-- `TEAMS_MANIFEST_SHORT_DESCRIPTION`
-- `TEAMS_MANIFEST_FULL_DESCRIPTION`
-- `TEAMS_MANIFEST_DEVELOPER_NAME`
-- `TEAMS_MANIFEST_DEVELOPER_WEBSITE_URL`
-- `TEAMS_MANIFEST_DEVELOPER_PRIVACY_URL`
-- `TEAMS_MANIFEST_DEVELOPER_TERMS_URL`
-- `TEAMS_MANIFEST_ACCENT_COLOR`
+## Configurar o aplicativo
 
-Use o `.env.example` como base.
+Use `.env.example` como referência.
 
-## Instalar dependencias
+| Finalidade | Variáveis |
+| --- | --- |
+| Identificação no Azure | `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID` |
+| Execução | `TEAMS_ADMIN_IDS`, `TEAMS_PORT` |
+| Nome do aplicativo | `TEAMS_MANIFEST_SHORT_NAME`, `TEAMS_MANIFEST_FULL_NAME` |
+| Descrições | `TEAMS_MANIFEST_SHORT_DESCRIPTION`, `TEAMS_MANIFEST_FULL_DESCRIPTION` |
+| Desenvolvedor | `TEAMS_MANIFEST_DEVELOPER_NAME`, `TEAMS_MANIFEST_DEVELOPER_WEBSITE_URL` |
+| Políticas | `TEAMS_MANIFEST_DEVELOPER_PRIVACY_URL`, `TEAMS_MANIFEST_DEVELOPER_TERMS_URL` |
+| Aparência | `TEAMS_MANIFEST_ACCENT_COLOR` no formato `#RRGGBB` |
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
+Configure também o banco e os serviços de IA conforme os [primeiros passos](docs/primeiros-passos.md).
 
-## Gerar o pacote do Teams
+O `TEAMS_APP_ID` é utilizado pelo bot e pelos campos `manifest.id` e `bots[].botId` do manifesto gerado.
+
+## Gerar o pacote
+
+No Windows, após instalar as dependências:
 
 ```powershell
-gerar_manifest_teams.bat
+.\gerar_manifest_teams.bat
 ```
 
-Ou:
+Ou com o ambiente Python ativo:
 
-```powershell
-.\.venv\Scripts\python.exe scripts\build_teams_package.py
+```sh
+python scripts/build_teams_package.py
 ```
 
-Saida gerada em `teams_manifest/build/`:
+Com Docker:
 
-- `manifest.json`
-- `bot-azure.zip`
-
-## Subir o bot
-
-Em producao, o bot roda no servidor Linux. Esta maquina nao executa mais o
-runtime do Teams; ela serve para editar, testar o que for local e enviar
-atualizacoes para o repositorio. O servidor recebe as mudancas com `git pull`.
-
-```powershell
-iniciar_teams.bat
+```sh
+docker compose --profile tools run --rm teams_package
 ```
 
-Ou:
+A fonte versionada é `teams_manifest/manifest.template.json`. Os arquivos para publicação são gerados em:
 
-```powershell
-.\.venv\Scripts\python.exe scripts\check_teams_runtime.py
-.\.venv\Scripts\python.exe bot_teams.py
+- `teams_manifest/build/manifest.json`
+- `teams_manifest/build/bot-azure.zip`
+
+Use esse pacote gerado para publicar. Arquivos históricos diretamente em `teams_manifest/` não são a saída desse fluxo.
+
+## Executar no servidor
+
+Com o ambiente Python do servidor ativo:
+
+```sh
+python scripts/check_teams_runtime.py
+python bot_teams.py
 ```
 
-## Configuracao externa
+A verificação inicial confere as dependências instaladas. Para uma implantação em contêiner:
 
-- Publique a URL do bot apontando para `https://<host-publico>:<TEAMS_PORT>/api/messages`
-- Nao use `ngrok` neste ambiente; a porta deve ficar aberta no servidor Linux que hospeda o bot
-- No Azure Bot, configure o endpoint `/api/messages`
-- Importe `teams_manifest/build/bot-azure.zip` no Teams
+```sh
+docker compose up -d teams_bot
+```
 
-## Observacoes
+O inicializador Windows `iniciar_teams.bat` continua disponível para uma execução local configurada intencionalmente. Na operação normal, as atualizações chegam ao servidor Linux por `git pull` e são aplicadas com reinicialização do processo ou reconstrução do contêiner.
 
-- O `TEAMS_APP_ID` e usado tanto no runtime quanto no `manifest.id` e no `bots[].botId`
-- O fluxo novo usa `teams_manifest/manifest.template.json` como fonte versionada
-- Os artefatos gerados em `teams_manifest/build/` sao os arquivos para publicar
-- Mudancas de codigo devem ser versionadas e aplicadas no servidor via `git pull`
+## Conectar o Teams
+
+1. Publique um endereço HTTPS no servidor Linux ou em seu proxy reverso, encaminhando ao serviço Teams.
+2. No Azure Bot, configure o endpoint de mensagens como `https://<host-publico>/api/messages`.
+3. Importe `teams_manifest/build/bot-azure.zip` no Teams.
+4. Confira `/api/health` e envie uma pergunta para validar a consulta e a geração da resposta.
+
+Esse ambiente utiliza o endpoint público do servidor Linux. Não use um túnel ngrok nessa implantação. Se o HTTPS estiver publicado em uma porta diferente da padrão, inclua essa porta pública na URL.
+
+Para consultar logs, portas e persistência, veja o [guia Docker](GUIA_DOCKER.md).

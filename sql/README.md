@@ -1,47 +1,56 @@
-﻿# SQL setup for embedding dimensions
+# Banco de dados e dimensões dos embeddings
 
-Choose one schema and keep it aligned with `.env`:
+[Documentação](../docs/README.md) / SQL
 
-- `sql/setup_1536.sql` -> `VECTOR(1536)` (recommended default)
-- `sql/setup_3072.sql` -> `VECTOR(3072)` (shadow experiment only, higher index/storage cost)
+O esquema precisa corresponder à dimensão produzida pelo modelo de embeddings e ao valor de `EMBEDDING_DIMENSIONS` no `.env`.
 
-After running one SQL script in PostgreSQL, set the same value in `.env`:
+| Arquivo | Perfil |
+| --- | --- |
+| `setup_1536.sql` | Vetores de 1536 dimensões, padrão da configuração e do Docker. |
+| `setup_3072.sql` | Vetores de 3072 dimensões, para avaliação separada conforme o suporte do ambiente. |
+
+Os scripts de configuração recriam estruturas da base. Revise o SQL e faça uma cópia de segurança antes de aplicá-los a um banco com dados.
+
+## Configuração
+
+Para o perfil padrão:
 
 ```env
 EMBEDDING_DIMENSIONS=1536
 ```
 
-or
+Para o perfil de 3072 dimensões, use o esquema correspondente e configure:
 
 ```env
 EMBEDDING_DIMENSIONS=3072
 ```
 
-Then re-run ingestion to regenerate all embeddings.
+Depois de uma mudança de modelo ou dimensão, reingira os documentos para gerar embeddings compatíveis. Se o ambiente não aceitar o perfil de 3072 dimensões, utilize o perfil de 1536.
 
-If your PostgreSQL/pgvector setup rejects `VECTOR(3072)`, use `1536`.
+## Migrações disponíveis
 
-## Additional migrations
+| Arquivo | Finalidade |
+| --- | --- |
+| `migrate_hybrid_search.sql` | Busca híbrida pela função `hybrid_match_chunks`. |
+| `add_knowledge_gaps.sql` | Registro e consulta de lacunas de conhecimento. |
+| `add_feedback_memory.sql` | Proposta, revisão, publicação e consulta de correções. |
+| `add_evaluation_tables.sql` | Tabelas `evaluation_runs`, `evaluation_results` e visão `evaluation_run_summary`. |
+| `add_analytical_context.sql` | Seções de documentos e metadados dos trechos. |
+| `migrate_priority.sql` | Priorização de documentos. |
+| `add_section_retrieval_1536.sql` | Consulta de seções com embeddings de 1536 dimensões. |
+| `add_section_retrieval_3072.sql` | Consulta de seções com embeddings de 3072 dimensões. |
 
-After the base setup script, run optional migrations according to the features you use:
+## Inicialização no Docker
 
-- `sql/migrate_hybrid_search.sql`: enables hybrid search RPC `hybrid_match_chunks`.
-- `sql/add_knowledge_gaps.sql`: creates `knowledge_gaps` table and RPCs:
-  - `upsert_knowledge_gap`
-  - `get_top_knowledge_gaps`
-- `sql/add_feedback_memory.sql`: creates reviewed correction memory tables + RPCs:
-  - `submit_feedback`
-  - `list_pending_feedback`
-  - `approve_feedback`
-  - `reject_feedback`
-  - `publish_feedback`
-  - `search_feedback_chunks`
-- `sql/add_evaluation_tables.sql`: creates benchmark tables:
-  - `evaluation_runs`
-  - `evaluation_results`
-  - `evaluation_run_summary` (view)
-- `sql/add_analytical_context.sql`: creates `document_sections` and enriches chunk metadata.
-- `sql/add_section_retrieval_1536.sql`: adds section embeddings + section-aware RPCs for `VECTOR(1536)`.
-- `sql/add_section_retrieval_3072.sql`: same as above for `VECTOR(3072)`.
+Em um volume novo, `docker/postgres/init/00-bootstrap.sh` aplica:
 
-In Docker, the local PostgreSQL bootstrap runs these scripts automatically on the first startup of the `postgres` service.
+1. `setup_1536.sql`
+2. `migrate_hybrid_search.sql`
+3. `add_knowledge_gaps.sql`
+4. `add_feedback_memory.sql`
+5. `add_evaluation_tables.sql`
+6. `add_analytical_context.sql`
+7. `migrate_priority.sql`
+8. `add_section_retrieval_1536.sql`
+
+A inicialização não é repetida em volumes existentes. Para atualizá-los, revise as migrações aplicáveis em um ambiente de testes antes da implantação.

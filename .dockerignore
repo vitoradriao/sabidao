@@ -6,6 +6,7 @@ __pycache__
 *.pyc
 *.pyo
 .env
+.env.*
 .claude
 .idea
 .vscode
@@ -16,6 +17,18 @@ evaluation
 tests
 teams_manifest/build
 runtime
+backups
+logs
+tmp
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+.agents
+.codex
+skill-drafts
+docs
 ingest_failures.json
 nul
 Thumbs.db

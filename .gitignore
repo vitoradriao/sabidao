@@ -1,5 +1,7 @@
 # Ambiente
 .env
+.env.*
+!.env.example
 .sabidao
 venv/
 .venv/
@@ -8,12 +10,21 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
-# Dados locais
+# Dados locais e arquivos gerados
 documentos/
 ingest_failures.json
 teams_manifest/build/
 runtime/
+backups/
+logs/
+tmp/
+evaluation/reports/
 
 # IDE
 .vscode/
@@ -22,7 +33,7 @@ runtime/
 # Claude
 .claude/
 
-# Sistema
+# Sistema operacional
 nul
 Thumbs.db
 .DS_Store
