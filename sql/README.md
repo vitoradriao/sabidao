@@ -35,6 +35,7 @@ Depois de uma mudança de modelo ou dimensão, reingira os documentos para gerar
 | `add_knowledge_gaps.sql` | Registro e consulta de lacunas de conhecimento. |
 | `add_feedback_memory.sql` | Proposta, revisão, publicação e consulta de correções. |
 | `add_evaluation_tables.sql` | Tabelas `evaluation_runs`, `evaluation_results` e visão `evaluation_run_summary`. |
+| `migrate_evaluation_metrics_v2.sql` | Migra avaliações existentes para métricas factuais, retrieval e citação com estado não avaliado. |
 | `add_analytical_context.sql` | Seções de documentos e metadados dos trechos. |
 | `migrate_priority.sql` | Priorização de documentos. |
 | `add_section_retrieval_1536.sql` | Consulta de seções com embeddings de 1536 dimensões. |

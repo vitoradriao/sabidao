@@ -64,6 +64,14 @@ def _normalize_case(case: dict[str, Any], idx: int, default_source: str) -> dict
     if isinstance(tags, list):
         normalized["tags"] = [str(tag).strip() for tag in tags if str(tag).strip()]
 
+    expected_facts = case.get("expected_facts")
+    if isinstance(expected_facts, list):
+        normalized["expected_facts"] = expected_facts
+
+    reference_evidence = case.get("reference_evidence")
+    if isinstance(reference_evidence, list):
+        normalized["reference_evidence"] = reference_evidence
+
     return normalized
 
 
