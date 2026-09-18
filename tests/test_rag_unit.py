@@ -314,14 +314,14 @@ class TestOpenAIExtraction(unittest.TestCase):
 
 
 class TestGroundingFallbackBehavior(unittest.TestCase):
-    def test_appends_retrieved_sources_when_model_omits_sources(self):
+    def test_does_not_append_retrieved_sources_when_model_omits_citations(self):
         answer = "O modulo GERA integra regras comerciais, ofertas e descontos ao maxPedido."
 
         with patch.multiple(
             config,
             RAG_ENABLE_GROUNDING_VALIDATION=True,
             RAG_REQUIRE_SOURCES_SECTION=True,
-            RAG_MAX_REGEN_ATTEMPTS=1,
+            RAG_MAX_REGEN_ATTEMPTS=0,
         ), patch("rag._ask_model") as ask_model_mock:
             revised_answer, errors, cited, attempts = rag._apply_grounding_regeneration(
                 answer=answer,
@@ -337,12 +337,60 @@ class TestGroundingFallbackBehavior(unittest.TestCase):
             )
 
         ask_model_mock.assert_not_called()
-        self.assertEqual(errors, [])
+        self.assertIn("Resposta sem citacoes de fonte.", errors)
         self.assertEqual(attempts, 0)
-        self.assertIn("Fontes:", revised_answer)
-        self.assertIn("- 21-MS-HUB-GERA-MAXPEDIDO.md", revised_answer)
-        self.assertIn("21-ms-hub-gera-maxpedido.md", cited)
-        self.assertFalse(revised_answer.startswith(config.NO_ANSWER_PHRASE))
+        self.assertNotIn("Fontes:", revised_answer)
+        self.assertEqual(cited, set())
+        self.assertTrue(revised_answer.startswith(config.NO_ANSWER_PHRASE))
+
+    def test_unknown_citation_is_rejected_without_leaking_source(self):
+        answer = "Use o parametro inventado.\n\nFontes:\n- fonte-inexistente.md"
+
+        with patch.multiple(
+            config,
+            RAG_ENABLE_GROUNDING_VALIDATION=True,
+            RAG_REQUIRE_SOURCES_SECTION=True,
+            RAG_MAX_REGEN_ATTEMPTS=0,
+        ):
+            revised_answer, errors, cited, attempts = rag._apply_grounding_regeneration(
+                answer=answer,
+                question="Qual parametro devo usar?",
+                system="system",
+                conversation_history=[],
+                images=[],
+                allowed_sources={"guia.md"},
+            )
+
+        self.assertTrue(revised_answer.startswith(config.NO_ANSWER_PHRASE))
+        self.assertTrue(any("fonte-inexistente.md" in error for error in errors))
+        self.assertEqual(cited, set())
+        self.assertEqual(attempts, 0)
+
+    def test_provider_error_skips_grounding_regeneration(self):
+        provider_error = rag._provider_error_response(
+            "O servico esta sobrecarregado no momento. Tente novamente em alguns segundos."
+        )
+
+        with patch.multiple(
+            config,
+            RAG_ENABLE_GROUNDING_VALIDATION=True,
+            RAG_REQUIRE_SOURCES_SECTION=True,
+            RAG_MAX_REGEN_ATTEMPTS=1,
+        ), patch("rag._ask_model") as ask_model_mock:
+            revised_answer, errors, cited, attempts = rag._apply_grounding_regeneration(
+                answer=provider_error,
+                question="Como configurar USAGRADE?",
+                system="system",
+                conversation_history=[],
+                images=[],
+                allowed_sources={"guia.md"},
+            )
+
+        ask_model_mock.assert_not_called()
+        self.assertEqual(revised_answer, str(provider_error))
+        self.assertEqual(errors, [])
+        self.assertEqual(cited, set())
+        self.assertEqual(attempts, 0)
 
     def test_keeps_answer_when_only_non_critical_grounding_error(self):
         answer = "Conta corrente usa este fluxo [fonte: guia.md].\n\nFontes:\n- guia.md"
