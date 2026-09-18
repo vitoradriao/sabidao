@@ -20,6 +20,25 @@ def _make_kb_chunk(*, chunk_id: str, filename: str, similarity: float, content: 
 
 
 class TestAskIntegration(unittest.TestCase):
+    def test_full_context_model_abstention_sets_insufficient_evidence_state(self):
+        with patch.multiple(config, FULL_CONTEXT_ENABLED=True), patch(
+            "rag._reformulate_query_with_history",
+            return_value="Pergunta sem resposta",
+        ), patch(
+            "rag._load_full_context_docs",
+            return_value="Conteudo completo da base",
+        ), patch(
+            "rag._ask_model",
+            return_value=config.NO_ANSWER_PHRASE,
+        ):
+            answer, returned_chunks, trace = rag.ask("Pergunta sem resposta")
+
+        self.assertEqual(answer, config.NO_ANSWER_PHRASE)
+        self.assertEqual(returned_chunks, [])
+        self.assertTrue(trace["abstained"])
+        self.assertEqual(trace["abstention_reason"], "model_insufficient_evidence")
+        self.assertEqual(trace["response_state"], "insufficient_evidence")
+
     def test_answer_generation_with_seeded_chunks(self):
         chunks = [
             _make_kb_chunk(
@@ -65,6 +84,9 @@ class TestAskIntegration(unittest.TestCase):
         self.assertGreaterEqual(trace["top_similarity"], 0.89)
         self.assertIn("guia-maxpedido.md", [s.lower() for s in trace["cited_files"]])
         self.assertIn("Fontes:", answer)
+        self.assertEqual(trace["response_state"], "answered")
+        self.assertEqual(trace["citation_validation"]["syntax"], "valid")
+        self.assertEqual(trace["citation_validation"]["semantic_support"], "not_verified")
 
     def test_strict_abstain_when_evidence_is_weak(self):
         weak_chunks = [
@@ -97,7 +119,51 @@ class TestAskIntegration(unittest.TestCase):
         ask_model_mock.assert_not_called()
         self.assertTrue(trace["abstained"])
         self.assertEqual(trace["abstention_reason"], "low_similarity")
+        self.assertEqual(trace["response_state"], "insufficient_evidence")
         self.assertTrue(answer.startswith(config.NO_ANSWER_PHRASE))
+
+    def test_provider_error_has_no_citations_and_skips_regeneration(self):
+        chunks = [
+            _make_kb_chunk(
+                chunk_id="3",
+                filename="guia-maxpedido.md",
+                similarity=0.89,
+                content="Parametro USAGRADE habilita grade de produto no pedido.",
+            )
+        ]
+        provider_error = rag._provider_error_response(
+            "O servico esta sobrecarregado no momento. Tente novamente em alguns segundos."
+        )
+
+        with patch.multiple(
+            config,
+            FULL_CONTEXT_ENABLED=False,
+            RAG_STRICT_ABSTAIN=True,
+            RAG_MIN_RETRIEVED_CHUNKS=1,
+            RAG_MIN_STRONG_SIMILARITY=0.60,
+            RAG_OPERATIONAL_SIMILARITY_MARGIN=0.0,
+            RAG_ENABLE_GROUNDING_VALIDATION=True,
+            RAG_REQUIRE_SOURCES_SECTION=True,
+            RAG_MAX_REGEN_ATTEMPTS=1,
+        ), patch("rag._reformulate_query_with_history", return_value="Como configurar USAGRADE?"), patch(
+            "rag._classify_query_intent",
+            return_value={"intent": "configuration", "modules": ["parametros_configuracao"], "doc_types": ["md"]},
+        ), patch(
+            "rag.retrieve_chunks_with_feedback",
+            return_value=(chunks, [], chunks),
+        ), patch(
+            "rag._rerank_chunks_with_llm",
+            side_effect=lambda _q, candidate_chunks: candidate_chunks,
+        ), patch("rag._ask_model", return_value=provider_error) as ask_model_mock:
+            answer, _returned_chunks, trace = rag.ask("Como configurar USAGRADE?")
+
+        self.assertEqual(answer, str(provider_error))
+        self.assertEqual(ask_model_mock.call_count, 1)
+        self.assertEqual(trace["response_state"], "provider_error")
+        self.assertEqual(trace["cited_files"], [])
+        self.assertEqual(trace["regeneration_attempts"], 0)
+        self.assertEqual(trace["citation_validation"]["syntax"], "not_applicable")
+        self.assertEqual(trace["citation_validation"]["semantic_support"], "not_evaluated")
 
 
 class TestCorrectionWorkflowIntegration(unittest.TestCase):

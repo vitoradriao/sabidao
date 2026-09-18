@@ -273,6 +273,17 @@ _REFORMULATION_CLARIFY_RE = re.compile(
     flags=re.IGNORECASE,
 )
 
+_PROVIDER_ERROR_MESSAGES = frozenset(
+    {
+        "Nao foi possivel extrair uma resposta do modelo.",
+        "O servico esta sobrecarregado no momento. Tente novamente em alguns segundos.",
+        "Erro de configuracao do bot. Contate o administrador.",
+        "A consulta demorou demais. Tente reformular com uma pergunta mais curta.",
+        "Nao foi possivel conectar ao servico. Tente novamente em instantes.",
+        "Ocorreu um erro inesperado. Tente novamente.",
+    }
+)
+
 # ── Clientes ──────────────────────────────────────────────
 _gemini: genai.Client | None = None
 _http_client: httpx.Client | None = None
@@ -283,6 +294,21 @@ class _GeneratedTextResponse:
 
     def __init__(self, text: str):
         self.text = text or ""
+
+
+class _ProviderErrorResponse(str):
+    """Texto seguro para o usuario que representa uma falha do provider."""
+
+
+def _provider_error_response(message: str) -> _ProviderErrorResponse:
+    return _ProviderErrorResponse(message)
+
+
+def _is_provider_error_response(answer: str) -> bool:
+    return (
+        isinstance(answer, _ProviderErrorResponse)
+        or str(answer or "").strip() in _PROVIDER_ERROR_MESSAGES
+    )
 
 
 def _active_llm_provider() -> str:
@@ -778,31 +804,6 @@ def _enforce_sources_section_only(
     return sources_block, cited_sources
 
 
-def _append_retrieved_sources_when_missing(
-    answer: str,
-    *,
-    allowed_sources: set[str] | None,
-    source_display_map: dict[str, str] | None = None,
-) -> tuple[str, set[str]]:
-    text = (answer or "").strip()
-    if not text or text.startswith(config.NO_ANSWER_PHRASE):
-        return text, set()
-
-    sources = sorted(source for source in (allowed_sources or set()) if source)
-    if not sources:
-        return text, set()
-
-    body = _strip_sources_section(text).strip()
-    sources_lines = [
-        f"- {(source_display_map or {}).get(source, source)}"
-        for source in sources
-    ]
-    sources_block = "Fontes:\n" + "\n".join(sources_lines)
-    if body:
-        return f"{body}\n\n{sources_block}", set(sources)
-    return sources_block, set(sources)
-
-
 def _line_has_citation(line: str) -> bool:
     return bool(_CITATION_INLINE_RE.search(line))
 
@@ -926,6 +927,20 @@ def _log_ask_trace(trace: dict[str, Any]) -> None:
         logger.info("ASK_TRACE %s", json.dumps(trace, ensure_ascii=False))
     except Exception:
         logger.info("ASK_TRACE %s", trace)
+
+
+def _set_response_state(
+    trace: dict[str, Any],
+    state: str,
+    *,
+    citation_syntax: str,
+    semantic_support: str,
+) -> None:
+    trace["response_state"] = state
+    trace["citation_validation"] = {
+        "syntax": citation_syntax,
+        "semantic_support": semantic_support,
+    }
 
 
 def get_model_config() -> dict[str, str]:
@@ -2460,7 +2475,7 @@ def _ask_model(
                     return fallback_response.text
 
             logger.warning("Resposta inesperada do OpenAI Chat Completions (texto vazio apos fallback).")
-            return "Nao foi possivel extrair uma resposta do modelo."
+            return _provider_error_response("Nao foi possivel extrair uma resposta do modelo.")
 
         max_tokens = max(128, requested_max_tokens)
         gemini_contents = _compose_gemini_contents(question, conversation_history, images)
@@ -2473,24 +2488,30 @@ def _ask_model(
         if response.text:
             return response.text
         logger.warning("Resposta inesperada do Gemini: %s", response)
-        return "Nao foi possivel extrair uma resposta do modelo."
+        return _provider_error_response("Nao foi possivel extrair uma resposta do modelo.")
     except Exception as e:
         error_str = str(e).lower()
         provider_label = "OpenAI" if provider == "openai" else "Gemini"
         if "429" in str(e) or "resource_exhausted" in error_str or "rate" in error_str:
             logger.error("Rate limit do %s atingido: %s", provider_label, e)
-            return "O servico esta sobrecarregado no momento. Tente novamente em alguns segundos."
+            return _provider_error_response(
+                "O servico esta sobrecarregado no momento. Tente novamente em alguns segundos."
+            )
         if "401" in str(e) or "403" in str(e) or "api_key" in error_str or "permission" in error_str:
             logger.error("Erro de autenticacao com %s: %s", provider_label, e)
-            return "Erro de configuracao do bot. Contate o administrador."
+            return _provider_error_response("Erro de configuracao do bot. Contate o administrador.")
         if "timeout" in error_str:
             logger.error("Timeout na chamada ao %s: %s", provider_label, e)
-            return "A consulta demorou demais. Tente reformular com uma pergunta mais curta."
+            return _provider_error_response(
+                "A consulta demorou demais. Tente reformular com uma pergunta mais curta."
+            )
         if "connect" in error_str:
             logger.error("Erro de conexao com %s: %s", provider_label, e)
-            return "Nao foi possivel conectar ao servico. Tente novamente em instantes."
+            return _provider_error_response(
+                "Nao foi possivel conectar ao servico. Tente novamente em instantes."
+            )
         logger.error("Erro ao chamar %s: %s", provider_label, e, exc_info=True)
-        return "Ocorreu um erro inesperado. Tente novamente."
+        return _provider_error_response("Ocorreu um erro inesperado. Tente novamente.")
 
 
 def _should_strict_abstain(question: str, chunks: list[dict]) -> tuple[bool, str | None]:
@@ -2521,31 +2542,36 @@ def _apply_grounding_regeneration(
     allowed_sources: set[str],
     source_display_map: dict[str, str] | None = None,
 ) -> tuple[str, list[str], set[str], int]:
-    normalized_answer, normalized_cited = _enforce_sources_section_only(
-        answer,
-        allowed_sources=allowed_sources,
-        source_display_map=source_display_map,
-    )
-    if not normalized_cited and allowed_sources:
-        normalized_answer, normalized_cited = _append_retrieved_sources_when_missing(
-            normalized_answer,
+    if _is_provider_error_response(answer):
+        return str(answer).strip(), [], set(), 0
+
+    if not config.RAG_ENABLE_GROUNDING_VALIDATION:
+        normalized_answer, cited = _enforce_sources_section_only(
+            answer,
             allowed_sources=allowed_sources,
             source_display_map=source_display_map,
         )
-
-    if not config.RAG_ENABLE_GROUNDING_VALIDATION:
-        cited = normalized_cited or _extract_cited_sources(normalized_answer)
         return normalized_answer, [], cited, 0
 
     valid, errors, cited_sources = _validate_grounded_answer(
-        answer=normalized_answer,
+        answer=answer,
         allowed_sources=allowed_sources,
         question=question,
         require_sources_section=config.RAG_REQUIRE_SOURCES_SECTION,
     )
     if valid:
+        normalized_answer, cited_sources = _enforce_sources_section_only(
+            answer,
+            allowed_sources=allowed_sources,
+            source_display_map=source_display_map,
+        )
         return normalized_answer, [], cited_sources, 0
     if not _is_grounding_error_critical(errors):
+        normalized_answer, cited_sources = _enforce_sources_section_only(
+            answer,
+            allowed_sources=allowed_sources,
+            source_display_map=source_display_map,
+        )
         logger.info(
             "Grounding inicial com erros nao-criticos; mantendo resposta sem regeneracao: %s",
             " | ".join(errors),
@@ -2554,7 +2580,7 @@ def _apply_grounding_regeneration(
 
     max_regen_attempts = max(0, int(config.RAG_MAX_REGEN_ATTEMPTS))
     regeneration_attempts = 0
-    revised_answer = normalized_answer
+    revised_answer = (answer or "").strip()
     revised_errors = errors
     revised_citations = cited_sources
     for _ in range(max_regen_attempts):
@@ -2576,17 +2602,9 @@ def _apply_grounding_regeneration(
             images=None,
             max_tokens_override=1024,
         )
-        revised_answer, revised_citations = _enforce_sources_section_only(
-            revised_answer,
-            allowed_sources=allowed_sources,
-            source_display_map=source_display_map,
-        )
-        if not revised_citations and allowed_sources:
-            revised_answer, revised_citations = _append_retrieved_sources_when_missing(
-                revised_answer,
-                allowed_sources=allowed_sources,
-                source_display_map=source_display_map,
-            )
+        if _is_provider_error_response(revised_answer):
+            return str(revised_answer).strip(), [], set(), regeneration_attempts
+
         valid, revised_errors, revised_citations = _validate_grounded_answer(
             answer=revised_answer,
             allowed_sources=allowed_sources,
@@ -2594,10 +2612,15 @@ def _apply_grounding_regeneration(
             require_sources_section=config.RAG_REQUIRE_SOURCES_SECTION,
         )
         if valid:
+            revised_answer, revised_citations = _enforce_sources_section_only(
+                revised_answer,
+                allowed_sources=allowed_sources,
+                source_display_map=source_display_map,
+            )
             return revised_answer, [], revised_citations, regeneration_attempts
 
     if _is_grounding_error_critical(revised_errors):
-        return _build_abstain_response(question), revised_errors, revised_citations, regeneration_attempts
+        return _build_abstain_response(question), revised_errors, set(), regeneration_attempts
 
     logger.info(
         "Grounding com erros nao-criticos; mantendo resposta sem abstencao: %s",
@@ -2609,12 +2632,6 @@ def _apply_grounding_regeneration(
         allowed_sources=allowed_sources,
         source_display_map=source_display_map,
     )
-    if not revised_citations and allowed_sources:
-        best_answer, revised_citations = _append_retrieved_sources_when_missing(
-            best_answer,
-            allowed_sources=allowed_sources,
-            source_display_map=source_display_map,
-        )
     return best_answer, revised_errors, revised_citations, regeneration_attempts
 
 
@@ -2647,6 +2664,11 @@ def ask(
         "cited_files": [],
         "grounding_errors": [],
         "regeneration_attempts": 0,
+        "response_state": None,
+        "citation_validation": {
+            "syntax": "not_evaluated",
+            "semantic_support": "not_evaluated",
+        },
         "stage_timings_ms": {},
     }
 
@@ -2674,6 +2696,12 @@ def ask(
             answer = "Base de conhecimento indisponivel no momento. Tente novamente."
             trace["abstained"] = True
             trace["abstention_reason"] = "full_context_unavailable"
+            _set_response_state(
+                trace,
+                "insufficient_evidence",
+                citation_syntax="not_applicable",
+                semantic_support="insufficient_evidence",
+            )
             trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
             _log_ask_trace(trace)
             return answer, chunks, trace
@@ -2685,6 +2713,29 @@ def ask(
             images=images,
         )
         _mark_stage("generation", stage_started_at)
+        if _is_provider_error_response(answer):
+            _set_response_state(
+                trace,
+                "provider_error",
+                citation_syntax="not_applicable",
+                semantic_support="not_evaluated",
+            )
+        elif answer.startswith(config.NO_ANSWER_PHRASE):
+            trace["abstained"] = True
+            trace["abstention_reason"] = "model_insufficient_evidence"
+            _set_response_state(
+                trace,
+                "insufficient_evidence",
+                citation_syntax="not_applicable",
+                semantic_support="insufficient_evidence",
+            )
+        else:
+            _set_response_state(
+                trace,
+                "answered",
+                citation_syntax="not_evaluated",
+                semantic_support="not_verified",
+            )
         trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
         _log_ask_trace(trace)
         return answer, chunks, trace
@@ -2785,6 +2836,12 @@ def ask(
     if should_abstain:
         trace["abstained"] = True
         trace["abstention_reason"] = abstain_reason
+        _set_response_state(
+            trace,
+            "insufficient_evidence",
+            citation_syntax="not_applicable",
+            semantic_support="insufficient_evidence",
+        )
         answer = _build_abstain_response(question)
         trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
         _log_ask_trace(trace)
@@ -2848,6 +2905,12 @@ def ask(
     else:
         trace["abstained"] = True
         trace["abstention_reason"] = "no_context_after_merge"
+        _set_response_state(
+            trace,
+            "insufficient_evidence",
+            citation_syntax="not_applicable",
+            semantic_support="insufficient_evidence",
+        )
         answer = _build_abstain_response(question)
         trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
         _log_ask_trace(trace)
@@ -2888,10 +2951,35 @@ def ask(
     trace["cited_files"] = sorted(cited_sources)
     trace["citations"] = sorted(cited_sources)
     trace["regeneration_attempts"] = regen_attempts
-    if answer.startswith(config.NO_ANSWER_PHRASE):
+    if _is_provider_error_response(answer):
+        trace["grounding_errors"] = []
+        trace["cited_files"] = []
+        trace["citations"] = []
+        _set_response_state(
+            trace,
+            "provider_error",
+            citation_syntax="not_applicable",
+            semantic_support="not_evaluated",
+        )
+    elif answer.startswith(config.NO_ANSWER_PHRASE):
         trace["abstained"] = True
         if not trace["abstention_reason"]:
-            trace["abstention_reason"] = "grounding_validation_failed"
+            trace["abstention_reason"] = (
+                "grounding_validation_failed" if grounding_errors else "model_insufficient_evidence"
+            )
+        _set_response_state(
+            trace,
+            "insufficient_evidence",
+            citation_syntax="invalid" if grounding_errors else "not_applicable",
+            semantic_support="insufficient_evidence",
+        )
+    else:
+        _set_response_state(
+            trace,
+            "answered",
+            citation_syntax="valid" if config.RAG_ENABLE_GROUNDING_VALIDATION else "not_evaluated",
+            semantic_support="not_verified",
+        )
 
     trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
     _log_ask_trace(trace)
