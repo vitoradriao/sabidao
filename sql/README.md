@@ -41,6 +41,38 @@ Depois de uma mudança de modelo ou dimensão, reingira os documentos para gerar
 | `add_section_retrieval_1536.sql` | Consulta de seções com embeddings de 1536 dimensões. |
 | `add_section_retrieval_3072.sql` | Consulta de seções com embeddings de 3072 dimensões. |
 
+### Contrato da busca híbrida
+
+As funções `hybrid_match_chunks` e `hybrid_match_sections` mantêm `similarity`
+como alias compatível da similaridade vetorial medida. Esse valor pode ser usado pelos
+limiares de confiança, mas não representa o ranking híbrido.
+
+O ranking e sua proveniência são retornados separadamente:
+
+| Campo | Significado |
+| --- | --- |
+| `vector_similarity` | Similaridade de cosseno medida para o candidato. |
+| `lexical_score` | Pontuação full-text do candidato selecionado. |
+| `fusion_score` | Pontuação RRF usada para selecionar e ordenar os candidatos. |
+| `retrieval_origin` | `vector`, `lexical`, `hybrid` ou `neighbor`. |
+| `retrieval_rank` | Posição do candidato principal no ranking RRF. |
+| `is_neighbor` | Indica expansão adjacente posterior à seleção. |
+| `seed_chunk_id` | Candidato principal que originou o vizinho. |
+
+Vizinhos não herdam `fusion_score` nem similaridade do candidato principal. A aplicação
+preserva a ordem devolvida pelo RRF até que um reranker seja executado; nesse caso, a
+ordem do reranker prevalece até a montagem do contexto.
+
+Em bases existentes, reaplique o arquivo `add_section_retrieval_1536.sql` ou
+`add_section_retrieval_3072.sql` correspondente à dimensão configurada. A migração
+recria somente as funções e os índices/colunas aditivos; não remove tabelas nem exige
+reindexação dos documentos.
+
+A fixture [hybrid_rrf_fixture.sql](../tests/postgres/hybrid_rrf_fixture.sql) valida o
+contrato em PostgreSQL com pgvector. Ela deve ser executada somente em uma base de teste
+que já tenha recebido `setup_1536.sql`, `add_analytical_context.sql` e
+`add_section_retrieval_1536.sql`; todos os dados da fixture são revertidos ao final.
+
 ## Inicialização no Docker
 
 Em um volume novo, `docker/postgres/init/00-bootstrap.sh` aplica:

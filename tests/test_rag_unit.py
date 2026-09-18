@@ -99,6 +99,32 @@ class TestStrictAbstain(unittest.TestCase):
         self.assertTrue(abstain)
         self.assertEqual(reason, "few_chunks")
 
+    def test_does_not_treat_fusion_or_feedback_priority_as_confidence(self):
+        chunks = [
+            {
+                "similarity": 0.20,
+                "vector_similarity": 0.20,
+                "fusion_score": 0.99,
+                "feedback_priority": 2,
+                "filename": "exact.md",
+            }
+        ]
+        with patch.multiple(
+            config,
+            RAG_STRICT_ABSTAIN=True,
+            RAG_MIN_RETRIEVED_CHUNKS=1,
+            RAG_MIN_STRONG_SIMILARITY=0.62,
+            RAG_OPERATIONAL_SIMILARITY_MARGIN=0.0,
+        ):
+            abstain, reason = rag._should_strict_abstain("Pergunta geral", chunks)
+
+        trace = rag._summarize_chunks_for_trace(chunks)
+        self.assertTrue(abstain)
+        self.assertEqual(reason, "low_similarity")
+        self.assertEqual(trace["top_similarity"], 0.20)
+        self.assertEqual(trace["top_fusion_score"], 0.99)
+        self.assertEqual(trace["top_feedback_priority"], 2.0)
+
 
 class TestCitationValidation(unittest.TestCase):
     def test_accepts_grounded_answer_with_inline_citations(self):
@@ -290,6 +316,141 @@ class TestRerankPolicy(unittest.TestCase):
         ):
             self.assertTrue(rag._should_rerank_chunks(chunks))
             self.assertFalse(rag._should_rerank_chunks(strong_chunks))
+
+
+class TestHybridRankingContract(unittest.TestCase):
+    def test_preserves_rrf_order_and_lexical_only_candidate(self):
+        chunks = [
+            {
+                "id": "lexical",
+                "document_id": "doc-lexical",
+                "section_id": "section-lexical",
+                "filename": "lexical.md",
+                "content": "Identificador exato CODIGO_XYZ.",
+                "similarity": 0.20,
+                "vector_similarity": 0.20,
+                "lexical_score": 0.9,
+                "fusion_score": 0.020,
+                "retrieval_origin": "lexical",
+                "retrieval_rank": 1,
+                "is_neighbor": False,
+            },
+            {
+                "id": "neighbor",
+                "document_id": "doc-lexical",
+                "section_id": "section-lexical",
+                "filename": "lexical.md",
+                "content": "Contexto adjacente.",
+                "similarity": 0.98,
+                "vector_similarity": 0.98,
+                "lexical_score": None,
+                "fusion_score": None,
+                "retrieval_origin": "neighbor",
+                "retrieval_rank": 1,
+                "is_neighbor": True,
+                "seed_chunk_id": "lexical",
+            },
+            {
+                "id": "vector",
+                "document_id": "doc-vector",
+                "section_id": "section-vector",
+                "filename": "vector.md",
+                "content": "Resultado vetorial generico.",
+                "similarity": 0.95,
+                "vector_similarity": 0.95,
+                "lexical_score": None,
+                "fusion_score": 0.010,
+                "retrieval_origin": "vector",
+                "retrieval_rank": 2,
+                "is_neighbor": False,
+            },
+        ]
+
+        processed = rag._postprocess_search_results(
+            chunks,
+            max_results=3,
+            threshold=0.55,
+            ranking_mode="retrieval",
+        )
+        context = rag.build_context(processed)
+
+        self.assertEqual(
+            [chunk["id"] for chunk in processed],
+            ["lexical", "neighbor", "vector"],
+        )
+        self.assertEqual(processed[0]["retrieval_origin"], "lexical")
+        self.assertEqual(processed[1]["retrieval_origin"], "neighbor")
+        self.assertIsNone(processed[1]["fusion_score"])
+        self.assertLess(
+            context.index('source="lexical.md"'),
+            context.index('source="vector.md"'),
+        )
+
+    def test_reranker_order_reaches_context_builder(self):
+        chunks = [
+            {
+                "id": "rrf-first",
+                "document_id": "doc-rrf",
+                "section_id": "section-rrf",
+                "filename": "rrf.md",
+                "content": "Primeiro resultado definido pelo RRF.",
+                "similarity": 0.70,
+                "fusion_score": 0.020,
+            },
+            {
+                "id": "reranker-first",
+                "document_id": "doc-reranker",
+                "section_id": "section-reranker",
+                "filename": "reranker.md",
+                "content": "Resultado escolhido pelo reranker.",
+                "similarity": 0.69,
+                "fusion_score": 0.015,
+            },
+            {
+                "id": "third",
+                "document_id": "doc-third",
+                "section_id": "section-third",
+                "filename": "third.md",
+                "content": "Terceiro resultado recuperado.",
+                "similarity": 0.68,
+                "fusion_score": 0.010,
+            },
+        ]
+        response = type("RerankResponse", (), {"text": "1,0,2"})()
+
+        with patch.multiple(
+            config,
+            RAG_ENABLE_RERANKING=True,
+            RERANKER_MIN_TRIGGER_SIM=0.55,
+            RERANKER_MAX_TRIGGER_SIM=0.82,
+            RERANKER_MAX_CANDIDATES=8,
+            MAX_CHUNKS_PER_SECTION=2,
+            MAX_CHUNKS_PER_DOCUMENT=3,
+        ), patch("rag._gemini_generate", return_value=response):
+            reranked = rag._rerank_chunks_with_llm("pergunta", chunks)
+            context = rag.build_context(reranked)
+
+        self.assertEqual(reranked[0]["id"], "reranker-first")
+        self.assertLess(
+            context.index('source="reranker.md"'),
+            context.index('source="rrf.md"'),
+        )
+
+    def test_vector_fallback_keeps_similarity_filter_and_order(self):
+        chunks = [
+            {"id": "low", "similarity": 0.20},
+            {"id": "high", "similarity": 0.90},
+            {"id": "middle", "similarity": 0.60},
+        ]
+
+        with patch.object(config, "SIMILARITY_FLOOR_FACTOR", 0.8):
+            processed = rag._postprocess_search_results(
+                chunks,
+                max_results=3,
+                threshold=0.55,
+            )
+
+        self.assertEqual([chunk["id"] for chunk in processed], ["high", "middle"])
 
 
 class TestOpenAIExtraction(unittest.TestCase):
