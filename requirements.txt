@@ -19,8 +19,5 @@ langchain-text-splitters>=0.3.0
 # Web parsing
 beautifulsoup4>=4.12.0
 
-# Structured extraction
-langextract>=1.0.0
-
 # Utils
 python-dotenv>=1.0.0
