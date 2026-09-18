@@ -895,7 +895,24 @@ def _is_grounding_error_critical(errors: list[str]) -> bool:
 def _summarize_chunks_for_trace(chunks: list[dict]) -> dict[str, Any]:
     safe_chunks = chunks or []
     top_similarity = max(
-        (_safe_similarity(chunk.get("similarity", 0.0)) for chunk in safe_chunks),
+        (
+            _safe_similarity(
+                chunk.get("vector_similarity", chunk.get("similarity", 0.0))
+            )
+            for chunk in safe_chunks
+        ),
+        default=0.0,
+    )
+    top_lexical_score = max(
+        (_safe_similarity(chunk.get("lexical_score", 0.0)) for chunk in safe_chunks),
+        default=0.0,
+    )
+    top_fusion_score = max(
+        (_safe_similarity(chunk.get("fusion_score", 0.0)) for chunk in safe_chunks),
+        default=0.0,
+    )
+    top_feedback_priority = max(
+        (_safe_similarity(chunk.get("feedback_priority", 0.0)) for chunk in safe_chunks),
         default=0.0,
     )
     filenames = [
@@ -915,6 +932,17 @@ def _summarize_chunks_for_trace(chunks: list[dict]) -> dict[str, Any]:
     }
     return {
         "top_similarity": top_similarity,
+        "top_vector_similarity": top_similarity,
+        "top_lexical_score": top_lexical_score,
+        "top_fusion_score": top_fusion_score,
+        "top_feedback_priority": top_feedback_priority,
+        "retrieval_origins": sorted(
+            {
+                str(chunk.get("retrieval_origin"))
+                for chunk in safe_chunks
+                if chunk.get("retrieval_origin")
+            }
+        ),
         "retrieved_chunk_count": len(safe_chunks),
         "retrieved_sources": sorted(set(filenames)),
         "retrieved_section_count": len(section_ids),
@@ -1400,20 +1428,30 @@ def _postprocess_search_results(
     threshold: float,
     *,
     max_candidates: int | None = None,
+    ranking_mode: str = "vector",
 ) -> list[dict]:
     if not chunks:
         return []
 
-    min_similarity = threshold * config.SIMILARITY_FLOOR_FACTOR
-    filtered = [
-        c for c in chunks
-        if _safe_similarity(c.get("similarity", 0)) >= min_similarity
-    ]
-
-    filtered.sort(
-        key=lambda c: _safe_similarity(c.get("similarity", 0)),
-        reverse=True,
+    has_retrieval_contract = ranking_mode == "retrieval" and any(
+        chunk.get("retrieval_rank") is not None
+        for chunk in chunks
     )
+    if has_retrieval_contract:
+        # A RPC ja devolve seeds em ordem de retrieval e vizinhos associados logo depois.
+        # similarity permanece apenas como compatibilidade para similaridade vetorial.
+        filtered = list(chunks)
+    else:
+        min_similarity = threshold * config.SIMILARITY_FLOOR_FACTOR
+        filtered = [
+            chunk
+            for chunk in chunks
+            if _safe_similarity(chunk.get("similarity", 0)) >= min_similarity
+        ]
+        filtered.sort(
+            key=lambda chunk: _safe_similarity(chunk.get("similarity", 0)),
+            reverse=True,
+        )
 
     max_with_neighbors = max(1, int(max_candidates or (max_results * 2)))
     if len(filtered) > max_with_neighbors:
@@ -1546,6 +1584,7 @@ def search_relevant_sections(
         max_results,
         threshold,
         max_candidates=max(max_results, int(config.SECTION_FETCH_LIMIT)),
+        ranking_mode="retrieval",
     )
     logger.info(
         "Busca por secoes: %d secoes candidatas para '%s'",
@@ -1607,6 +1646,7 @@ def search_similar_chunks(
                 max_results,
                 threshold,
                 max_candidates=fetch_limit,
+                ranking_mode="retrieval",
             )
         if result:
             logger.info(
@@ -1648,6 +1688,7 @@ def search_similar_chunks(
             max_results,
             threshold,
             max_candidates=fetch_limit,
+            ranking_mode="retrieval",
         )
 
     if result:
@@ -1691,15 +1732,12 @@ def search_similar_chunks(
                     max_results,
                     threshold,
                     max_candidates=fetch_limit,
+                    ranking_mode="retrieval",
                 )
                 for chunk in extra:
                     if chunk.get("id") not in found_ids:
                         final_result.append(chunk)
                         found_ids.add(chunk.get("id"))
-                final_result.sort(
-                    key=lambda c: _safe_similarity(c.get("similarity", 0)),
-                    reverse=True,
-                )
                 max_with_neighbors = max(1, fetch_limit)
                 if len(final_result) > max_with_neighbors:
                     final_result = final_result[:max_with_neighbors]
@@ -1770,12 +1808,12 @@ def _search_feedback_memory_chunks(
         return []
 
     source_kind = "feedback_global" if scope_level == "global" else "feedback_scoped"
-    bonus = 0.35 if source_kind == "feedback_scoped" else 0.25
     priority = 40 if source_kind == "feedback_scoped" else 32
+    feedback_priority = 2 if source_kind == "feedback_scoped" else 1
     formatted: list[dict] = []
     for row in rows or []:
         feedback_item_id = str(row.get("feedback_item_id") or "")
-        similarity = min(1.0, _safe_similarity(row.get("similarity", 0.0)) + bonus)
+        vector_similarity = _safe_similarity(row.get("similarity", 0.0))
         formatted.append(
             {
                 "id": row.get("id"),
@@ -1783,7 +1821,13 @@ def _search_feedback_memory_chunks(
                 "content": row.get("content") or "",
                 "chunk_index": 0,
                 "filename": f"feedback_{feedback_item_id or row.get('id')}.md",
-                "similarity": similarity,
+                "similarity": vector_similarity,
+                "vector_similarity": vector_similarity,
+                "lexical_score": None,
+                "fusion_score": None,
+                "feedback_priority": feedback_priority,
+                "retrieval_origin": source_kind,
+                "is_neighbor": False,
                 "metadata": {
                     "doc_priority": priority,
                     "source_kind": source_kind,
@@ -2039,51 +2083,21 @@ def build_context(chunks: list[dict]) -> str:
             "desconhecido",
         )
         max_similarity = max(
-            _safe_similarity(c.get("similarity", 0))
-            for c in sorted_doc_chunks
+            _safe_similarity(
+                chunk.get("vector_similarity", chunk.get("similarity", 0.0))
+            )
+            for chunk in sorted_doc_chunks
         )
-
-        # P1.3: Boost de prioridade do documento
-        doc_priority = 5  # default
-        source_kind = "kb"
-        for c in sorted_doc_chunks:
-            chunk_priority = c.get("doc_priority")
-            meta = c.get("metadata") or {}
-            if not isinstance(meta, dict):
-                meta = {}
-            p = chunk_priority if chunk_priority is not None else meta.get("doc_priority")
-            sk = str(meta.get("source_kind") or "").strip().lower()
-            if sk:
-                source_kind = sk
-            if p is not None:
-                try:
-                    doc_priority = int(p)
-                except (TypeError, ValueError):
-                    pass
-                if sk:
-                    break
-
-        # Boost com precedencia explicita para memoria de correcoes.
-        priority_boost = 1.0 + (doc_priority - 5) * 0.02
-        precedence_bonus = 0.0
-        if source_kind == "feedback_scoped":
-            precedence_bonus = 0.8
-        elif source_kind == "feedback_global":
-            precedence_bonus = 0.4
-        sort_similarity = (max_similarity * priority_boost) + precedence_bonus
 
         docs_for_context.append(
             {
                 "filename": filename,
                 "max_similarity": max_similarity,
-                "sort_similarity": sort_similarity,
                 "merged_content": merged_content,
                 "analytical_context": analytical_context,
                 "chunk_count": len(sorted_doc_chunks),
             }
         )
-
-    docs_for_context.sort(key=lambda d: (-d["sort_similarity"], d["filename"]))
 
     context_parts = []
     for index, doc in enumerate(docs_for_context, start=1):
@@ -2520,7 +2534,15 @@ def _should_strict_abstain(question: str, chunks: list[dict]) -> tuple[bool, str
     if not chunks:
         return True, "no_chunks"
 
-    top_similarity = max((_safe_similarity(c.get("similarity", 0.0)) for c in chunks), default=0.0)
+    top_similarity = max(
+        (
+            _safe_similarity(
+                chunk.get("vector_similarity", chunk.get("similarity", 0.0))
+            )
+            for chunk in chunks
+        ),
+        default=0.0,
+    )
     if len(chunks) < config.RAG_MIN_RETRIEVED_CHUNKS:
         return True, "few_chunks"
     if top_similarity < config.RAG_MIN_STRONG_SIMILARITY:
@@ -2660,6 +2682,11 @@ def ask(
         "retrieved_sources": [],
         "retrieved_chunk_count": 0,
         "top_similarity": 0.0,
+        "top_vector_similarity": 0.0,
+        "top_lexical_score": 0.0,
+        "top_fusion_score": 0.0,
+        "top_feedback_priority": 0.0,
+        "retrieval_origins": [],
         "citations": [],
         "cited_files": [],
         "grounding_errors": [],

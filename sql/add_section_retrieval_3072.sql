@@ -109,13 +109,20 @@ RETURNS TABLE (
     heading_path TEXT,
     semantic_context TEXT,
     entities JSONB,
-    answer_mode TEXT
+    answer_mode TEXT,
+    vector_similarity FLOAT,
+    lexical_score FLOAT,
+    fusion_score FLOAT,
+    retrieval_origin TEXT,
+    retrieval_rank INTEGER,
+    is_neighbor BOOLEAN,
+    seed_chunk_id UUID
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
     safe_fetch_limit INT := GREATEST(fetch_limit, match_count);
-    max_expanded INT := GREATEST(match_count * 2, match_count);
+    max_expanded INT := GREATEST(match_count * 3, match_count);
 BEGIN
     PERFORM set_config('hnsw.ef_search', GREATEST(100, safe_fetch_limit)::TEXT, true);
 
@@ -163,7 +170,7 @@ BEGIN
             OR dc.section_id IN (SELECT ss.section_id FROM section_scope ss)
         )
     ),
-    top_matches AS (
+    vector_candidates AS (
         SELECT
             bc.id,
             bc.document_id,
@@ -174,24 +181,20 @@ BEGIN
             (1 - (bc.embedding <=> query_embedding))::FLOAT AS similarity
         FROM base_chunks bc
         WHERE 1 - (bc.embedding <=> query_embedding) >= match_threshold
-        ORDER BY bc.embedding <=> query_embedding ASC
+        ORDER BY bc.embedding <=> query_embedding ASC, bc.id ASC
         LIMIT safe_fetch_limit
     ),
     top_ranked AS (
-        SELECT *
-        FROM top_matches
-        ORDER BY similarity DESC
+        SELECT
+            vc.*,
+            ROW_NUMBER() OVER (
+                ORDER BY vc.similarity DESC, vc.id ASC
+            )::INTEGER AS retrieval_rank
+        FROM vector_candidates vc
+        ORDER BY vc.similarity DESC, vc.id ASC
         LIMIT match_count
     ),
-    neighbor_indices AS (
-        SELECT DISTINCT tm.document_id AS doc_id, ni.idx
-        FROM top_ranked tm
-        CROSS JOIN LATERAL (
-            VALUES (tm.chunk_index - 1), (tm.chunk_index), (tm.chunk_index + 1)
-        ) AS ni(idx)
-        WHERE ni.idx >= 0
-    ),
-    expanded AS (
+    expanded_candidates AS (
         SELECT
             bc.id,
             bc.document_id,
@@ -199,56 +202,57 @@ BEGIN
             bc.chunk_index,
             bc.metadata,
             bc.filename,
-            COALESCE(
-                tm.similarity,
-                (
-                    SELECT MAX(tm2.similarity) * 0.90
-                    FROM top_ranked tm2
-                    WHERE tm2.document_id = bc.document_id
-                      AND ABS(tm2.chunk_index - bc.chunk_index) = 1
-                )
-            )::FLOAT AS similarity,
+            (1 - (bc.embedding <=> query_embedding))::FLOAT AS vector_similarity,
             bc.section_id,
             bc.heading_path,
             bc.semantic_context,
             bc.entities,
-            bc.answer_mode
-        FROM neighbor_indices ni
-        JOIN base_chunks bc ON bc.document_id = ni.doc_id AND bc.chunk_index = ni.idx
-        LEFT JOIN top_ranked tm ON tm.id = bc.id
+            bc.answer_mode,
+            tm.retrieval_rank,
+            (bc.id <> tm.id) AS is_neighbor,
+            tm.id AS seed_chunk_id,
+            ABS(bc.chunk_index - tm.chunk_index) AS neighbor_distance,
+            ROW_NUMBER() OVER (
+                PARTITION BY bc.id
+                ORDER BY
+                    (bc.id <> tm.id) ASC,
+                    tm.retrieval_rank ASC,
+                    ABS(bc.chunk_index - tm.chunk_index) ASC,
+                    tm.id ASC
+            ) AS expansion_choice
+        FROM top_ranked tm
+        JOIN base_chunks bc
+          ON bc.document_id = tm.document_id
+         AND bc.chunk_index BETWEEN tm.chunk_index - 1 AND tm.chunk_index + 1
     )
     SELECT
-        f.id,
-        f.document_id,
-        f.content,
-        f.chunk_index,
-        f.metadata,
-        f.filename,
-        f.similarity,
-        f.section_id,
-        f.heading_path,
-        f.semantic_context,
-        f.entities,
-        f.answer_mode
-    FROM (
-        SELECT DISTINCT ON (e.id)
-            e.id,
-            e.document_id,
-            e.content,
-            e.chunk_index,
-            e.metadata,
-            e.filename,
-            e.similarity,
-            e.section_id,
-            e.heading_path,
-            e.semantic_context,
-            e.entities,
-            e.answer_mode
-        FROM expanded e
-        WHERE e.similarity IS NOT NULL
-        ORDER BY e.id, e.similarity DESC
-    ) f
-    ORDER BY f.similarity DESC
+        ec.id,
+        ec.document_id,
+        ec.content,
+        ec.chunk_index,
+        ec.metadata,
+        ec.filename,
+        ec.vector_similarity AS similarity,
+        ec.section_id,
+        ec.heading_path,
+        ec.semantic_context,
+        ec.entities,
+        ec.answer_mode,
+        ec.vector_similarity,
+        NULL::FLOAT AS lexical_score,
+        NULL::FLOAT AS fusion_score,
+        CASE WHEN ec.is_neighbor THEN 'neighbor' ELSE 'vector' END AS retrieval_origin,
+        ec.retrieval_rank,
+        ec.is_neighbor,
+        ec.seed_chunk_id
+    FROM expanded_candidates ec
+    WHERE ec.expansion_choice = 1
+    ORDER BY
+        ec.retrieval_rank ASC,
+        ec.is_neighbor ASC,
+        ec.neighbor_distance ASC,
+        ec.chunk_index ASC,
+        ec.id ASC
     LIMIT max_expanded;
 END;
 $$;
@@ -277,14 +281,21 @@ RETURNS TABLE (
     heading_path TEXT,
     semantic_context TEXT,
     entities JSONB,
-    answer_mode TEXT
+    answer_mode TEXT,
+    vector_similarity FLOAT,
+    lexical_score FLOAT,
+    fusion_score FLOAT,
+    retrieval_origin TEXT,
+    retrieval_rank INTEGER,
+    is_neighbor BOOLEAN,
+    seed_chunk_id UUID
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
     rrf_k CONSTANT INT := 60;
     safe_fetch_limit INT := GREATEST(fetch_limit, match_count);
-    max_expanded INT := GREATEST(match_count * 2, match_count);
+    max_expanded INT := GREATEST(match_count * 3, match_count);
 BEGIN
     PERFORM set_config('hnsw.ef_search', GREATEST(100, safe_fetch_limit)::TEXT, true);
 
@@ -336,23 +347,39 @@ BEGIN
     vector_results AS (
         SELECT
             bc.id,
-            ROW_NUMBER() OVER (ORDER BY bc.embedding <=> query_embedding ASC) AS rank_pos,
+            ROW_NUMBER() OVER (
+                ORDER BY bc.embedding <=> query_embedding ASC, bc.id ASC
+            ) AS rank_pos,
             (1 - (bc.embedding <=> query_embedding))::FLOAT AS vec_similarity
         FROM base_chunks bc
         WHERE 1 - (bc.embedding <=> query_embedding) >= match_threshold * 0.7
-        ORDER BY bc.embedding <=> query_embedding ASC
+        ORDER BY bc.embedding <=> query_embedding ASC, bc.id ASC
         LIMIT safe_fetch_limit
     ),
     fts_results AS (
         SELECT
             bc.id,
             ROW_NUMBER() OVER (
-                ORDER BY ts_rank_cd(bc.fts, websearch_to_tsquery('portuguese', query_text)) DESC
+                ORDER BY
+                    ts_rank_cd(
+                        bc.fts,
+                        websearch_to_tsquery('portuguese', NULLIF(BTRIM(query_text), ''))
+                    ) DESC,
+                    bc.id ASC
             ) AS rank_pos,
-            ts_rank_cd(bc.fts, websearch_to_tsquery('portuguese', query_text))::FLOAT AS fts_rank
+            ts_rank_cd(
+                bc.fts,
+                websearch_to_tsquery('portuguese', NULLIF(BTRIM(query_text), ''))
+            )::FLOAT AS fts_rank
         FROM base_chunks bc
-        WHERE bc.fts @@ websearch_to_tsquery('portuguese', query_text)
-        ORDER BY ts_rank_cd(bc.fts, websearch_to_tsquery('portuguese', query_text)) DESC
+        WHERE bc.fts @@ websearch_to_tsquery(
+            'portuguese',
+            NULLIF(BTRIM(query_text), '')
+        )
+        ORDER BY ts_rank_cd(
+            bc.fts,
+            websearch_to_tsquery('portuguese', NULLIF(BTRIM(query_text), ''))
+        ) DESC, bc.id ASC
         LIMIT safe_fetch_limit
     ),
     combined AS (
@@ -361,31 +388,37 @@ BEGIN
             COALESCE(vector_weight * (1.0 / (rrf_k + vr.rank_pos)), 0) +
             COALESCE(fts_weight * (1.0 / (rrf_k + fr.rank_pos)), 0) AS rrf_score,
             vr.vec_similarity::FLOAT AS vec_similarity,
-            (vr.id IS NOT NULL AND fr.id IS NOT NULL) AS in_both
+            fr.fts_rank::FLOAT AS fts_rank,
+            CASE
+                WHEN vr.id IS NOT NULL AND fr.id IS NOT NULL THEN 'hybrid'
+                WHEN fr.id IS NOT NULL THEN 'lexical'
+                ELSE 'vector'
+            END AS retrieval_origin
         FROM vector_results vr
         FULL OUTER JOIN fts_results fr ON vr.id = fr.id
     ),
-    top_matches AS (
+    ranked_matches AS (
         SELECT
             c.chunk_id,
             c.rrf_score,
-            c.vec_similarity
+            c.vec_similarity,
+            c.fts_rank,
+            c.retrieval_origin,
+            ROW_NUMBER() OVER (
+                ORDER BY
+                    c.rrf_score DESC,
+                    COALESCE(c.vec_similarity, -1.0) DESC,
+                    c.chunk_id ASC
+            )::INTEGER AS retrieval_rank
         FROM combined c
-        WHERE c.vec_similarity >= match_threshold * 0.5
-           OR c.in_both
-        ORDER BY c.rrf_score DESC
+    ),
+    top_matches AS (
+        SELECT rm.*
+        FROM ranked_matches rm
+        ORDER BY rm.retrieval_rank
         LIMIT match_count
     ),
-    neighbor_indices AS (
-        SELECT DISTINCT bc.document_id AS doc_id, ni.idx
-        FROM top_matches tm
-        JOIN base_chunks bc ON bc.id = tm.chunk_id
-        CROSS JOIN LATERAL (
-            VALUES (bc.chunk_index - 1), (bc.chunk_index), (bc.chunk_index + 1)
-        ) AS ni(idx)
-        WHERE ni.idx >= 0
-    ),
-    expanded AS (
+    expanded_candidates AS (
         SELECT
             bc.id,
             bc.document_id,
@@ -393,57 +426,64 @@ BEGIN
             bc.chunk_index,
             bc.metadata,
             bc.filename,
-            COALESCE(
-                tm.vec_similarity,
-                (
-                    SELECT MAX(tm2.vec_similarity) * 0.90
-                    FROM top_matches tm2
-                    JOIN base_chunks bc2 ON bc2.id = tm2.chunk_id
-                    WHERE bc2.document_id = bc.document_id
-                      AND ABS(bc2.chunk_index - bc.chunk_index) = 1
-                )
-            )::FLOAT AS similarity,
+            (1 - (bc.embedding <=> query_embedding))::FLOAT AS vector_similarity,
             bc.section_id,
             bc.heading_path,
             bc.semantic_context,
             bc.entities,
-            bc.answer_mode
-        FROM neighbor_indices ni
-        JOIN base_chunks bc ON bc.document_id = ni.doc_id AND bc.chunk_index = ni.idx
-        LEFT JOIN top_matches tm ON tm.chunk_id = bc.id
+            bc.answer_mode,
+            CASE WHEN bc.id = tm.chunk_id THEN tm.fts_rank ELSE NULL END AS lexical_score,
+            CASE WHEN bc.id = tm.chunk_id THEN tm.rrf_score ELSE NULL END AS fusion_score,
+            CASE
+                WHEN bc.id = tm.chunk_id THEN tm.retrieval_origin
+                ELSE 'neighbor'
+            END AS retrieval_origin,
+            tm.retrieval_rank,
+            (bc.id <> tm.chunk_id) AS is_neighbor,
+            tm.chunk_id AS seed_chunk_id,
+            ABS(bc.chunk_index - seed.chunk_index) AS neighbor_distance,
+            ROW_NUMBER() OVER (
+                PARTITION BY bc.id
+                ORDER BY
+                    (bc.id <> tm.chunk_id) ASC,
+                    tm.retrieval_rank ASC,
+                    ABS(bc.chunk_index - seed.chunk_index) ASC,
+                    tm.chunk_id ASC
+            ) AS expansion_choice
+        FROM top_matches tm
+        JOIN base_chunks seed ON seed.id = tm.chunk_id
+        JOIN base_chunks bc
+          ON bc.document_id = seed.document_id
+         AND bc.chunk_index BETWEEN seed.chunk_index - 1 AND seed.chunk_index + 1
     )
     SELECT
-        f.id,
-        f.document_id,
-        f.content,
-        f.chunk_index,
-        f.metadata,
-        f.filename,
-        f.similarity,
-        f.section_id,
-        f.heading_path,
-        f.semantic_context,
-        f.entities,
-        f.answer_mode
-    FROM (
-        SELECT DISTINCT ON (e.id)
-            e.id,
-            e.document_id,
-            e.content,
-            e.chunk_index,
-            e.metadata,
-            e.filename,
-            e.similarity,
-            e.section_id,
-            e.heading_path,
-            e.semantic_context,
-            e.entities,
-            e.answer_mode
-        FROM expanded e
-        WHERE e.similarity IS NOT NULL
-        ORDER BY e.id, e.similarity DESC
-    ) f
-    ORDER BY f.similarity DESC
+        ec.id,
+        ec.document_id,
+        ec.content,
+        ec.chunk_index,
+        ec.metadata,
+        ec.filename,
+        ec.vector_similarity AS similarity,
+        ec.section_id,
+        ec.heading_path,
+        ec.semantic_context,
+        ec.entities,
+        ec.answer_mode,
+        ec.vector_similarity,
+        ec.lexical_score,
+        ec.fusion_score,
+        ec.retrieval_origin,
+        ec.retrieval_rank,
+        ec.is_neighbor,
+        ec.seed_chunk_id
+    FROM expanded_candidates ec
+    WHERE ec.expansion_choice = 1
+    ORDER BY
+        ec.retrieval_rank ASC,
+        ec.is_neighbor ASC,
+        ec.neighbor_distance ASC,
+        ec.chunk_index ASC,
+        ec.id ASC
     LIMIT max_expanded;
 END;
 $$;
@@ -471,7 +511,12 @@ RETURNS TABLE (
     entities JSONB,
     retrieval_text TEXT,
     filename TEXT,
-    similarity FLOAT
+    similarity FLOAT,
+    vector_similarity FLOAT,
+    lexical_score FLOAT,
+    fusion_score FLOAT,
+    retrieval_origin TEXT,
+    retrieval_rank INTEGER
 )
 LANGUAGE plpgsql
 AS $$
@@ -513,24 +558,40 @@ BEGIN
     vector_results AS (
         SELECT
             bs.id,
-            ROW_NUMBER() OVER (ORDER BY bs.embedding <=> query_embedding ASC) AS rank_pos,
+            ROW_NUMBER() OVER (
+                ORDER BY bs.embedding <=> query_embedding ASC, bs.id ASC
+            ) AS rank_pos,
             (1 - (bs.embedding <=> query_embedding))::FLOAT AS vec_similarity
         FROM base_sections bs
         WHERE bs.embedding IS NOT NULL
           AND 1 - (bs.embedding <=> query_embedding) >= match_threshold * 0.65
-        ORDER BY bs.embedding <=> query_embedding ASC
+        ORDER BY bs.embedding <=> query_embedding ASC, bs.id ASC
         LIMIT safe_fetch_limit
     ),
     fts_results AS (
         SELECT
             bs.id,
             ROW_NUMBER() OVER (
-                ORDER BY ts_rank_cd(bs.fts, websearch_to_tsquery('portuguese', query_text)) DESC
+                ORDER BY
+                    ts_rank_cd(
+                        bs.fts,
+                        websearch_to_tsquery('portuguese', NULLIF(BTRIM(query_text), ''))
+                    ) DESC,
+                    bs.id ASC
             ) AS rank_pos,
-            ts_rank_cd(bs.fts, websearch_to_tsquery('portuguese', query_text))::FLOAT AS fts_rank
+            ts_rank_cd(
+                bs.fts,
+                websearch_to_tsquery('portuguese', NULLIF(BTRIM(query_text), ''))
+            )::FLOAT AS fts_rank
         FROM base_sections bs
-        WHERE bs.fts @@ websearch_to_tsquery('portuguese', query_text)
-        ORDER BY ts_rank_cd(bs.fts, websearch_to_tsquery('portuguese', query_text)) DESC
+        WHERE bs.fts @@ websearch_to_tsquery(
+            'portuguese',
+            NULLIF(BTRIM(query_text), '')
+        )
+        ORDER BY ts_rank_cd(
+            bs.fts,
+            websearch_to_tsquery('portuguese', NULLIF(BTRIM(query_text), ''))
+        ) DESC, bs.id ASC
         LIMIT safe_fetch_limit
     ),
     combined AS (
@@ -539,9 +600,29 @@ BEGIN
             COALESCE(vector_weight * (1.0 / (rrf_k + vr.rank_pos)), 0) +
             COALESCE(fts_weight * (1.0 / (rrf_k + fr.rank_pos)), 0) AS rrf_score,
             vr.vec_similarity::FLOAT AS vec_similarity,
-            (vr.id IS NOT NULL AND fr.id IS NOT NULL) AS in_both
+            fr.fts_rank::FLOAT AS fts_rank,
+            CASE
+                WHEN vr.id IS NOT NULL AND fr.id IS NOT NULL THEN 'hybrid'
+                WHEN fr.id IS NOT NULL THEN 'lexical'
+                ELSE 'vector'
+            END AS retrieval_origin
         FROM vector_results vr
         FULL OUTER JOIN fts_results fr ON vr.id = fr.id
+    ),
+    ranked_matches AS (
+        SELECT
+            c.section_id,
+            c.rrf_score,
+            c.vec_similarity,
+            c.fts_rank,
+            c.retrieval_origin,
+            ROW_NUMBER() OVER (
+                ORDER BY
+                    c.rrf_score DESC,
+                    COALESCE(c.vec_similarity, -1.0) DESC,
+                    c.section_id ASC
+            )::INTEGER AS retrieval_rank
+        FROM combined c
     )
     SELECT
         bs.id,
@@ -555,12 +636,21 @@ BEGIN
         bs.entities,
         bs.retrieval_text,
         bs.filename,
-        COALESCE(c.vec_similarity, 0.0)::FLOAT AS similarity
-    FROM combined c
-    JOIN base_sections bs ON bs.id = c.section_id
-    WHERE c.vec_similarity >= match_threshold * 0.5
-       OR c.in_both
-    ORDER BY c.rrf_score DESC, c.vec_similarity DESC
+        COALESCE(
+            (1 - (bs.embedding <=> query_embedding))::FLOAT,
+            0.0
+        ) AS similarity,
+        COALESCE(
+            (1 - (bs.embedding <=> query_embedding))::FLOAT,
+            0.0
+        ) AS vector_similarity,
+        rm.fts_rank AS lexical_score,
+        rm.rrf_score AS fusion_score,
+        rm.retrieval_origin,
+        rm.retrieval_rank
+    FROM ranked_matches rm
+    JOIN base_sections bs ON bs.id = rm.section_id
+    ORDER BY rm.retrieval_rank
     LIMIT match_count;
 END;
 $$;

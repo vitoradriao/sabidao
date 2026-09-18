@@ -277,6 +277,10 @@ class TestCorrectionWorkflowIntegration(unittest.TestCase):
         self.assertTrue(chunk_id)
         self.assertEqual(len(retrieved), 1)
         self.assertEqual(retrieved[0]["metadata"]["source_kind"], "feedback_scoped")
+        self.assertEqual(retrieved[0]["similarity"], 0.93)
+        self.assertEqual(retrieved[0]["vector_similarity"], 0.93)
+        self.assertEqual(retrieved[0]["feedback_priority"], 2)
+        self.assertIsNone(retrieved[0]["fusion_score"])
         self.assertIn("Pergunta original", retrieved[0]["content"])
 
 
