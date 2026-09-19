@@ -139,6 +139,10 @@ GENERATION_MODEL = _env_setting(
     _generation_default_model,
     legacy_names=(_generation_legacy_model,),
 )
+GENERATION_MODEL_POLICY = _env_setting(
+    "GENERATION_MODEL_POLICY",
+    "primary",
+).lower()
 
 _embedding_default_model = (
     "text-embedding-3-large"
@@ -403,6 +407,12 @@ def validate_ai_config() -> None:
         raise EnvironmentError(
             f"EMBEDDING_PROVIDER invalido: {EMBEDDING_PROVIDER}. "
             f"Use um de: {', '.join(sorted(allowed_providers))}."
+        )
+    allowed_model_policies = {"primary", "contextual"}
+    if GENERATION_MODEL_POLICY not in allowed_model_policies:
+        raise EnvironmentError(
+            f"GENERATION_MODEL_POLICY invalida: {GENERATION_MODEL_POLICY}. "
+            f"Use uma de: {', '.join(sorted(allowed_model_policies))}."
         )
 
     required = {

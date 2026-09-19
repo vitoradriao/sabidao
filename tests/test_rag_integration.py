@@ -67,7 +67,7 @@ class TestAskIntegration(unittest.TestCase):
             return_value=(chunks, [], chunks),
         ), patch(
             "rag._rerank_chunks_with_llm",
-            side_effect=lambda _q, candidate_chunks: candidate_chunks,
+            side_effect=lambda _q, candidate_chunks, **_kwargs: candidate_chunks,
         ), patch(
             "rag._ask_model",
             return_value=(
@@ -111,7 +111,7 @@ class TestAskIntegration(unittest.TestCase):
         ), patch(
             "rag.retrieve_chunks_with_feedback",
             return_value=(weak_chunks, [], weak_chunks),
-        ), patch("rag._rerank_chunks_with_llm", side_effect=lambda _q, candidate_chunks: candidate_chunks), patch(
+        ), patch("rag._rerank_chunks_with_llm", side_effect=lambda _q, candidate_chunks, **_kwargs: candidate_chunks), patch(
             "rag._ask_model"
         ) as ask_model_mock:
             answer, _returned_chunks, trace = rag.ask("Qual campo da tabela X?")
@@ -153,7 +153,7 @@ class TestAskIntegration(unittest.TestCase):
             return_value=(chunks, [], chunks),
         ), patch(
             "rag._rerank_chunks_with_llm",
-            side_effect=lambda _q, candidate_chunks: candidate_chunks,
+            side_effect=lambda _q, candidate_chunks, **_kwargs: candidate_chunks,
         ), patch("rag._ask_model", return_value=provider_error) as ask_model_mock:
             answer, _returned_chunks, trace = rag.ask("Como configurar USAGRADE?")
 
