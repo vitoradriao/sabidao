@@ -73,3 +73,25 @@ intencionalmente alguns deles:
 
 Para conferir a configuração sem expor credenciais, use `!status`: o resumo
 mostra providers e modelos ativos, mas não mostra chaves.
+
+## Relaxamento controlado do filtro de módulo
+
+Quando `RAG_FILTER_BY_MODULE=true`, a recuperação mantém a busca roteada como
+preferencial e executa também um *challenger* sem o filtro de módulo. Essa
+segunda busca evita que uma classificação incorreta torne um documento
+canônico inalcançável, mas não desativa os demais filtros nem aumenta o
+contexto indefinidamente.
+
+`RAG_ENABLE_GLOBAL_CHALLENGER` ativa o comportamento. O número de resultados e
+o teto de candidatos, incluindo vizinhos, são limitados respectivamente por
+`RAG_GLOBAL_CHALLENGER_COUNT` e `RAG_GLOBAL_CHALLENGER_FETCH_LIMIT`. A consulta
+reaproveita o embedding já calculado, não faz chamada adicional ao modelo de
+geração e continua sujeita a `DB_STATEMENT_TIMEOUT_MS` e às tentativas já
+definidas para chamadas transientes ao banco.
+
+O trace de cada resposta registra os módulos preferenciais, o motivo do
+relaxamento, as quantidades de candidatos filtrados, globais e selecionados,
+além da latência observada do *challenger*. Uma afirmação de ausência não deve
+ser sustentada apenas pelo subconjunto filtrado; sem evidência suficiente após
+o relaxamento, a resposta deve assumir incerteza com a frase padrão de
+*no-answer*.

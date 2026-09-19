@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,7 +23,7 @@ import rag
 from bot_common import normalize_text
 
 
-EVALUATOR_SCHEMA_VERSION = 2
+EVALUATOR_SCHEMA_VERSION = 3
 METRIC_DEFINITIONS = {
     "behavior_match": (
         "Compara se a resposta ou abstencao ocorreu conforme expected_behavior."
@@ -34,12 +36,28 @@ METRIC_DEFINITIONS = {
         "Verifica se ao menos uma evidencia de referencia foi recuperada pela fonte e, "
         "quando informados, pelos termos esperados."
     ),
+    "recall_at_k": (
+        "Equivale a retrieval_relevance no conjunto final de ate MAX_CONTEXT_CHUNKS."
+    ),
     "citation_validity": (
         "Verifica citacao de uma fonte de referencia sem erros de grounding; abstencoes e "
         "casos sem fonte de referencia nao sao avaliados."
     ),
     "intent_match": "Compara a intencao prevista com expected_intent.",
+    "false_abstention": (
+        "Marca abstencao indevida em caso cujo expected_behavior exige resposta exata."
+    ),
+    "false_absence_claim": (
+        "Marca afirmacao explicita de ausencia em caso que exige resposta exata."
+    ),
 }
+
+_NEGATED_ABSENCE_RE = re.compile(r"\bnao (?:e|eh) inexistente\b")
+_ABSENCE_CLAIM_RE = re.compile(
+    r"\b(?:nao (?:existe|consta|ha|foi encontrad[oa]s?|esta documentad[oa]s?)|"
+    r"(?:e|eh) inexistente)\b"
+)
+_OCCURRENCE_METRICS = frozenset({"false_abstention", "false_absence_claim"})
 
 AnswerProvider = Callable[[str, dict[str, Any]], tuple[str, list[dict], dict[str, Any]]]
 
@@ -72,6 +90,26 @@ def _behavior_match(expected_behavior: str, abstained: bool, answer: str) -> boo
         # Accept either a strict abstain or a partial response that includes no-answer phrase.
         return abstained or (config.NO_ANSWER_PHRASE in (answer or ""))
     return not abstained
+
+
+def _false_abstention(expected_behavior: str, abstained: bool) -> bool | None:
+    if (expected_behavior or "").strip().lower() != "exact_answer":
+        return None
+    return abstained
+
+
+def _false_absence_claim(
+    expected_behavior: str,
+    abstained: bool,
+    answer: str,
+) -> bool | None:
+    if (expected_behavior or "").strip().lower() != "exact_answer":
+        return None
+    if abstained:
+        return False
+    normalized_answer = normalize_text(answer or "")
+    normalized_answer = _NEGATED_ABSENCE_RE.sub("", normalized_answer)
+    return bool(_ABSENCE_CLAIM_RE.search(normalized_answer))
 
 
 def _fact_specs(expected_facts: Any) -> list[dict[str, Any]]:
@@ -311,6 +349,12 @@ def _evaluate_response(
     )
     intent_match = expected_intent == predicted_intent
     grounded = _grounded(abstained, trace)
+    false_abstention = _false_abstention(expected_behavior, abstained)
+    false_absence_claim = _false_absence_claim(
+        expected_behavior,
+        abstained,
+        answer,
+    )
     score = _score_case(
         expected_behavior=expected_behavior,
         abstained=abstained,
@@ -328,15 +372,21 @@ def _evaluate_response(
         "behavior_match": behavior_match,
         "factual_correctness": factual_correctness,
         "retrieval_relevance": retrieval_relevance,
+        "recall_at_k": retrieval_relevance,
         "citation_validity": citation_validity,
         "citation_ok": citation_validity,
         "intent_match": intent_match,
         "grounded": grounded,
+        "false_abstention": false_abstention,
+        "false_absence_claim": false_absence_claim,
         "score": score,
         "metric_details": {
             "factual_correctness": factual_details,
             "retrieval_relevance": retrieval_details,
+            "recall_at_k": retrieval_details,
             "citation_validity": citation_details,
+            "false_abstention": {"value": false_abstention},
+            "false_absence_claim": {"value": false_absence_claim},
         },
     }
 
@@ -461,7 +511,14 @@ def run_evaluation(
     }
     grounded_summary = _summarize_metric(results, "grounded")
     scores = [float(result["score"]) for result in results if result["score"] is not None]
+    latencies = sorted(int(result["latency_ms"]) for result in results)
     avg_score = round(sum(scores) / len(scores), 4) if scores else None
+    avg_latency_ms = round(sum(latencies) / len(latencies), 2) if latencies else None
+    p95_latency_ms = (
+        latencies[max(0, math.ceil(len(latencies) * 0.95) - 1)]
+        if latencies
+        else None
+    )
     abstain_rate = (sum(1 for result in results if result["abstained"]) / total) if total else 0.0
 
     return {
@@ -472,6 +529,8 @@ def run_evaluation(
         "avg_score": avg_score,
         "score_evaluated": len(scores),
         "score_not_evaluated": total - len(scores),
+        "avg_latency_ms": avg_latency_ms,
+        "p95_latency_ms": p95_latency_ms,
         "grounded_rate": grounded_summary["rate"],
         "citation_ok_rate": metrics["citation_validity"]["rate"],
         "abstain_rate": round(abstain_rate, 4),
@@ -491,14 +550,22 @@ def _summarize_metric(
         for result in results
         if result.get(metric_name) is not None
     ]
-    passed = sum(evaluated_values)
     evaluated = len(evaluated_values)
+    true_count = sum(evaluated_values)
+    if metric_name in _OCCURRENCE_METRICS:
+        return {
+            "occurrences": true_count,
+            "non_occurrences": evaluated - true_count,
+            "evaluated": evaluated,
+            "not_evaluated": len(results) - evaluated,
+            "rate": round(true_count / evaluated, 4) if evaluated else None,
+        }
     return {
-        "passed": passed,
-        "failed": evaluated - passed,
+        "passed": true_count,
+        "failed": evaluated - true_count,
         "evaluated": evaluated,
         "not_evaluated": len(results) - evaluated,
-        "rate": round(passed / evaluated, 4) if evaluated else None,
+        "rate": round(true_count / evaluated, 4) if evaluated else None,
     }
 
 
@@ -557,6 +624,10 @@ def main() -> int:
         )
     print(f"Grounding trace: {_format_rate(summary['grounded_rate'])}")
     print(f"Abstention rate: {summary['abstain_rate']:.2%}")
+    print(
+        "Latency: "
+        f"avg={summary['avg_latency_ms']} ms, p95={summary['p95_latency_ms']} ms"
+    )
     print(f"Report: {report_path}")
     return 0
 

@@ -283,6 +283,7 @@ _REFORMULATION_CLARIFY_RE = re.compile(
     r"^\s*(pode|poderia|consigo|precisa|precisamos|favor)\b.*\b(detalhar|informar|enviar|explicar)\b",
     flags=re.IGNORECASE,
 )
+_MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST = 1
 
 _PROVIDER_ERROR_MESSAGES = frozenset(
     {
@@ -951,6 +952,7 @@ def _summarize_chunks_for_trace(chunks: list[dict]) -> dict[str, Any]:
                 if chunk.get("retrieval_origin")
             }
         ),
+        "routing_scope_counts": _routing_scope_counts(safe_chunks),
         "retrieved_chunk_count": len(safe_chunks),
         "retrieved_sources": sorted(set(filenames)),
         "retrieved_section_count": len(section_ids),
@@ -1794,51 +1796,7 @@ def search_similar_chunks(
             threshold,
         )
 
-    final_result = result or []
-
-    # P0.3: Se a busca filtrada retornou poucos resultados, complementar sem filtro de modulo
-    if module_filter and not section_ids and len(final_result) < max(1, max_results // 3):
-        logger.info(
-            "Busca filtrada retornou poucos resultados (%d/%d); "
-            "complementando com busca sem filtro de modulo.",
-            len(final_result),
-            max_results,
-        )
-        found_ids = {c.get("id") for c in final_result}
-        unfiltered_params = {
-            "query_embedding": rpc_params["query_embedding"],
-            "query_text": query_for_fts,
-            "match_count": max_results,
-            "match_threshold": threshold,
-            "fetch_limit": fetch_limit,
-        }
-        if doc_types_filter:
-            unfiltered_params["filter_doc_types"] = doc_types_filter
-        try:
-            extra = _search_rpc_with_filter_fallback("hybrid_match_chunks", unfiltered_params)
-            if extra:
-                extra = _postprocess_search_results(
-                    extra,
-                    max_results,
-                    threshold,
-                    max_candidates=fetch_limit,
-                    ranking_mode="retrieval",
-                )
-                for chunk in extra:
-                    if chunk.get("id") not in found_ids:
-                        final_result.append(chunk)
-                        found_ids.add(chunk.get("id"))
-                max_with_neighbors = max(1, fetch_limit)
-                if len(final_result) > max_with_neighbors:
-                    final_result = final_result[:max_with_neighbors]
-                logger.info(
-                    "Busca complementar sem filtro de modulo: %d chunks total apos merge.",
-                    len(final_result),
-                )
-        except Exception as e:
-            logger.warning("Busca complementar sem filtro de modulo falhou: %s", e)
-
-    return final_result
+    return result or []
 
 
 def _normalize_scope(scope: dict | None) -> dict[str, str]:
@@ -1945,11 +1903,58 @@ def _dedupe_chunks(chunks: list[dict]) -> list[dict]:
     return deduped
 
 
+def _tag_chunks_with_routing_scope(chunks: list[dict], routing_scope: str) -> list[dict]:
+    tagged: list[dict] = []
+    for chunk in chunks:
+        tagged_chunk = dict(chunk)
+        tagged_chunk["routing_scope"] = routing_scope
+        tagged.append(tagged_chunk)
+    return tagged
+
+
+def _interleave_routing_scopes(
+    preferred_chunks: list[dict],
+    challenger_chunks: list[dict],
+) -> list[dict]:
+    """Mantem preferencia do filtro sem esconder o challenger na truncagem final."""
+    preferred = _dedupe_chunks(preferred_chunks)
+    combined = _dedupe_chunks(preferred + challenger_chunks)
+    challengers = combined[len(preferred):]
+    if not preferred:
+        return challengers
+    if not challengers:
+        return preferred
+
+    interleaved: list[dict] = []
+    preferred_index = 0
+    challenger_index = 0
+    while preferred_index < len(preferred) or challenger_index < len(challengers):
+        for _ in range(2):
+            if preferred_index >= len(preferred):
+                break
+            interleaved.append(preferred[preferred_index])
+            preferred_index += 1
+        if challenger_index < len(challengers):
+            interleaved.append(challengers[challenger_index])
+            challenger_index += 1
+    return interleaved
+
+
+def _routing_scope_counts(chunks: list[dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for chunk in chunks:
+        routing_scope = str(chunk.get("routing_scope") or "").strip()
+        if routing_scope:
+            counts[routing_scope] = counts.get(routing_scope, 0) + 1
+    return counts
+
+
 def retrieve_chunks_with_feedback(
     query: str,
     *,
     query_plan: dict | None,
     scope: dict | None,
+    retrieval_trace: dict[str, Any] | None = None,
 ) -> tuple[list[dict], list[dict], list[dict]]:
     scope = _normalize_scope(scope)
     scoped_feedback = []
@@ -1993,6 +1998,91 @@ def retrieve_chunks_with_feedback(
             candidate_limit=config.CHUNK_FETCH_LIMIT,
         )
         kb_chunks = _dedupe_chunks(kb_chunks + fallback_chunks)
+
+    _doc_types_filter, module_filter = _build_search_filters(query_plan)
+    preferred_scope = "filtered" if module_filter else "global"
+    kb_chunks = _tag_chunks_with_routing_scope(kb_chunks, preferred_scope)
+    filtered_candidate_count = len(kb_chunks) if module_filter else 0
+
+    challenger_chunks: list[dict] = []
+    challenger_latency_ms = 0
+    relaxation_attempted = bool(
+        module_filter and config.RAG_ENABLE_GLOBAL_CHALLENGER
+    )
+    relaxation_applied = False
+    challenger_error: str | None = None
+    if relaxation_attempted:
+        broad_plan = dict(query_plan or {})
+        broad_plan["modules"] = []
+        challenger_started_at = _time.monotonic()
+        try:
+            challenger_chunks = search_similar_chunks(
+                query,
+                query_plan=broad_plan,
+                max_results=config.RAG_GLOBAL_CHALLENGER_COUNT,
+                candidate_limit=config.RAG_GLOBAL_CHALLENGER_FETCH_LIMIT,
+            )
+            relaxation_applied = True
+            challenger_chunks = _tag_chunks_with_routing_scope(
+                challenger_chunks,
+                "global_challenger",
+            )
+            kb_chunks = _interleave_routing_scopes(kb_chunks, challenger_chunks)
+        except Exception as exc:
+            challenger_error = type(exc).__name__
+            logger.warning(
+                "Challenger global falhou; mantendo candidatos filtrados: %s",
+                exc,
+            )
+        finally:
+            challenger_latency_ms = int(
+                (_time.monotonic() - challenger_started_at) * 1000
+            )
+        logger.info(
+            "Relaxamento controlado de modulo: modules=%s status=%s filtered=%d "
+            "global=%d limit=%d fetch_limit=%d latency_ms=%d",
+            module_filter,
+            "completed" if relaxation_applied else "failed",
+            filtered_candidate_count,
+            len(challenger_chunks),
+            config.RAG_GLOBAL_CHALLENGER_COUNT,
+            config.RAG_GLOBAL_CHALLENGER_FETCH_LIMIT,
+            challenger_latency_ms,
+        )
+
+    if retrieval_trace is not None:
+        retrieval_trace.update(
+            {
+                "preferred_scope": preferred_scope,
+                "preferred_modules": module_filter or [],
+                "relaxation_attempted": relaxation_attempted,
+                "relaxation_applied": relaxation_applied,
+                "relaxation_reason": (
+                    "bounded_global_challenger" if relaxation_attempted else None
+                ),
+                "global_challenger_status": (
+                    "completed"
+                    if relaxation_applied
+                    else "failed"
+                    if relaxation_attempted
+                    else "not_applicable"
+                ),
+                "global_challenger_error": challenger_error,
+                "filtered_candidate_count": filtered_candidate_count,
+                "global_challenger_candidate_count": len(challenger_chunks),
+                "merged_kb_candidate_count": len(kb_chunks),
+                "global_challenger_limit": config.RAG_GLOBAL_CHALLENGER_COUNT,
+                "global_challenger_fetch_limit": config.RAG_GLOBAL_CHALLENGER_FETCH_LIMIT,
+                "additional_database_searches": 1 if relaxation_attempted else 0,
+                "max_additional_database_searches": (
+                    _MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST
+                ),
+                "additional_embedding_calls": 0,
+                "additional_generation_calls": 0,
+                "database_statement_timeout_ms": config.DB_STATEMENT_TIMEOUT_MS,
+                "global_challenger_latency_ms": challenger_latency_ms,
+            }
+        )
 
     merged = _dedupe_chunks(scoped_feedback + global_feedback + kb_chunks)
     return merged, scoped_feedback, kb_chunks
@@ -2792,12 +2882,18 @@ def ask(
     )
 
     stage_started_at = _time.monotonic()
+    retrieval_scope_trace: dict[str, Any] = {}
     merged_chunks, scoped_feedback_chunks, kb_chunks = retrieve_chunks_with_feedback(
         search_query,
         query_plan=query_plan,
         scope=scope,
+        retrieval_trace=retrieval_scope_trace,
     )
     _mark_stage("retrieval", stage_started_at)
+    retrieval_scope_trace["total_retrieval_latency_ms"] = trace["stage_timings_ms"][
+        "retrieval"
+    ]
+    trace["retrieval_scope"] = retrieval_scope_trace
 
     stage_started_at = _time.monotonic()
     chunks = _limit_chunk_diversity(
@@ -2836,41 +2932,75 @@ def ask(
         (query_plan.get("modules") or query_plan.get("doc_types"))
         and abstain_reason in {"no_chunks", "few_chunks", "low_similarity", "low_similarity_operational"}
     ):
-        logger.info(
-            "Abstencao inicial (motivo=%s). Tentando fallback de busca global sem filtros.",
-            abstain_reason,
+        additional_searches = int(
+            trace["retrieval_scope"].get("additional_database_searches", 0)
         )
-        broad_plan = {"intent": "general", "modules": [], "doc_types": []}
-        broad_merged, _broad_scoped_feedback, broad_kb = retrieve_chunks_with_feedback(
-            search_query,
-            query_plan=broad_plan,
-            scope=scope,
-        )
-        combined_chunks = _dedupe_chunks(chunks + broad_merged)
-        fallback_chunks = _limit_chunk_diversity(
-            _rerank_chunks_with_llm(search_query, combined_chunks),
-            max_per_section=config.MAX_CHUNKS_PER_SECTION,
-            max_per_document=config.MAX_CHUNKS_PER_DOCUMENT,
-            top_limit=config.MAX_CONTEXT_CHUNKS,
-        )[:config.MAX_CONTEXT_CHUNKS]
-        fallback_stats = _summarize_chunks_for_trace(fallback_chunks)
-        improved = (
-            fallback_stats.get("top_similarity", 0.0) > trace.get("top_similarity", 0.0)
-            or fallback_stats.get("retrieved_chunk_count", 0) > trace.get("retrieved_chunk_count", 0)
-        )
-        if improved:
-            chunks = fallback_chunks
-            trace.update(fallback_stats)
-            trace["confidence"] = trace.get("top_similarity", 0.0)
-            trace["kb_chunk_count"] = max(int(trace.get("kb_chunk_count", 0)), len(broad_kb))
-            trace["query_plan_fallback"] = "global_unfiltered"
-            should_abstain, abstain_reason = _should_strict_abstain(question, chunks)
+        if additional_searches >= _MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST:
+            trace["query_plan_fallback"] = "skipped_retrieval_budget"
+            trace["retrieval_scope"]["strict_abstain_fallback"] = {
+                "status": "skipped_retrieval_budget",
+            }
             logger.info(
-                "Fallback global aplicado: top_similarity=%.3f retrieved_chunks=%d abstain=%s",
-                trace.get("top_similarity", 0.0),
-                trace.get("retrieved_chunk_count", 0),
-                should_abstain,
+                "Fallback global pulado: limite de %d busca adicional ja consumido.",
+                _MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST,
             )
+        else:
+            logger.info(
+                "Abstencao inicial (motivo=%s). Tentando fallback de busca global sem filtros.",
+                abstain_reason,
+            )
+            broad_plan = {"intent": "general", "modules": [], "doc_types": []}
+            broad_retrieval_trace: dict[str, Any] = {}
+            broad_merged, _broad_scoped_feedback, broad_kb = retrieve_chunks_with_feedback(
+                search_query,
+                query_plan=broad_plan,
+                scope=scope,
+                retrieval_trace=broad_retrieval_trace,
+            )
+            trace["retrieval_scope"]["additional_database_searches"] = (
+                additional_searches + 1
+            )
+            combined_chunks = _dedupe_chunks(chunks + broad_merged)
+            fallback_chunks = _limit_chunk_diversity(
+                _rerank_chunks_with_llm(search_query, combined_chunks),
+                max_per_section=config.MAX_CHUNKS_PER_SECTION,
+                max_per_document=config.MAX_CHUNKS_PER_DOCUMENT,
+                top_limit=config.MAX_CONTEXT_CHUNKS,
+            )[:config.MAX_CONTEXT_CHUNKS]
+            fallback_stats = _summarize_chunks_for_trace(fallback_chunks)
+            improved = (
+                fallback_stats.get("top_similarity", 0.0)
+                > trace.get("top_similarity", 0.0)
+                or fallback_stats.get("retrieved_chunk_count", 0)
+                > trace.get("retrieved_chunk_count", 0)
+            )
+            if improved:
+                chunks = fallback_chunks
+                trace.update(fallback_stats)
+                trace["confidence"] = trace.get("top_similarity", 0.0)
+                trace["kb_chunk_count"] = max(
+                    int(trace.get("kb_chunk_count", 0)),
+                    len(broad_kb),
+                )
+                trace["query_plan_fallback"] = "global_unfiltered"
+                trace["retrieval_scope"]["strict_abstain_fallback"] = (
+                    broad_retrieval_trace
+                )
+                should_abstain, abstain_reason = _should_strict_abstain(
+                    question,
+                    chunks,
+                )
+                logger.info(
+                    "Fallback global aplicado: top_similarity=%.3f "
+                    "retrieved_chunks=%d abstain=%s",
+                    trace.get("top_similarity", 0.0),
+                    trace.get("retrieved_chunk_count", 0),
+                    should_abstain,
+                )
+
+    trace["retrieval_scope"]["selected_candidate_counts"] = _routing_scope_counts(
+        chunks
+    )
 
     if should_abstain:
         trace["abstained"] = True
@@ -2916,6 +3046,35 @@ def ask(
                 "Priorize contexto e exemplos desses modulos quando houver conflito de sinais."
                 "\n</routing>"
             )
+    retrieval_scope = trace.get("retrieval_scope", {})
+    if retrieval_scope.get("preferred_scope") == "filtered":
+        if retrieval_scope.get("relaxation_applied"):
+            relaxation_status = (
+                "A recuperacao consultou o modulo preferencial e uma busca global "
+                "limitada sem filtro de modulo. Considere os candidatos combinados "
+                "antes de concluir. "
+            )
+        elif retrieval_scope.get("relaxation_attempted"):
+            relaxation_status = (
+                "A busca global sem filtro de modulo nao ficou disponivel. O contexto "
+                "representa apenas o modulo preferencial, portanto nao permite concluir "
+                "ausencia no restante da base. "
+            )
+        else:
+            relaxation_status = (
+                "A busca global sem filtro de modulo esta desativada. O contexto "
+                "representa apenas o modulo preferencial, portanto nao permite concluir "
+                "ausencia no restante da base. "
+            )
+        system += (
+            "\n\n<module_relaxation_policy>\n"
+            f"{relaxation_status}"
+            "Nao afirme que uma configuracao, parametro ou comportamento nao existe ou "
+            "nao consta com base apenas no subconjunto do modulo preferencial. "
+            "Se o contexto combinado nao sustentar a resposta, use exatamente a frase "
+            "padrao de no-answer em vez de declarar ausencia.\n"
+            "</module_relaxation_policy>"
+        )
     if intent_instruction:
         system += (
             "\n\n<response_mode>\n"
