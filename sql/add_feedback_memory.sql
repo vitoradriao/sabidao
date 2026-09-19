@@ -1,5 +1,5 @@
 -- Memoria de correcoes com fluxo revisado (PENDING -> APPROVED -> PUBLISHED)
--- e busca vetorial por escopo (global/tenant/erp/version).
+-- e busca vetorial por escopo (global/tenant/erp/version/conversation).
 
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -346,6 +346,37 @@ AS $$
           scope_version IS NULL
           OR COALESCE(fc.scope->>'version', '') = scope_version
       )
+      AND 1 - (fc.embedding <=> query_embedding) >= match_threshold
+    ORDER BY fc.embedding <=> query_embedding ASC
+    LIMIT GREATEST(1, LEAST(match_count, 50));
+$$;
+
+CREATE OR REPLACE FUNCTION public.search_feedback_chunks_scoped(
+    query_embedding VECTOR(1536),
+    scope_filter JSONB,
+    match_count INT DEFAULT 6,
+    match_threshold FLOAT DEFAULT 0.58
+)
+RETURNS TABLE (
+    id UUID,
+    feedback_item_id UUID,
+    content TEXT,
+    scope JSONB,
+    similarity FLOAT
+)
+LANGUAGE sql
+AS $$
+    SELECT
+        fc.id,
+        fc.feedback_item_id,
+        fc.content,
+        fc.scope,
+        (1 - (fc.embedding <=> query_embedding))::FLOAT AS similarity
+    FROM feedback_chunks fc
+    JOIN feedback_items fi ON fi.id = fc.feedback_item_id
+    WHERE fc.active = TRUE
+      AND fi.status = 'PUBLISHED'
+      AND fc.scope = scope_filter
       AND 1 - (fc.embedding <=> query_embedding) >= match_threshold
     ORDER BY fc.embedding <=> query_embedding ASC
     LIMIT GREATEST(1, LEAST(match_count, 50));

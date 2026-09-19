@@ -84,6 +84,11 @@ def _env_float(name: str, default: float) -> float:
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 COMMAND_PREFIX = os.getenv("COMMAND_PREFIX", "!")
 BOT_NAME = os.getenv("BOT_NAME", "Assistente")
+GLOBAL_FEEDBACK_REVIEWER_IDS = frozenset(
+    reviewer_id.strip()
+    for reviewer_id in os.getenv("GLOBAL_FEEDBACK_REVIEWER_IDS", "").split(",")
+    if reviewer_id.strip()
+)
 
 # Geracao e embeddings sao configurados de forma independente. Os nomes antigos
 # permanecem como fallback temporario para instalacoes existentes.
@@ -445,6 +450,15 @@ def validate():
         raise EnvironmentError(
             "Variavel de ambiente obrigatoria nao definida: DISCORD_TOKEN. "
             "Configure o ambiente do processo ou o arquivo .env."
+        )
+    invalid_reviewer_ids = sorted(
+        reviewer_id
+        for reviewer_id in GLOBAL_FEEDBACK_REVIEWER_IDS
+        if not reviewer_id.isdigit()
+    )
+    if invalid_reviewer_ids:
+        raise EnvironmentError(
+            "GLOBAL_FEEDBACK_REVIEWER_IDS deve conter apenas IDs numericos do Discord."
         )
 
     # Validacoes de ranges para evitar config absurda que cause erros silenciosos

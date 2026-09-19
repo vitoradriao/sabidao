@@ -2365,7 +2365,16 @@ def _normalize_scope(scope: dict | None) -> dict[str, str]:
     if not isinstance(scope, dict):
         return {}
     normalized: dict[str, str] = {}
-    for key in ("level", "tenant", "erp", "version"):
+    for key in (
+        "level",
+        "tenant",
+        "erp",
+        "version",
+        "platform",
+        "guild_id",
+        "channel_id",
+        "thread_id",
+    ):
         value = scope.get(key)
         if value is None:
             continue
@@ -2398,23 +2407,29 @@ def _search_feedback_memory_chunks(
         "match_count": max_results,
         "match_threshold": threshold,
     }
-    if scope_level:
-        rpc_params["scope_level"] = scope_level
-    if normalized_scope.get("tenant"):
-        rpc_params["scope_tenant"] = normalized_scope["tenant"]
-    if normalized_scope.get("erp"):
-        rpc_params["scope_erp"] = normalized_scope["erp"]
-    if normalized_scope.get("version"):
-        rpc_params["scope_version"] = normalized_scope["version"]
+    function_name = "search_feedback_chunks"
+    if scope_level == "conversation":
+        function_name = "search_feedback_chunks_scoped"
+        rpc_params["scope_filter"] = normalized_scope
+    if function_name == "search_feedback_chunks":
+        if scope_level:
+            rpc_params["scope_level"] = scope_level
+        if normalized_scope.get("tenant"):
+            rpc_params["scope_tenant"] = normalized_scope["tenant"]
+        if normalized_scope.get("erp"):
+            rpc_params["scope_erp"] = normalized_scope["erp"]
+        if normalized_scope.get("version"):
+            rpc_params["scope_version"] = normalized_scope["version"]
 
     try:
-        rows = supabase_rpc("search_feedback_chunks", rpc_params)
+        rows = supabase_rpc(function_name, rpc_params)
     except Exception as e:
         if isinstance(e, RequestDeadlineExceeded):
             raise
-        if _is_missing_rpc_function(e, "search_feedback_chunks"):
+        if _is_missing_rpc_function(e, function_name):
             logger.warning(
-                "RPC search_feedback_chunks nao encontrada; memoria de feedback desativada."
+                "RPC %s nao encontrada; memoria de feedback deste escopo desativada.",
+                function_name,
             )
             return []
         logger.warning("Erro ao buscar feedback chunks: %s", e)
@@ -4042,8 +4057,35 @@ def submit_feedback_item(
     return feedback_id
 
 
-def list_pending_feedback_items(limit: int = 20) -> list[dict]:
+def get_feedback_item(feedback_id: str) -> dict:
+    rows = supabase_select(
+        "feedback_items",
+        select="id,query,corrected_answer,tags,scope,status,created_by,platform,created_at",
+        filters={"id": f"eq.{feedback_id}", "limit": "1"},
+    )
+    if not rows:
+        raise ValueError(f"Feedback nao encontrado: {feedback_id}")
+    return rows[0]
+
+
+def list_pending_feedback_items(
+    limit: int = 20,
+    *,
+    scope: dict | None = None,
+) -> list[dict]:
     safe_limit = max(1, min(int(limit), 200))
+    clean_scope = _normalize_scope(scope)
+    if clean_scope:
+        return supabase_select(
+            "feedback_items",
+            select="id,query,corrected_answer,tags,scope,created_by,platform,created_at",
+            filters={
+                "status": "eq.PENDING",
+                "scope": clean_scope,
+                "order": "created_at.asc",
+                "limit": safe_limit,
+            },
+        )
     try:
         return supabase_rpc("list_pending_feedback", {"p_limit": safe_limit}) or []
     except Exception as e:

@@ -105,6 +105,25 @@ partir de `RAG_RETRY_BASE_SECONDS` ou o cabeçalho `Retry-After`. A tentativa é
 pulada se a espera não couber no deadline. Erros de autenticação e permissão
 não são repetidos.
 
+## Conversas e revisão de feedback
+
+O histórico é serializado por conversa. Em servidores, a chave combina
+servidor, canal e thread; em mensagens diretas, usa o canal de DM separado. Uma
+thread não compartilha histórico nem correções locais com o canal pai. O limite
+LRU remove o histórico e o lock juntos somente quando a conversa está inativa.
+
+Correções enviadas pelo Discord usam a conversa atual por padrão. A recuperação
+combina apenas correções com esse escopo exato e correções explicitamente
+globais. Administradores de um servidor podem revisar somente a conversa em
+que o comando foi usado. Para revisar, rejeitar ou publicar correções globais,
+configure os IDs Discord autorizados em `GLOBAL_FEEDBACK_REVIEWER_IDS`,
+separados por vírgula. Permissão administrativa no servidor ou o uso do comando
+por DM não concede autorização global.
+
+O escopo da conversa organiza histórico e memória de feedback; ele não é uma
+ACL de documentos nem implementa isolamento entre clientes. Uma implantação
+com múltiplos tenants precisa de requisitos e controles de acesso próprios.
+
 ## Telemetria de geração e custo estimado
 
 O `ASK_TRACE` registra cada chamada de modelo separadamente com `request_id`,

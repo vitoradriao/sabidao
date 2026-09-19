@@ -19,7 +19,7 @@ flowchart LR
 | Arquivo | Responsabilidade |
 | --- | --- |
 | `bot.py` | Comandos, mensagens e feedback no Discord. |
-| `bot_common.py` | Histórico das conversas, intervalos de uso e divisão das respostas. |
+| `bot_common.py` | Histórico serializado por conversa, intervalos de uso e divisão das respostas. |
 | `rag.py` | Identificação da intenção, recuperação, reordenação opcional, geração e verificação das respostas. |
 | `db.py` | Conexões, consultas e chamadas às funções do banco. |
 | `config.py` | Carregamento e validação das variáveis de ambiente. |
@@ -33,6 +33,11 @@ flowchart LR
 4. Gerar a resposta conforme as verificações de evidência configuradas.
 5. Revisar correções propostas antes de publicá-las na memória de feedback.
 6. Comparar a qualidade das respostas antes de alterar a operação.
+
+Histórico e feedback local usam uma chave Discord explícita de servidor,
+canal e thread; DMs permanecem separadas. Correções globais têm autorização
+própria configurada e não herdam a permissão administrativa de um servidor.
+Esses escopos não substituem ACL documental ou isolamento multi-tenant.
 
 Os guias em `docs/` orientam quem mantém o projeto. As fontes em `documentos/` alimentam o assistente. Revise o diretório e as opções de recursão antes de ingerir arquivos para evitar a inclusão de materiais de trabalho e cópias antigas.
 
