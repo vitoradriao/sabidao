@@ -16,7 +16,12 @@ from discord.ext import commands
 import config
 from db import validate_database_config
 import rag
-from bot_common import ConversationManager, normalize_over_numbered_response, split_message
+from bot_common import (
+    ConversationManager,
+    InFlightTaskLimiter,
+    normalize_over_numbered_response,
+    split_message,
+)
 from ingest import ingest_directory
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -31,6 +36,7 @@ bot = commands.Bot(command_prefix=config.COMMAND_PREFIX, intents=intents)
 
 # Historico e cooldown centralizados
 _conv = ConversationManager()
+_rag_tasks = InFlightTaskLimiter(config.ASK_MAX_CONCURRENCY)
 
 
 _TABLE_PATTERN = re.compile(
@@ -286,22 +292,36 @@ async def handle_question(target, user_id: int, channel_id: int, question: str, 
         history = _conv.get_history(channel_id)
 
         t_start = time.monotonic()
+        deadline = t_start + config.ASK_TIMEOUT_SECONDS
+        worker = _rag_tasks.try_start(
+            lambda: asyncio.to_thread(
+                rag.ask,
+                question,
+                list(history),
+                images,
+                None,
+                "discord",
+                None,
+                deadline=deadline,
+            )
+        )
+        if worker is None:
+            await target.reply(
+                "O bot esta processando o limite de consultas simultaneas. "
+                "Tente novamente em instantes."
+            )
+            return
+
         try:
             answer, chunks, trace = await asyncio.wait_for(
-                asyncio.to_thread(
-                    rag.ask,
-                    question,
-                    list(history),
-                    images,
-                    None,
-                    "discord",
-                    None,
-                ),
-                timeout=config.ASK_TIMEOUT_SECONDS,
+                asyncio.shield(worker),
+                timeout=max(0.001, deadline - time.monotonic()),
             )
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, rag.RequestDeadlineExceeded):
             await target.reply(
-                "A consulta excedeu o tempo limite. Tente reformular com uma pergunta mais curta ou especifica."
+                "A consulta excedeu o tempo limite. O trabalho ja aceito pode terminar "
+                "em segundo plano; tente novamente mais tarde com uma pergunta mais curta "
+                "ou especifica."
             )
             return
         except Exception as e:

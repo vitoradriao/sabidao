@@ -6,15 +6,16 @@ Suporta busca hibrida (vetor + full-text) com Reciprocal Rank Fusion.
 
 import atexit
 import base64 as _base64
+import contextvars
 import json
 import logging
 import math
-import random as _random
 import re
 import time as _time
 import uuid
 from collections import OrderedDict
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 import unicodedata
@@ -34,6 +35,33 @@ _top_knowledge_gaps_rpc_available: bool | None = None
 _business_rules_cache: tuple[str, float, str] | None = None
 _full_context_cache: tuple[str, float] | None = None  # (text, mtime_max)
 _validated_embedding_index_identities: set[tuple[str, str, str, int, str]] = set()
+_request_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar(
+    "rag_request_deadline",
+    default=None,
+)
+
+
+class RequestDeadlineExceeded(TimeoutError):
+    """O orçamento total da pergunta terminou antes de iniciar novo trabalho."""
+
+
+def _ensure_request_active(stage: str) -> None:
+    deadline = _request_deadline.get()
+    if deadline is not None and deadline <= _time.monotonic():
+        raise RequestDeadlineExceeded(
+            f"Deadline da pergunta esgotado antes da etapa {stage}."
+        )
+
+
+def _remaining_request_timeout(default_seconds: float) -> float:
+    """Limita o timeout de uma chamada ao orçamento restante da pergunta."""
+    deadline = _request_deadline.get()
+    if deadline is None:
+        return default_seconds
+    remaining = deadline - _time.monotonic()
+    if remaining <= 0:
+        raise RequestDeadlineExceeded("Deadline da pergunta esgotado.")
+    return min(default_seconds, remaining)
 
 # Expansao de abreviaturas do dominio para embedding de query.
 # Mantem a query original para FTS.
@@ -811,10 +839,12 @@ def _openai_chat_generate(
 ) -> _GeneratedTextResponse:
     started_at = _time.monotonic()
     try:
-        response = _openai_chat_generate_request(
-            model=model,
-            messages=messages,
-            max_tokens=max_tokens,
+        response = _retry_on_transient(
+            lambda: _openai_chat_generate_request(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+            )
         )
     except Exception as exc:
         _record_model_call(
@@ -860,16 +890,17 @@ def _openai_chat_generate_request(
         _openai_url(config.GENERATION_BASE_URL, "/chat/completions"),
         headers=_openai_headers(config.GENERATION_API_KEY, "GENERATION_API_KEY"),
         json=payload,
-        timeout=120,
+        timeout=_remaining_request_timeout(120),
     )
     if resp.status_code == 400 and "max_completion_tokens" in (resp.text or "").lower():
+        _ensure_request_active("openai_compatibility_fallback")
         payload.pop("max_completion_tokens", None)
         payload["max_tokens"] = max_tokens
         resp = _get_http_client().post(
             _openai_url(config.GENERATION_BASE_URL, "/chat/completions"),
             headers=_openai_headers(config.GENERATION_API_KEY, "GENERATION_API_KEY"),
             json=payload,
-            timeout=120,
+            timeout=_remaining_request_timeout(120),
         )
     if resp.status_code >= 400:
         logger.error(
@@ -961,16 +992,25 @@ def _gemini_generate(
         model,
         purpose=purpose,
     )
-    cfg = _gtypes.GenerateContentConfig(max_output_tokens=max_tokens)
-    if system:
-        cfg.system_instruction = system
-    started_at = _time.monotonic()
-    try:
-        raw_response = get_gemini().models.generate_content(
+    def _generate_content():
+        cfg = _gtypes.GenerateContentConfig(
+            max_output_tokens=max_tokens,
+            http_options=_gtypes.HttpOptions(
+                timeout=max(1, int(_remaining_request_timeout(120) * 1000)),
+                retry_options=_gtypes.HttpRetryOptions(attempts=1),
+            ),
+        )
+        if system:
+            cfg.system_instruction = system
+        return get_gemini().models.generate_content(
             model=resolved_model,
             contents=contents,
             config=cfg,
         )
+
+    started_at = _time.monotonic()
+    try:
+        raw_response = _retry_on_transient(_generate_content)
         try:
             text = raw_response.text or ""
         except (AttributeError, ValueError):
@@ -1072,24 +1112,93 @@ def _close_http_client():
 
 
 # ── Retry para erros transientes ─────────────────────────
-def _retry_on_transient(fn, max_retries: int = 2, backoff: float = 1.0):
-    """Retenta chamadas HTTP em erros transientes (429, 502, 503, 504) com backoff exponencial."""
-    for attempt in range(max_retries + 1):
+_TRANSIENT_HTTP_STATUS = {408, 429, 500, 502, 503, 504}
+
+
+def _exception_status_code(exc: Exception) -> int | None:
+    response = getattr(exc, "response", None)
+    candidates = (
+        getattr(response, "status_code", None),
+        getattr(exc, "status_code", None),
+        getattr(exc, "code", None),
+    )
+    for value in candidates:
+        try:
+            status_code = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 100 <= status_code <= 599:
+            return status_code
+    return None
+
+
+def _retry_after_seconds(exc: Exception) -> float | None:
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if not headers:
+        return None
+    value = headers.get("Retry-After") or headers.get("retry-after")
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        try:
+            retry_at = parsedate_to_datetime(str(value))
+            if retry_at.tzinfo is None:
+                retry_at = retry_at.replace(tzinfo=timezone.utc)
+            return max(0.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+
+def _is_transient_error(exc: Exception) -> bool:
+    status_code = _exception_status_code(exc)
+    if status_code is not None:
+        return status_code in _TRANSIENT_HTTP_STATUS
+    return isinstance(exc, (httpx.TimeoutException, httpx.TransportError))
+
+
+def _retry_on_transient(
+    fn,
+    max_retries: int | None = None,
+    backoff: float | None = None,
+):
+    """Retenta somente falhas transitorias sem ultrapassar o deadline da pergunta."""
+    retries = config.RAG_PROVIDER_MAX_RETRIES if max_retries is None else max_retries
+    base_delay = config.RAG_RETRY_BASE_SECONDS if backoff is None else backoff
+
+    for attempt in range(retries + 1):
+        _ensure_request_active("retry")
         try:
             return fn()
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code in (429, 502, 503, 504) and attempt < max_retries:
-                delay = backoff * (2 ** attempt) + _random.uniform(0, 1.0)
-                logger.warning(
-                    "Erro transiente %s, tentativa %s/%s. Aguardando %.1fs...",
-                    e.response.status_code,
-                    attempt + 1,
-                    max_retries,
-                    delay,
-                )
-                _time.sleep(delay)
-                continue
+        except RequestDeadlineExceeded:
             raise
+        except Exception as exc:
+            if not _is_transient_error(exc) or attempt >= retries:
+                raise
+
+            delay = _retry_after_seconds(exc)
+            if delay is None:
+                delay = base_delay * (2 ** attempt)
+
+            deadline = _request_deadline.get()
+            if deadline is not None and delay >= (deadline - _time.monotonic()):
+                logger.info(
+                    "Retry transitorio pulado: deadline insuficiente (status=%s).",
+                    _exception_status_code(exc),
+                )
+                raise
+
+            logger.warning(
+                "Erro transitorio %s, tentativa %s/%s. Aguardando %.1fs...",
+                _exception_status_code(exc) or type(exc).__name__,
+                attempt + 1,
+                retries,
+                delay,
+            )
+            if delay > 0:
+                _time.sleep(delay)
 
 
 # ── Supabase REST helpers ─────────────────────────────────
@@ -1566,7 +1675,7 @@ def _openai_create_embeddings(contents: list[str], model: str) -> list[list[floa
         _openai_url(config.EMBEDDING_BASE_URL, "/embeddings"),
         headers=_openai_headers(config.EMBEDDING_API_KEY, "EMBEDDING_API_KEY"),
         json=payload,
-        timeout=120,
+        timeout=_remaining_request_timeout(120),
     )
     if resp.status_code >= 400:
         logger.error(
@@ -1595,7 +1704,12 @@ def create_embeddings(contents: list[str], task_type: str = "RETRIEVAL_DOCUMENT"
     model = _resolve_embedding_model()
 
     if provider == "openai":
-        vectors = _openai_create_embeddings(contents, model)
+        create = lambda: _openai_create_embeddings(contents, model)
+        vectors = (
+            _retry_on_transient(create)
+            if _request_deadline.get() is not None
+            else create()
+        )
         if len(vectors) != len(contents):
             raise ValueError(
                 f"Quantidade de embeddings inconsistente: esperado {len(contents)}, obtido {len(vectors)}."
@@ -1603,13 +1717,25 @@ def create_embeddings(contents: list[str], task_type: str = "RETRIEVAL_DOCUMENT"
         return vectors
 
     payload = contents if len(contents) > 1 else contents[0]
-    result = get_gemini_embeddings().models.embed_content(
+    embedding_config: dict[str, Any] = {
+        "task_type": task_type,
+        "output_dimensionality": config.EMBEDDING_DIMENSIONS,
+    }
+    if _request_deadline.get() is not None:
+        embedding_config["http_options"] = _gtypes.HttpOptions(
+            timeout=max(1, int(_remaining_request_timeout(120) * 1000)),
+            retry_options=_gtypes.HttpRetryOptions(attempts=1),
+        )
+
+    embed = lambda: get_gemini_embeddings().models.embed_content(
         model=model,
         contents=payload,
-        config={
-            "task_type": task_type,
-            "output_dimensionality": config.EMBEDDING_DIMENSIONS,
-        },
+        config=embedding_config,
+    )
+    result = (
+        _retry_on_transient(embed)
+        if _request_deadline.get() is not None
+        else embed()
     )
 
     embeddings = getattr(result, "embeddings", None) or []
@@ -2090,6 +2216,8 @@ def search_relevant_sections(
     try:
         result = _search_rpc_with_filter_fallback("hybrid_match_sections", rpc_params)
     except Exception as e:
+        if isinstance(e, RequestDeadlineExceeded):
+            raise
         if _is_missing_rpc_function(e, "hybrid_match_sections"):
             logger.warning(
                 "RPC hybrid_match_sections nao encontrada; seguindo com retrieval direto por chunks."
@@ -2183,6 +2311,8 @@ def search_similar_chunks(
             query[:80],
         )
     except Exception as e:
+        if isinstance(e, RequestDeadlineExceeded):
+            raise
         logger.warning(
             "Busca hibrida falhou (%s), usando busca vetorial pura.", e
         )
@@ -2201,6 +2331,7 @@ def search_similar_chunks(
     if section_ids:
         vector_params["filter_section_ids"] = section_ids
 
+    _ensure_request_active("retrieval_vector_fallback")
     result = _search_rpc_with_filter_fallback(
         "match_chunks",
         vector_params,
@@ -2279,6 +2410,8 @@ def _search_feedback_memory_chunks(
     try:
         rows = supabase_rpc("search_feedback_chunks", rpc_params)
     except Exception as e:
+        if isinstance(e, RequestDeadlineExceeded):
+            raise
         if _is_missing_rpc_function(e, "search_feedback_chunks"):
             logger.warning(
                 "RPC search_feedback_chunks nao encontrada; memoria de feedback desativada."
@@ -2390,18 +2523,21 @@ def retrieve_chunks_with_feedback(
     scope = _normalize_scope(scope)
     scoped_feedback = []
     if scope:
+        _ensure_request_active("retrieval_feedback_scoped")
         scoped_feedback = _search_feedback_memory_chunks(
             query,
             scope=scope,
             scope_level=scope.get("level") or "tenant",
         )
 
+    _ensure_request_active("retrieval_feedback_global")
     global_feedback = _search_feedback_memory_chunks(
         query,
         scope={},
         scope_level="global",
     )
 
+    _ensure_request_active("retrieval_sections")
     section_hits = search_relevant_sections(
         query,
         query_plan=query_plan,
@@ -2411,6 +2547,7 @@ def retrieve_chunks_with_feedback(
     kb_chunks: list[dict] = []
 
     if section_scope_ids:
+        _ensure_request_active("retrieval_section_chunks")
         kb_chunks = search_similar_chunks(
             query,
             query_plan=query_plan,
@@ -2423,6 +2560,7 @@ def retrieve_chunks_with_feedback(
         default=0.0,
     )
     if not kb_chunks or best_section_similarity < (config.SIMILARITY_THRESHOLD * config.SIMILARITY_FLOOR_FACTOR):
+        _ensure_request_active("retrieval_chunk_fallback")
         fallback_chunks = search_similar_chunks(
             query,
             query_plan=query_plan,
@@ -2447,6 +2585,7 @@ def retrieve_chunks_with_feedback(
         broad_plan["modules"] = []
         challenger_started_at = _time.monotonic()
         try:
+            _ensure_request_active("retrieval_global_challenger")
             challenger_chunks = search_similar_chunks(
                 query,
                 query_plan=broad_plan,
@@ -2460,6 +2599,8 @@ def retrieve_chunks_with_feedback(
             )
             kb_chunks = _interleave_routing_scopes(kb_chunks, challenger_chunks)
         except Exception as exc:
+            if isinstance(exc, RequestDeadlineExceeded):
+                raise
             challenger_error = type(exc).__name__
             logger.warning(
                 "Challenger global falhou; mantendo candidatos filtrados: %s",
@@ -2752,6 +2893,7 @@ def _reformulate_query_with_history(
     )
 
     try:
+        _ensure_request_active("reformulation")
         response = _gemini_generate(
             model=config.REFORMULATION_MODEL,
             max_tokens=200,
@@ -2777,6 +2919,8 @@ def _reformulate_query_with_history(
                 return question
             logger.info("Query reformulada com sucesso.")
             return reformulated
+    except RequestDeadlineExceeded:
+        raise
     except Exception as e:
         logger.warning("Erro na reformulacao de query (%s).", type(e).__name__)
 
@@ -2833,6 +2977,7 @@ def _rerank_chunks_with_llm(
     summaries_text = "\n---\n".join(chunk_summaries)
 
     try:
+        _ensure_request_active("rerank")
         response = _gemini_generate(
             model=config.RERANKER_MODEL,
             max_tokens=200,
@@ -2875,6 +3020,8 @@ def _rerank_chunks_with_llm(
             logger.info("Re-ranking LLM aplicado: %d chunks reordenados", len(indices))
             return reranked
 
+    except RequestDeadlineExceeded:
+        raise
     except Exception as e:
         logger.warning("Erro no re-ranking LLM (%s).", type(e).__name__)
 
@@ -2992,6 +3139,7 @@ def _ask_model(
     provider = _active_llm_provider()
     requested_max_tokens = int(max_tokens_override or config.ASK_MAX_TOKENS)
     try:
+        _ensure_request_active(stage)
         if provider == "openai":
             max_tokens = max(256, min(requested_max_tokens, int(config.OPENAI_MAX_OUTPUT_TOKENS)))
             messages = _compose_openai_messages(
@@ -3015,6 +3163,7 @@ def _ask_model(
 
             fallback_model = _resolve_text_model(config.OPENAI_CONTEXTUAL_MODEL, purpose="contextual")
             if fallback_model != primary_model:
+                _ensure_request_active(f"{stage}_empty_response_fallback")
                 logger.warning(
                     "OpenAI retornou resposta vazia no modelo %s; tentando fallback %s.",
                     primary_model,
@@ -3052,6 +3201,8 @@ def _ask_model(
             return response.text
         logger.warning("Resposta vazia do Gemini (model=%s).", generation_model)
         return _provider_error_response("Nao foi possivel extrair uma resposta do modelo.")
+    except RequestDeadlineExceeded:
+        raise
     except Exception as e:
         error_str = str(e).lower()
         provider_label = "OpenAI" if provider == "openai" else "Gemini"
@@ -3157,6 +3308,7 @@ def _apply_grounding_regeneration(
     revised_errors = errors
     revised_citations = cited_sources
     for _ in range(max_regen_attempts):
+        _ensure_request_active("regeneration")
         regeneration_attempts += 1
         revision_prompt = (
             f"{question}\n\n"
@@ -3218,6 +3370,32 @@ def ask(
     system_prompt: str = None,
     platform: str = "unknown",
     scope: dict | None = None,
+    *,
+    deadline: float | None = None,
+) -> tuple[str, list[dict], dict]:
+    """Executa a pergunta com um deadline monotônico opcional compartilhado pelas etapas."""
+    token = _request_deadline.set(deadline)
+    try:
+        _ensure_request_active("inicio")
+        return _ask_impl(
+            question,
+            conversation_history,
+            images,
+            system_prompt,
+            platform,
+            scope,
+        )
+    finally:
+        _request_deadline.reset(token)
+
+
+def _ask_impl(
+    question: str,
+    conversation_history: list[dict] = None,
+    images: list[dict] = None,
+    system_prompt: str = None,
+    platform: str = "unknown",
+    scope: dict | None = None,
 ) -> tuple[str, list[dict], dict]:
     """
     Responde uma pergunta usando RAG + Gemini e retorna trace de telemetria.
@@ -3258,6 +3436,7 @@ def ask(
     def _mark_stage(stage_name: str, started_at: float) -> None:
         trace["stage_timings_ms"][stage_name] = int((_time.monotonic() - started_at) * 1000)
 
+    _ensure_request_active("reformulation")
     stage_started_at = _time.monotonic()
     search_query = _reformulate_query_with_history(
         question,
@@ -3269,6 +3448,7 @@ def ask(
     base_system = system_prompt or config.SYSTEM_PROMPT
 
     if config.FULL_CONTEXT_ENABLED:
+        _ensure_request_active("full_context_load")
         full_context = _load_full_context_docs()
         chunks: list[dict] = []
         system = base_system
@@ -3293,6 +3473,7 @@ def ask(
             trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
             _log_ask_trace(trace)
             return answer, chunks, trace
+        _ensure_request_active("generation")
         stage_started_at = _time.monotonic()
         answer = _ask_model(
             question=question,
@@ -3331,6 +3512,7 @@ def ask(
         _log_ask_trace(trace)
         return answer, chunks, trace
 
+    _ensure_request_active("intent_routing")
     stage_started_at = _time.monotonic()
     query_plan = _classify_query_intent(search_query)
     _mark_stage("intent_routing", stage_started_at)
@@ -3343,6 +3525,7 @@ def ask(
         query_plan.get("doc_types", []),
     )
 
+    _ensure_request_active("retrieval")
     stage_started_at = _time.monotonic()
     retrieval_scope_trace: dict[str, Any] = {}
     merged_chunks, scoped_feedback_chunks, kb_chunks = retrieve_chunks_with_feedback(
@@ -3357,6 +3540,7 @@ def ask(
     ]
     trace["retrieval_scope"] = retrieval_scope_trace
 
+    _ensure_request_active("rerank")
     stage_started_at = _time.monotonic()
     chunks = _limit_chunk_diversity(
         _rerank_chunks_with_llm(
@@ -3386,6 +3570,7 @@ def ask(
             for c in kb_chunks
             if c.get("filename")
         })
+        _ensure_request_active("documentation_update_task")
         log_documentation_update_task(
             query=question,
             feedback_item_ids=feedback_ids,
@@ -3412,6 +3597,7 @@ def ask(
                 _MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST,
             )
         else:
+            _ensure_request_active("retrieval_global_fallback")
             logger.info(
                 "Abstencao inicial (motivo=%s). Tentando fallback de busca global sem filtros.",
                 abstain_reason,
@@ -3488,6 +3674,7 @@ def ask(
         _log_ask_trace(trace)
         return answer, chunks, trace
 
+    _ensure_request_active("context_build")
     stage_started_at = _time.monotonic()
     context = build_context(chunks)
     _mark_stage("context_build", stage_started_at)
@@ -3597,6 +3784,7 @@ def ask(
     if allowed_sources:
         system += f"\n\n<allowed_sources>{', '.join(sorted(allowed_sources))}</allowed_sources>"
 
+    _ensure_request_active("generation")
     stage_started_at = _time.monotonic()
     answer = _ask_model(
         question=question,
@@ -3609,6 +3797,7 @@ def ask(
     )
     _mark_stage("generation", stage_started_at)
 
+    _ensure_request_active("grounding")
     stage_started_at = _time.monotonic()
     answer, grounding_errors, cited_sources, regen_attempts = _apply_grounding_regeneration(
         answer=answer,
