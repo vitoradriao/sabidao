@@ -330,6 +330,36 @@ class TestModuleGlobalChallengerIntegration(unittest.TestCase):
         self.assertEqual(retrieval_trace["global_challenger_error"], "RuntimeError")
 
     def test_wrong_module_answer_uses_canonical_challenger_and_traces_selection(self):
+        filtered_neighbor = _make_kb_chunk(
+            chunk_id="maxpag-neighbor",
+            filename="12-MAXPAG.md",
+            similarity=0.761,
+            content="Trecho adjacente sobre as configuracoes do MaxPag.",
+        )
+        filtered_neighbor["document_id"] = self.filtered_maxpag["document_id"]
+        filtered_neighbor["chunk_index"] = 1
+        filtered_neighbor["retrieval_origin"] = "neighbor"
+        filtered_neighbor["is_neighbor"] = True
+        filtered_neighbor["seed_chunk_id"] = self.filtered_maxpag["id"]
+
+        canonical_neighbor = _make_kb_chunk(
+            chunk_id="account-neighbor",
+            filename="04-PARAMETROS-E-CONFIGURACAO.md",
+            similarity=0.812,
+            content="Trecho adjacente com detalhes do fluxo de conta corrente.",
+        )
+        canonical_neighbor["document_id"] = self.canonical_account["document_id"]
+        canonical_neighbor["chunk_index"] = 1
+        canonical_neighbor["retrieval_origin"] = "neighbor"
+        canonical_neighbor["is_neighbor"] = True
+        canonical_neighbor["seed_chunk_id"] = self.canonical_account["id"]
+
+        def search(_query, **kwargs):
+            modules = (kwargs.get("query_plan") or {}).get("modules") or []
+            if modules:
+                return [copy.deepcopy(self.filtered_maxpag), filtered_neighbor]
+            return [copy.deepcopy(self.canonical_account), canonical_neighbor]
+
         model_answer = (
             "A configuracao usa CON_USACREDRCA, EXIBIR_SALDOCC_DISPONIVEL, "
             "MXSUSUARI.USADEBCREDRCA e CON_TIPOMOVCCRCA.\n\n"
@@ -345,7 +375,10 @@ class TestModuleGlobalChallengerIntegration(unittest.TestCase):
             RAG_GLOBAL_CHALLENGER_FETCH_LIMIT=16,
             RAG_FILTER_BY_MODULE=True,
             RAG_FILTER_BY_DOC_TYPE=True,
-            RAG_ENABLE_RERANKING=False,
+            RAG_ENABLE_RERANKING=True,
+            RERANKER_MIN_TRIGGER_SIM=0.55,
+            RERANKER_MAX_TRIGGER_SIM=0.82,
+            RERANKER_MAX_CANDIDATES=8,
             RAG_STRICT_ABSTAIN=True,
             RAG_MIN_RETRIEVED_CHUNKS=1,
             RAG_MIN_STRONG_SIMILARITY=0.60,
@@ -372,8 +405,11 @@ class TestModuleGlobalChallengerIntegration(unittest.TestCase):
             return_value=[],
         ), patch(
             "rag.search_similar_chunks",
-            side_effect=self._search_by_plan,
+            side_effect=search,
         ), patch(
+            "rag._gemini_generate",
+            return_value=rag._GeneratedTextResponse("2,3,0,1"),
+        ) as reranker_mock, patch(
             "rag._ask_model",
             return_value=model_answer,
         ) as ask_model_mock:
@@ -396,16 +432,23 @@ class TestModuleGlobalChallengerIntegration(unittest.TestCase):
             "04-PARAMETROS-E-CONFIGURACAO.md",
             [chunk["filename"] for chunk in returned_chunks],
         )
+        self.assertEqual(returned_chunks[0]["id"], "account")
+        returned_neighbor = next(
+            chunk for chunk in returned_chunks if chunk["id"] == "account-neighbor"
+        )
+        self.assertTrue(returned_neighbor["is_neighbor"])
+        self.assertEqual(returned_neighbor["seed_chunk_id"], "account")
         self.assertNotIn("12-MAXPAG.md", trace["cited_files"])
-        self.assertEqual(trace["retrieval_scope"]["filtered_candidate_count"], 1)
+        self.assertEqual(trace["retrieval_scope"]["filtered_candidate_count"], 2)
         self.assertEqual(
             trace["retrieval_scope"]["global_challenger_candidate_count"],
-            1,
+            2,
         )
         self.assertEqual(
             trace["retrieval_scope"]["selected_candidate_counts"],
-            {"filtered": 1, "global_challenger": 1},
+            {"global_challenger": 2, "filtered": 2},
         )
+        self.assertEqual(reranker_mock.call_count, 1)
         system = ask_model_mock.call_args.kwargs["system"]
         self.assertIn("<module_relaxation_policy>", system)
         self.assertIn("nao existe", system)
@@ -466,6 +509,127 @@ class TestModuleGlobalChallengerIntegration(unittest.TestCase):
         self.assertTrue(trace["retrieval_scope"]["relaxation_applied"])
         self.assertEqual(len(search_mock.call_args_list), 2)
         self.assertEqual(ask_model_mock.call_count, 1)
+
+    def test_strict_abstain_does_not_exceed_additional_search_budget(self):
+        weak_filtered = copy.deepcopy(self.filtered_maxpag)
+        weak_filtered["similarity"] = 0.40
+
+        def search(_query, **kwargs):
+            modules = (kwargs.get("query_plan") or {}).get("modules") or []
+            return [copy.deepcopy(weak_filtered)] if modules else []
+
+        with patch.multiple(
+            config,
+            FULL_CONTEXT_ENABLED=False,
+            RAG_ENABLE_GLOBAL_CHALLENGER=True,
+            RAG_GLOBAL_CHALLENGER_COUNT=4,
+            RAG_GLOBAL_CHALLENGER_FETCH_LIMIT=16,
+            RAG_FILTER_BY_MODULE=True,
+            RAG_FILTER_BY_DOC_TYPE=True,
+            RAG_ENABLE_RERANKING=False,
+            RAG_STRICT_ABSTAIN=True,
+            RAG_MIN_RETRIEVED_CHUNKS=1,
+            RAG_MIN_STRONG_SIMILARITY=0.60,
+            RAG_OPERATIONAL_SIMILARITY_MARGIN=0.0,
+            RAG_ENABLE_BUSINESS_RULES=False,
+        ), patch(
+            "rag._reformulate_query_with_history",
+            return_value="a configuracao desconhecida existe?",
+        ), patch(
+            "rag._classify_query_intent",
+            return_value={
+                "intent": "configuration",
+                "modules": ["financeiro_pagamentos"],
+                "doc_types": ["md"],
+            },
+        ), patch(
+            "rag._search_feedback_memory_chunks",
+            return_value=[],
+        ), patch(
+            "rag.search_relevant_sections",
+            return_value=[],
+        ), patch(
+            "rag.search_similar_chunks",
+            side_effect=search,
+        ) as search_mock, patch(
+            "rag._ask_model",
+        ) as ask_model_mock:
+            answer, _returned_chunks, trace = rag.ask(
+                "A configuracao desconhecida existe?"
+            )
+
+        self.assertTrue(answer.startswith(config.NO_ANSWER_PHRASE))
+        self.assertTrue(trace["abstained"])
+        self.assertEqual(len(search_mock.call_args_list), 2)
+        self.assertEqual(ask_model_mock.call_count, 0)
+        self.assertEqual(
+            trace["retrieval_scope"]["additional_database_searches"],
+            1,
+        )
+        self.assertEqual(
+            trace["retrieval_scope"]["max_additional_database_searches"],
+            1,
+        )
+        self.assertEqual(trace["query_plan_fallback"], "skipped_retrieval_budget")
+        self.assertEqual(
+            trace["retrieval_scope"]["strict_abstain_fallback"]["status"],
+            "skipped_retrieval_budget",
+        )
+
+    def test_filtered_scope_keeps_absence_policy_when_challenger_is_disabled(self):
+        model_answer = (
+            "As configuracoes do MaxPag estao descritas no documento.\n\n"
+            "Fontes:\n"
+            "- 12-MAXPAG.md"
+        )
+
+        with patch.multiple(
+            config,
+            FULL_CONTEXT_ENABLED=False,
+            RAG_ENABLE_GLOBAL_CHALLENGER=False,
+            RAG_FILTER_BY_MODULE=True,
+            RAG_FILTER_BY_DOC_TYPE=True,
+            RAG_ENABLE_RERANKING=False,
+            RAG_STRICT_ABSTAIN=True,
+            RAG_MIN_RETRIEVED_CHUNKS=1,
+            RAG_MIN_STRONG_SIMILARITY=0.60,
+            RAG_OPERATIONAL_SIMILARITY_MARGIN=0.0,
+            RAG_ENABLE_BUSINESS_RULES=False,
+            RAG_ENABLE_GROUNDING_VALIDATION=True,
+            RAG_REQUIRE_SOURCES_SECTION=True,
+            RAG_MAX_REGEN_ATTEMPTS=0,
+        ), patch(
+            "rag._reformulate_query_with_history",
+            return_value="configuracoes do maxpag",
+        ), patch(
+            "rag._classify_query_intent",
+            return_value={
+                "intent": "configuration",
+                "modules": ["financeiro_pagamentos"],
+                "doc_types": ["md"],
+            },
+        ), patch(
+            "rag._search_feedback_memory_chunks",
+            return_value=[],
+        ), patch(
+            "rag.search_relevant_sections",
+            return_value=[],
+        ), patch(
+            "rag.search_similar_chunks",
+            return_value=[copy.deepcopy(self.filtered_maxpag)],
+        ) as search_mock, patch(
+            "rag._ask_model",
+            return_value=model_answer,
+        ) as ask_model_mock:
+            answer, _returned_chunks, trace = rag.ask("Como configurar o MaxPag?")
+
+        self.assertEqual(answer, model_answer)
+        self.assertEqual(search_mock.call_count, 1)
+        self.assertFalse(trace["retrieval_scope"]["relaxation_attempted"])
+        self.assertEqual(trace["retrieval_scope"]["preferred_scope"], "filtered")
+        system = ask_model_mock.call_args.kwargs["system"]
+        self.assertIn("<module_relaxation_policy>", system)
+        self.assertIn("esta desativada", system)
 
 
 class TestCorrectionWorkflowIntegration(unittest.TestCase):

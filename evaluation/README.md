@@ -69,10 +69,12 @@ python evaluation/run_offline_eval.py --limit 50 --output-report evaluation/repo
 | `avg_score` | Pontuação média apenas dos casos com critérios suficientes. |
 | `avg_latency_ms` e `p95_latency_ms` | Latência média e percentil 95 da execução dos casos. |
 
-O relatório informa, para cada métrica, quantos casos foram avaliados, aprovados,
-reprovados ou ficaram sem avaliação. Uma métrica sem referência não é convertida em
-sucesso. Em particular, respostas que exigem fatos e não possuem `expected_facts`
-continuam executáveis, mas não recebem pontuação composta.
+O relatório informa, para cada métrica positiva, quantos casos foram avaliados,
+aprovados, reprovados ou ficaram sem avaliação. Para `false_abstention` e
+`false_absence_claim`, informa ocorrências e não ocorrências; nesses casos, a taxa
+representa frequência de erro. Uma métrica sem referência não é convertida em sucesso.
+Em particular, respostas que exigem fatos e não possuem `expected_facts` continuam
+executáveis, mas não recebem pontuação composta.
 
 ## Contrato dos casos
 

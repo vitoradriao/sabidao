@@ -53,6 +53,10 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(recall, summary["metrics"]["retrieval_relevance"])
         self.assertEqual(summary["metrics"]["false_abstention"]["evaluated"], 3)
         self.assertEqual(summary["metrics"]["false_absence_claim"]["evaluated"], 3)
+        self.assertNotIn("passed", summary["metrics"]["false_abstention"])
+        self.assertIn("occurrences", summary["metrics"]["false_abstention"])
+        self.assertNotIn("passed", summary["metrics"]["false_absence_claim"])
+        self.assertIn("occurrences", summary["metrics"]["false_absence_claim"])
         self.assertIsNotNone(summary["avg_latency_ms"])
         self.assertIsNotNone(summary["p95_latency_ms"])
         self.assertIn("factual_correctness", summary["metric_definitions"])
@@ -71,6 +75,25 @@ class TestOfflineEvaluator(unittest.TestCase):
 
         self.assertFalse(evaluation["false_abstention"])
         self.assertTrue(evaluation["false_absence_claim"])
+
+    def test_false_absence_claim_handles_negation_and_paraphrases(self):
+        cases = {
+            "Esse parametro nao foi encontrado.": True,
+            "Esse parametro nao esta documentado.": True,
+            "Esse parametro e inexistente.": True,
+            "Esse parametro nao e inexistente.": False,
+        }
+
+        for answer, expected in cases.items():
+            with self.subTest(answer=answer):
+                self.assertEqual(
+                    run_offline_eval._false_absence_claim(
+                        "exact_answer",
+                        False,
+                        answer,
+                    ),
+                    expected,
+                )
 
     def test_legacy_dataset_remains_loadable_without_claiming_factual_success(self):
         legacy_cases = run_offline_eval._load_dataset(LEGACY_DATASET)

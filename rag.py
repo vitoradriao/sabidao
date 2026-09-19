@@ -283,6 +283,7 @@ _REFORMULATION_CLARIFY_RE = re.compile(
     r"^\s*(pode|poderia|consigo|precisa|precisamos|favor)\b.*\b(detalhar|informar|enviar|explicar)\b",
     flags=re.IGNORECASE,
 )
+_MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST = 1
 
 _PROVIDER_ERROR_MESSAGES = frozenset(
     {
@@ -2072,7 +2073,10 @@ def retrieve_chunks_with_feedback(
                 "merged_kb_candidate_count": len(kb_chunks),
                 "global_challenger_limit": config.RAG_GLOBAL_CHALLENGER_COUNT,
                 "global_challenger_fetch_limit": config.RAG_GLOBAL_CHALLENGER_FETCH_LIMIT,
-                "additional_database_searches": 1 if relaxation_applied else 0,
+                "additional_database_searches": 1 if relaxation_attempted else 0,
+                "max_additional_database_searches": (
+                    _MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST
+                ),
                 "additional_embedding_calls": 0,
                 "additional_generation_calls": 0,
                 "database_statement_timeout_ms": config.DB_STATEMENT_TIMEOUT_MS,
@@ -2928,44 +2932,71 @@ def ask(
         (query_plan.get("modules") or query_plan.get("doc_types"))
         and abstain_reason in {"no_chunks", "few_chunks", "low_similarity", "low_similarity_operational"}
     ):
-        logger.info(
-            "Abstencao inicial (motivo=%s). Tentando fallback de busca global sem filtros.",
-            abstain_reason,
+        additional_searches = int(
+            trace["retrieval_scope"].get("additional_database_searches", 0)
         )
-        broad_plan = {"intent": "general", "modules": [], "doc_types": []}
-        broad_retrieval_trace: dict[str, Any] = {}
-        broad_merged, _broad_scoped_feedback, broad_kb = retrieve_chunks_with_feedback(
-            search_query,
-            query_plan=broad_plan,
-            scope=scope,
-            retrieval_trace=broad_retrieval_trace,
-        )
-        combined_chunks = _dedupe_chunks(chunks + broad_merged)
-        fallback_chunks = _limit_chunk_diversity(
-            _rerank_chunks_with_llm(search_query, combined_chunks),
-            max_per_section=config.MAX_CHUNKS_PER_SECTION,
-            max_per_document=config.MAX_CHUNKS_PER_DOCUMENT,
-            top_limit=config.MAX_CONTEXT_CHUNKS,
-        )[:config.MAX_CONTEXT_CHUNKS]
-        fallback_stats = _summarize_chunks_for_trace(fallback_chunks)
-        improved = (
-            fallback_stats.get("top_similarity", 0.0) > trace.get("top_similarity", 0.0)
-            or fallback_stats.get("retrieved_chunk_count", 0) > trace.get("retrieved_chunk_count", 0)
-        )
-        if improved:
-            chunks = fallback_chunks
-            trace.update(fallback_stats)
-            trace["confidence"] = trace.get("top_similarity", 0.0)
-            trace["kb_chunk_count"] = max(int(trace.get("kb_chunk_count", 0)), len(broad_kb))
-            trace["query_plan_fallback"] = "global_unfiltered"
-            trace["retrieval_scope"]["strict_abstain_fallback"] = broad_retrieval_trace
-            should_abstain, abstain_reason = _should_strict_abstain(question, chunks)
+        if additional_searches >= _MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST:
+            trace["query_plan_fallback"] = "skipped_retrieval_budget"
+            trace["retrieval_scope"]["strict_abstain_fallback"] = {
+                "status": "skipped_retrieval_budget",
+            }
             logger.info(
-                "Fallback global aplicado: top_similarity=%.3f retrieved_chunks=%d abstain=%s",
-                trace.get("top_similarity", 0.0),
-                trace.get("retrieved_chunk_count", 0),
-                should_abstain,
+                "Fallback global pulado: limite de %d busca adicional ja consumido.",
+                _MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST,
             )
+        else:
+            logger.info(
+                "Abstencao inicial (motivo=%s). Tentando fallback de busca global sem filtros.",
+                abstain_reason,
+            )
+            broad_plan = {"intent": "general", "modules": [], "doc_types": []}
+            broad_retrieval_trace: dict[str, Any] = {}
+            broad_merged, _broad_scoped_feedback, broad_kb = retrieve_chunks_with_feedback(
+                search_query,
+                query_plan=broad_plan,
+                scope=scope,
+                retrieval_trace=broad_retrieval_trace,
+            )
+            trace["retrieval_scope"]["additional_database_searches"] = (
+                additional_searches + 1
+            )
+            combined_chunks = _dedupe_chunks(chunks + broad_merged)
+            fallback_chunks = _limit_chunk_diversity(
+                _rerank_chunks_with_llm(search_query, combined_chunks),
+                max_per_section=config.MAX_CHUNKS_PER_SECTION,
+                max_per_document=config.MAX_CHUNKS_PER_DOCUMENT,
+                top_limit=config.MAX_CONTEXT_CHUNKS,
+            )[:config.MAX_CONTEXT_CHUNKS]
+            fallback_stats = _summarize_chunks_for_trace(fallback_chunks)
+            improved = (
+                fallback_stats.get("top_similarity", 0.0)
+                > trace.get("top_similarity", 0.0)
+                or fallback_stats.get("retrieved_chunk_count", 0)
+                > trace.get("retrieved_chunk_count", 0)
+            )
+            if improved:
+                chunks = fallback_chunks
+                trace.update(fallback_stats)
+                trace["confidence"] = trace.get("top_similarity", 0.0)
+                trace["kb_chunk_count"] = max(
+                    int(trace.get("kb_chunk_count", 0)),
+                    len(broad_kb),
+                )
+                trace["query_plan_fallback"] = "global_unfiltered"
+                trace["retrieval_scope"]["strict_abstain_fallback"] = (
+                    broad_retrieval_trace
+                )
+                should_abstain, abstain_reason = _should_strict_abstain(
+                    question,
+                    chunks,
+                )
+                logger.info(
+                    "Fallback global aplicado: top_similarity=%.3f "
+                    "retrieved_chunks=%d abstain=%s",
+                    trace.get("top_similarity", 0.0),
+                    trace.get("retrieved_chunk_count", 0),
+                    should_abstain,
+                )
 
     trace["retrieval_scope"]["selected_candidate_counts"] = _routing_scope_counts(
         chunks
@@ -3016,16 +3047,22 @@ def ask(
                 "\n</routing>"
             )
     retrieval_scope = trace.get("retrieval_scope", {})
-    if retrieval_scope.get("relaxation_attempted"):
+    if retrieval_scope.get("preferred_scope") == "filtered":
         if retrieval_scope.get("relaxation_applied"):
             relaxation_status = (
                 "A recuperacao consultou o modulo preferencial e uma busca global "
                 "limitada sem filtro de modulo. Considere os candidatos combinados "
                 "antes de concluir. "
             )
-        else:
+        elif retrieval_scope.get("relaxation_attempted"):
             relaxation_status = (
                 "A busca global sem filtro de modulo nao ficou disponivel. O contexto "
+                "representa apenas o modulo preferencial, portanto nao permite concluir "
+                "ausencia no restante da base. "
+            )
+        else:
+            relaxation_status = (
+                "A busca global sem filtro de modulo esta desativada. O contexto "
                 "representa apenas o modulo preferencial, portanto nao permite concluir "
                 "ausencia no restante da base. "
             )

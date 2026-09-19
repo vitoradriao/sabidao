@@ -52,9 +52,12 @@ METRIC_DEFINITIONS = {
     ),
 }
 
+_NEGATED_ABSENCE_RE = re.compile(r"\bnao (?:e|eh) inexistente\b")
 _ABSENCE_CLAIM_RE = re.compile(
-    r"\b(?:nao existe|nao consta|nao ha|e inexistente|eh inexistente)\b"
+    r"\b(?:nao (?:existe|consta|ha|foi encontrad[oa]s?|esta documentad[oa]s?)|"
+    r"(?:e|eh) inexistente)\b"
 )
+_OCCURRENCE_METRICS = frozenset({"false_abstention", "false_absence_claim"})
 
 AnswerProvider = Callable[[str, dict[str, Any]], tuple[str, list[dict], dict[str, Any]]]
 
@@ -104,7 +107,9 @@ def _false_absence_claim(
         return None
     if abstained:
         return False
-    return bool(_ABSENCE_CLAIM_RE.search(normalize_text(answer or "")))
+    normalized_answer = normalize_text(answer or "")
+    normalized_answer = _NEGATED_ABSENCE_RE.sub("", normalized_answer)
+    return bool(_ABSENCE_CLAIM_RE.search(normalized_answer))
 
 
 def _fact_specs(expected_facts: Any) -> list[dict[str, Any]]:
@@ -545,14 +550,22 @@ def _summarize_metric(
         for result in results
         if result.get(metric_name) is not None
     ]
-    passed = sum(evaluated_values)
     evaluated = len(evaluated_values)
+    true_count = sum(evaluated_values)
+    if metric_name in _OCCURRENCE_METRICS:
+        return {
+            "occurrences": true_count,
+            "non_occurrences": evaluated - true_count,
+            "evaluated": evaluated,
+            "not_evaluated": len(results) - evaluated,
+            "rate": round(true_count / evaluated, 4) if evaluated else None,
+        }
     return {
-        "passed": passed,
-        "failed": evaluated - passed,
+        "passed": true_count,
+        "failed": evaluated - true_count,
         "evaluated": evaluated,
         "not_evaluated": len(results) - evaluated,
-        "rate": round(passed / evaluated, 4) if evaluated else None,
+        "rate": round(true_count / evaluated, 4) if evaluated else None,
     }
 
 
