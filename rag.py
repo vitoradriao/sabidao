@@ -39,6 +39,9 @@ _request_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar
     "rag_request_deadline",
     default=None,
 )
+_request_external_calls: contextvars.ContextVar[list[dict[str, Any]] | None] = (
+    contextvars.ContextVar("rag_request_external_calls", default=None)
+)
 
 
 class RequestDeadlineExceeded(TimeoutError):
@@ -1822,11 +1825,59 @@ def _get_cached_query_embedding(query: str) -> list[float]:
         separators=(",", ":"),
     )
     cached = _query_embedding_cache.get(cache_key)
+    external_calls = _request_external_calls.get()
     if cached is not None:
         logger.debug("Cache hit para query embedding: '%s'", query[:60])
+        if external_calls is not None:
+            external_calls.append(
+                {
+                    "stage": "query_embedding",
+                    "provider": identity["provider"],
+                    "model": identity["model"],
+                    "status": "cache_hit",
+                    "billable": False,
+                    "usage": None,
+                    "estimated_cost_usd": 0.0,
+                    "cost_status": "cache_hit",
+                }
+            )
         return cached
 
-    embedding = create_query_embedding(query)
+    started_at = _time.monotonic()
+    try:
+        embedding = create_query_embedding(query)
+    except Exception as exc:
+        if external_calls is not None:
+            external_calls.append(
+                {
+                    "stage": "query_embedding",
+                    "provider": identity["provider"],
+                    "model": identity["model"],
+                    "status": "error",
+                    "billable": None,
+                    "latency_ms": int((_time.monotonic() - started_at) * 1000),
+                    "usage": None,
+                    "estimated_cost_usd": None,
+                    "cost_status": "usage_unavailable",
+                    "error_type": type(exc).__name__,
+                }
+            )
+        raise
+    if external_calls is not None:
+        external_calls.append(
+            {
+                "stage": "query_embedding",
+                "provider": identity["provider"],
+                "model": identity["model"],
+                "status": "success",
+                "billable": True,
+                "latency_ms": int((_time.monotonic() - started_at) * 1000),
+                "usage": None,
+                "estimated_cost_usd": None,
+                "cost_status": "usage_unavailable",
+                "error_type": None,
+            }
+        )
     _query_embedding_cache.put(cache_key, embedding)
     return embedding
 
@@ -3398,6 +3449,7 @@ def ask(
 ) -> tuple[str, list[dict], dict]:
     """Executa a pergunta com um deadline monotônico opcional compartilhado pelas etapas."""
     token = _request_deadline.set(deadline)
+    external_calls_token = _request_external_calls.set([])
     try:
         _ensure_request_active("inicio")
         return _ask_impl(
@@ -3409,6 +3461,7 @@ def ask(
             scope,
         )
     finally:
+        _request_external_calls.reset(external_calls_token)
         _request_deadline.reset(token)
 
 
@@ -3427,6 +3480,7 @@ def _ask_impl(
     """
     t0 = _time.monotonic()
     query_id = _new_query_id()
+    external_calls = _request_external_calls.get()
     trace: dict[str, Any] = {
         "query_id": query_id,
         "request_id": query_id,
@@ -3454,7 +3508,15 @@ def _ask_impl(
         },
         "stage_timings_ms": {},
         "model_calls": [],
+        "external_calls": external_calls if external_calls is not None else [],
     }
+    evaluation_chunks: list[dict] | None = None
+
+    def _returned_chunks(context_chunks: list[dict]) -> list[dict]:
+        if platform == "offline_eval" and evaluation_chunks is not None:
+            trace["evaluation_retrieval_depth"] = len(evaluation_chunks)
+            return evaluation_chunks
+        return context_chunks
 
     def _mark_stage(stage_name: str, started_at: float) -> None:
         trace["stage_timings_ms"][stage_name] = int((_time.monotonic() - started_at) * 1000)
@@ -3565,13 +3627,15 @@ def _ask_impl(
 
     _ensure_request_active("rerank")
     stage_started_at = _time.monotonic()
+    ranked_chunks = _rerank_chunks_with_llm(
+        search_query,
+        merged_chunks,
+        request_id=query_id,
+        model_calls=trace["model_calls"],
+    )
+    evaluation_chunks = ranked_chunks[:20]
     chunks = _limit_chunk_diversity(
-        _rerank_chunks_with_llm(
-            search_query,
-            merged_chunks,
-            request_id=query_id,
-            model_calls=trace["model_calls"],
-        ),
+        ranked_chunks,
         max_per_section=config.MAX_CHUNKS_PER_SECTION,
         max_per_document=config.MAX_CHUNKS_PER_DOCUMENT,
         top_limit=config.MAX_CONTEXT_CHUNKS,
@@ -3637,13 +3701,14 @@ def _ask_impl(
                 additional_searches + 1
             )
             combined_chunks = _dedupe_chunks(chunks + broad_merged)
+            fallback_ranked_chunks = _rerank_chunks_with_llm(
+                search_query,
+                combined_chunks,
+                request_id=query_id,
+                model_calls=trace["model_calls"],
+            )
             fallback_chunks = _limit_chunk_diversity(
-                _rerank_chunks_with_llm(
-                    search_query,
-                    combined_chunks,
-                    request_id=query_id,
-                    model_calls=trace["model_calls"],
-                ),
+                fallback_ranked_chunks,
                 max_per_section=config.MAX_CHUNKS_PER_SECTION,
                 max_per_document=config.MAX_CHUNKS_PER_DOCUMENT,
                 top_limit=config.MAX_CONTEXT_CHUNKS,
@@ -3656,6 +3721,7 @@ def _ask_impl(
                 > trace.get("retrieved_chunk_count", 0)
             )
             if improved:
+                evaluation_chunks = fallback_ranked_chunks[:20]
                 chunks = fallback_chunks
                 trace.update(fallback_stats)
                 trace["confidence"] = trace.get("top_similarity", 0.0)
@@ -3695,7 +3761,7 @@ def _ask_impl(
         answer = _build_abstain_response(question)
         trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
         _log_ask_trace(trace)
-        return answer, chunks, trace
+        return answer, _returned_chunks(chunks), trace
 
     _ensure_request_active("context_build")
     stage_started_at = _time.monotonic()
@@ -3794,7 +3860,7 @@ def _ask_impl(
         answer = _build_abstain_response(question)
         trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
         _log_ask_trace(trace)
-        return answer, chunks, trace
+        return answer, _returned_chunks(chunks), trace
 
     system += (
         "\n\n<citation_policy>\n"
@@ -3870,7 +3936,7 @@ def _ask_impl(
 
     trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
     _log_ask_trace(trace)
-    return answer, chunks, trace
+    return answer, _returned_chunks(chunks), trace
 
 
 # -- Utilitarios ----------------------------------------------------------------
