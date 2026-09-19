@@ -174,6 +174,9 @@ class TestCorrectionWorkflowIntegration(unittest.TestCase):
         }
 
         def fake_db_call(function_name, params, expect_rows=True):
+            if function_name == "ensure_embedding_index_identity":
+                return []
+
             if function_name == "submit_feedback":
                 feedback_id = str(uuid.uuid4())
                 state["feedback_items"][feedback_id] = {

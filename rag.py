@@ -33,6 +33,7 @@ _knowledge_gap_rpc_available: bool | None = None
 _top_knowledge_gaps_rpc_available: bool | None = None
 _business_rules_cache: tuple[str, float, str] | None = None
 _full_context_cache: tuple[str, float] | None = None  # (text, mtime_max)
+_validated_embedding_index_identities: set[tuple[str, str, str, int, str]] = set()
 
 # Expansao de abreviaturas do dominio para embedding de query.
 # Mantem a query original para FTS.
@@ -990,6 +991,59 @@ def get_model_config() -> dict[str, str]:
     }
 
 
+def get_embedding_index_identity() -> dict[str, str | int]:
+    """Retorna a identidade completa do espaco vetorial esperado pelo processo."""
+    return {
+        "provider": _active_embedding_provider(),
+        "model": _resolve_embedding_model(),
+        "dimensions": int(config.EMBEDDING_DIMENSIONS),
+        "preprocessing_version": config.EMBEDDING_PREPROCESSING_VERSION,
+    }
+
+
+def ensure_embedding_index_identity(index_scope: str) -> dict[str, str | int]:
+    """Registra colecoes vazias e rejeita indices com identidade divergente."""
+    allowed_scopes = {"corpus", "sections", "feedback"}
+    if index_scope not in allowed_scopes:
+        raise ValueError(
+            f"Escopo de indice vetorial invalido: {index_scope}. "
+            f"Use um de: {', '.join(sorted(allowed_scopes))}."
+        )
+
+    identity = get_embedding_index_identity()
+    cache_key = (
+        index_scope,
+        str(identity["provider"]),
+        str(identity["model"]),
+        int(identity["dimensions"]),
+        str(identity["preprocessing_version"]),
+    )
+    if cache_key in _validated_embedding_index_identities:
+        return identity
+
+    try:
+        supabase_rpc(
+            "ensure_embedding_index_identity",
+            {
+                "p_index_scope": index_scope,
+                "p_provider": identity["provider"],
+                "p_model": identity["model"],
+                "p_dimensions": identity["dimensions"],
+                "p_preprocessing_version": identity["preprocessing_version"],
+            },
+        )
+    except Exception as exc:
+        if _is_missing_rpc_function(exc, "ensure_embedding_index_identity"):
+            raise RuntimeError(
+                "Contrato de identidade vetorial indisponivel. Aplique "
+                "sql/add_embedding_index_identity.sql antes de ingerir ou consultar vetores."
+            ) from exc
+        raise
+
+    _validated_embedding_index_identities.add(cache_key)
+    return identity
+
+
 def _fallback_log_knowledge_gap(query: str, max_similarity: float, platform: str) -> None:
     normalized_query = query[:500]
     similarity = _safe_similarity(max_similarity)
@@ -1048,20 +1102,12 @@ def _fallback_get_top_knowledge_gaps(limit: int) -> list[dict]:
 def _normalize_embedding(values: list[float]) -> list[float]:
     values = [v if math.isfinite(v) else 0.0 for v in values]
     target_dims = config.EMBEDDING_DIMENSIONS
-    if len(values) > target_dims:
-        logger.warning(
-            "Embedding maior que o esperado (%s > %s); truncando.",
-            len(values),
-            target_dims,
+    if len(values) != target_dims:
+        raise ValueError(
+            "Dimensao de embedding incompativel: "
+            f"esperado {target_dims}, obtido {len(values)}. "
+            "O vetor nao sera truncado nem preenchido."
         )
-        values = values[:target_dims]
-    elif len(values) < target_dims:
-        logger.warning(
-            "Embedding menor que o esperado (%s < %s); preenchendo com zeros.",
-            len(values),
-            target_dims,
-        )
-        values.extend([0.0] * (target_dims - len(values)))
     return values
 
 
@@ -1158,7 +1204,7 @@ def embedding_to_pgvector(embedding: list[float]) -> str:
     Formato: '[0.1,0.2,0.3,...]'
     Sanitiza valores NaN/Inf para 0.0.
     """
-    sanitized = [v if math.isfinite(v) else 0.0 for v in embedding]
+    sanitized = _normalize_embedding(embedding)
     return "[" + ",".join(str(v) for v in sanitized) + "]"
 
 
@@ -1194,13 +1240,25 @@ _query_embedding_cache = _TTLCache(maxsize=500, ttl=3600.0)
 
 def _get_cached_query_embedding(query: str) -> list[float]:
     """Retorna embedding de query com cache in-memory (TTL 1h, LRU)."""
-    cached = _query_embedding_cache.get(query)
+    identity = get_embedding_index_identity()
+    cache_key = json.dumps(
+        [
+            identity["provider"],
+            identity["model"],
+            identity["dimensions"],
+            identity["preprocessing_version"],
+            query,
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    cached = _query_embedding_cache.get(cache_key)
     if cached is not None:
         logger.debug("Cache hit para query embedding: '%s'", query[:60])
         return cached
 
     embedding = create_query_embedding(query)
-    _query_embedding_cache.put(query, embedding)
+    _query_embedding_cache.put(cache_key, embedding)
     return embedding
 
 
@@ -1542,6 +1600,7 @@ def search_relevant_sections(
 ) -> list[dict]:
     if not config.SECTION_RETRIEVAL_ENABLED:
         return []
+    ensure_embedding_index_identity("sections")
     if max_results is None:
         max_results = config.SECTION_MATCH_COUNT
     if threshold is None:
@@ -1599,6 +1658,7 @@ def search_similar_chunks(
     section_ids: list[str] | None = None,
     candidate_limit: int | None = None,
 ) -> list[dict]:
+    ensure_embedding_index_identity("corpus")
     if max_results is None:
         max_results = config.MAX_CONTEXT_CHUNKS
     if threshold is None:
@@ -1770,6 +1830,7 @@ def _search_feedback_memory_chunks(
     max_results: int | None = None,
     threshold: float | None = None,
 ) -> list[dict]:
+    ensure_embedding_index_identity("feedback")
     if max_results is None:
         max_results = config.RAG_FEEDBACK_TOP_K
     if threshold is None:
@@ -3248,6 +3309,7 @@ def publish_feedback_item(
     if status not in {"APPROVED", "PUBLISHED"}:
         raise ValueError("Feedback precisa estar APPROVED para publicar.")
 
+    ensure_embedding_index_identity("feedback")
     chunk_scope = _normalize_scope(scope_override) or item.get("scope") or {"level": "global"}
     chunk_content = _feedback_chunk_content(item)
     embedding = create_document_embedding(chunk_content)

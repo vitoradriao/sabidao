@@ -47,6 +47,7 @@ from rag import (
     QUERY_MODULE_HINTS,
     create_document_embeddings,
     embedding_to_pgvector,
+    ensure_embedding_index_identity,
     get_model_config,
 )
 
@@ -1302,6 +1303,8 @@ def _prepare_section_retrieval_data(
     sections: list[AnalyticalSection],
 ) -> list[tuple[AnalyticalSection, str, list[float]]]:
     persisted_sections = [section for section in sections if section.section_id]
+    if persisted_sections:
+        ensure_embedding_index_identity("sections")
     prepared: list[tuple[AnalyticalSection, str, list[float]]] = []
     batch_size = max(1, config.EMBEDDING_BATCH_SIZE)
     for batch_start in range(0, len(persisted_sections), batch_size):
@@ -1458,6 +1461,8 @@ def _prepare_chunk_rows(
     doc_priority: int,
     chunk_items: list[tuple[int, str, str, AnalyticalSection]],
 ) -> tuple[list[dict], list[int]]:
+    if chunk_items:
+        ensure_embedding_index_identity("corpus")
     rows: list[dict] = []
     failed_chunks: list[int] = []
     batch_size = max(1, config.EMBEDDING_BATCH_SIZE)

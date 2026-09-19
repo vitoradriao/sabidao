@@ -21,6 +21,12 @@ mesma chave, defina as duas variáveis de credencial de forma explícita. Altera
 o provider, endpoint ou modelo de geração não modifica a configuração dos
 embeddings e não migra os vetores já armazenados.
 
+O espaço vetorial é identificado por `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`,
+`EMBEDDING_DIMENSIONS` e `EMBEDDING_PREPROCESSING_VERSION`. Esta versão aceita
+somente 1536 dimensões. Alterar qualquer componente da identidade exige validar
+ou reconstruir o índice conforme o guia de
+[identidade do índice vetorial](identidade-indice-vetorial.md).
+
 O bot valida providers, credenciais, modelos e URLs antes de iniciar. As
 mensagens de erro citam apenas o nome da configuração inválida; secrets não são
 incluídos nos avisos ou erros de validação.

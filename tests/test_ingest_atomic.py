@@ -15,6 +15,7 @@ class TestAtomicIngestUnit(unittest.TestCase):
         with (
             patch.object(ingest, "supabase_select", return_value=[{"id": "old-doc"}]),
             patch.object(ingest, "_document_sections_supported", return_value=False),
+            patch.object(ingest, "ensure_embedding_index_identity"),
             patch.object(ingest, "_embed_batch_with_retry", side_effect=RuntimeError("embedding falhou")),
             patch.object(ingest, "_replace_document_atomically") as replace_mock,
             patch.object(ingest, "_save_failed_report_entry"),
@@ -42,6 +43,7 @@ class TestAtomicIngestUnit(unittest.TestCase):
 class TestAtomicIngestPostgres(unittest.TestCase):
     def setUp(self):
         db.validate_database_config()
+        ingest.ensure_embedding_index_identity("corpus")
         self.filename = f"__bm04_atomic_{uuid4().hex}.md"
         self.old_doc_id = str(uuid4())
         with db.db_transaction() as connection:

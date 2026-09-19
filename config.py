@@ -153,6 +153,10 @@ EMBEDDING_MODEL = _env_setting(
     _embedding_default_model,
     legacy_names=_embedding_legacy_models,
 )
+EMBEDDING_PREPROCESSING_VERSION = _env_setting(
+    "EMBEDDING_PREPROCESSING_VERSION",
+    "rag-text-v1",
+)
 _legacy_openai_embedding_model = (os.getenv("OPENAI_EMBEDDING_MODEL") or "").strip()
 if (
     _using_legacy_provider_config
@@ -355,11 +359,11 @@ MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 DOCS_DIR = os.getenv("DOCS_DIR", "./documentos")
 FAILED_INGEST_REPORT = os.getenv("FAILED_INGEST_REPORT", "./ingest_failures.json")
 
-_ALLOWED_EMBEDDING_DIMENSIONS = {1536, 3072}
-if EMBEDDING_DIMENSIONS not in _ALLOWED_EMBEDDING_DIMENSIONS:
+if EMBEDDING_DIMENSIONS != 1536:
     raise EnvironmentError(
-        "EMBEDDING_DIMENSIONS deve ser 1536 ou 3072. "
-        "Ajuste o .env e execute o SQL correspondente (sql/setup_1536.sql ou sql/setup_3072.sql)."
+        "EMBEDDING_DIMENSIONS deve ser 1536 nesta versao. O perfil 3072 nao e "
+        "suportado: os indices HNSW com VECTOR excedem o limite operacional e "
+        "a memoria de feedback permanece em 1536 dimensoes."
     )
 
 
