@@ -376,6 +376,15 @@ MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 # Diretorio de documentos
 DOCS_DIR = os.getenv("DOCS_DIR", "./documentos")
 FAILED_INGEST_REPORT = os.getenv("FAILED_INGEST_REPORT", "./ingest_failures.json")
+INGEST_RECURSIVE = _env_bool("INGEST_RECURSIVE", False)
+INGEST_EXCLUDED_DIRS = frozenset(
+    part.strip().lower()
+    for part in os.getenv(
+        "INGEST_EXCLUDED_DIRS",
+        "docbkp,backup,backups,bkp",
+    ).split(",")
+    if part.strip()
+)
 
 if EMBEDDING_DIMENSIONS != 1536:
     raise EnvironmentError(

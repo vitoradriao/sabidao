@@ -15,14 +15,33 @@ python ingest.py ./documentos --no-recursive
 ```
 
 Use `--recursive` somente quando as subpastas também contiverem fontes aprovadas.
+Por padrão, diretórios chamados `docbkp`, `backup`, `backups` e `bkp` são
+ignorados mesmo no modo recursivo. Ajuste `INGEST_EXCLUDED_DIRS` para mudar a
+lista. Para incluir backups de forma explícita, defina a variável como vazia e
+revise as fontes antes da execução.
 
 ## Atualizar documentos
 
-Para reingerir fontes já indexadas:
+A execução comum calcula hashes do conteúdo extraído e do preprocessamento.
+Arquivos modificados são atualizados automaticamente; arquivos sem mudança não
+geram novos embeddings. Origens distintas com o mesmo preprocessamento
+reaproveitam os vetores, mantendo nome e caminho próprios na tabela de
+documentos.
+
+Para reingerir todas as fontes mesmo quando os hashes não mudaram:
 
 ```sh
 python ingest.py ./documentos --no-recursive --force
 ```
+
+No Discord, `!reindex` (alias de `!ingerir`) tem a mesma semântica de `--force`.
+A recursão usada pelo comando segue `INGEST_RECURSIVE`; as exclusões seguem
+`INGEST_EXCLUDED_DIRS`.
+
+Bancos existentes precisam receber `sql/add_ingest_identity.sql` antes de usar
+a ingestão incremental. A migração apenas adiciona colunas e índices; não
+reindexa documentos existentes. Fontes antigas, ainda sem hashes, ganham a
+identidade na primeira ingestão posterior.
 
 Para repetir fontes registradas como falha:
 

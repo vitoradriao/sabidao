@@ -2471,10 +2471,18 @@ def _dedupe_chunks(chunks: list[dict]) -> list[dict]:
     deduped: list[dict] = []
     seen: set[str] = set()
     for chunk in chunks:
-        chunk_id = chunk.get("id")
-        key = str(chunk_id) if chunk_id is not None else (
-            f"{chunk.get('filename','')}::{_chunk_index_value(chunk)}::{hash(chunk.get('content',''))}"
-        )
+        metadata = chunk.get("metadata") if isinstance(chunk.get("metadata"), dict) else {}
+        content_hash = str(metadata.get("content_hash") or "").strip()
+        if content_hash:
+            key = (
+                f"content:{content_hash}:{_chunk_index_value(chunk)}:"
+                f"{chunk.get('content', '')}"
+            )
+        else:
+            chunk_id = chunk.get("id")
+            key = str(chunk_id) if chunk_id is not None else (
+                f"{chunk.get('filename','')}::{_chunk_index_value(chunk)}::{hash(chunk.get('content',''))}"
+            )
         if key in seen:
             continue
         seen.add(key)

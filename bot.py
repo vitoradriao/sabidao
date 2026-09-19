@@ -538,7 +538,7 @@ async def cmd_ingerir(ctx: commands.Context):
 
     async with ctx.typing():
         try:
-            results = await asyncio.to_thread(ingest_directory)
+            results = await asyncio.to_thread(ingest_directory, force=True)
             total = sum(r.get("chunks_count", 0) for r in results)
             success = sum(1 for r in results if r.get("chunks_count", 0) > 0)
             await ctx.reply(
