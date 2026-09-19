@@ -79,6 +79,9 @@ python ingest.py ./documentos --no-recursive
 ```
 
 O comando indexa os arquivos da pasta indicada sem percorrer suas subpastas. A ingestão consulta os serviços de IA e grava no banco. Para atualizar documentos existentes ou recuperar falhas, siga o [guia de operação](operacao.md).
+Em execuções posteriores, hashes evitam embeddings quando conteúdo e
+preprocessamento não mudaram. O modo recursivo e as exclusões de diretórios de
+backup também estão descritos no guia de operação.
 
 ## 4. Iniciar o Discord
 

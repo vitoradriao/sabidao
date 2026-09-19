@@ -10,19 +10,54 @@ import ingest
 
 
 class TestAnalyticalIngest(unittest.TestCase):
-    def test_collect_local_files_only_reads_documents_root(self):
+    def test_collect_local_files_respects_recursion_and_backup_exclusions(self):
         with TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / "base.md").write_text("# Base\n\nConteudo", encoding="utf-8")
             (root / "docbkp").mkdir()
-            (root / "docbkp" / "backup.md").write_text("# Backup\n\nConteudo", encoding="utf-8")
-            (root / "rascunhos").mkdir()
-            (root / "rascunhos" / "rascunho.md").write_text("# Rascunho\n\nConteudo", encoding="utf-8")
+            (root / "docbkp" / "copia-identica.md").write_text(
+                "# Base\n\nConteudo",
+                encoding="utf-8",
+            )
+            (root / "docbkp" / "versao-antiga.md").write_text(
+                "# Base\n\nConteudo antigo",
+                encoding="utf-8",
+            )
+            (root / "ativos").mkdir()
+            (root / "ativos" / "complemento.md").write_text(
+                "# Complemento\n\nConteudo",
+                encoding="utf-8",
+            )
 
-            _docs_path, files = ingest._collect_local_files(directory=str(root), recursive=True)
+            _docs_path, flat_files = ingest._collect_local_files(
+                directory=str(root),
+                recursive=False,
+            )
+            _docs_path, recursive_files = ingest._collect_local_files(
+                directory=str(root),
+                recursive=True,
+            )
 
-        names = sorted(path.name for path in files)
-        self.assertEqual(names, ["base.md"])
+        self.assertEqual([path.name for path in flat_files], ["base.md"])
+        self.assertEqual(
+            sorted(path.relative_to(root).as_posix() for path in recursive_files),
+            ["ativos/complemento.md", "base.md"],
+        )
+
+    def test_backup_directories_can_be_included_explicitly(self):
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "docbkp").mkdir()
+            backup = root / "docbkp" / "backup.md"
+            backup.write_text("# Backup", encoding="utf-8")
+
+            with patch.object(config, "INGEST_EXCLUDED_DIRS", frozenset()):
+                _docs_path, files = ingest._collect_local_files(
+                    directory=str(root),
+                    recursive=True,
+                )
+
+        self.assertEqual(files, [backup])
 
     def test_json_safe_normalizes_nested_uuid_values(self):
         document_id = uuid4()
@@ -95,6 +130,8 @@ class TestAnalyticalIngest(unittest.TestCase):
             module="pedidos_vendas",
             title="Base",
             doc_priority=10,
+            content_hash="content-hash",
+            processing_hash="processing-hash",
             embedding=[0.1] * config.EMBEDDING_DIMENSIONS,
             section=section,
         )
@@ -105,6 +142,7 @@ class TestAnalyticalIngest(unittest.TestCase):
         self.assertEqual(row["entities"]["tables"], ["MXSINTEGRACAOPEDIDO"])
         self.assertEqual(row["metadata"]["section_title"], "Pedido nao integra")
         self.assertEqual(row["metadata"]["module"], "sql_integracao")
+        self.assertEqual(row["metadata"]["content_hash"], "content-hash")
 
     def test_build_section_retrieval_text_includes_operational_signals(self):
         section = ingest.AnalyticalSection(

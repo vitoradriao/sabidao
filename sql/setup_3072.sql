@@ -24,6 +24,8 @@ CREATE TABLE documents (
     title TEXT,
     source TEXT,
     doc_type TEXT,
+    content_hash TEXT,
+    processing_hash TEXT,
     chunk_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

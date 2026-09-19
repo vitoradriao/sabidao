@@ -149,6 +149,7 @@ READERS = {
 
 _splitter: MarkdownTextSplitter | None = None
 _document_sections_available: bool | None = None
+_INGEST_PROCESSING_VERSION = "ingest-v1"
 
 
 @dataclass
@@ -201,6 +202,80 @@ def _build_section_retrieval_text(doc_title: str, section: AnalyticalSection) ->
     if excerpt:
         parts.append(f"Trecho da secao: {excerpt}")
     return "\n".join(part for part in parts if part)
+
+
+def _content_hash(text: str) -> str:
+    """Identifica o texto extraido sem misturar caminho ou proveniencia."""
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _processing_hash(
+    *,
+    content_hash: str,
+    title: str,
+    doc_type: str,
+    module: str,
+    doc_priority: int,
+    sections: list[AnalyticalSection],
+    chunk_items: list[tuple[int, str, str, AnalyticalSection]],
+) -> str:
+    """Identifica todos os insumos que alteram chunks ou embeddings."""
+    payload = {
+        "version": _INGEST_PROCESSING_VERSION,
+        "content_hash": content_hash,
+        "doc_type": doc_type,
+        "module": module,
+        "doc_priority": doc_priority,
+        "embedding": {
+            "provider": config.EMBEDDING_PROVIDER,
+            "model": config.EMBEDDING_MODEL,
+            "dimensions": config.EMBEDDING_DIMENSIONS,
+            "preprocessing_version": config.EMBEDDING_PREPROCESSING_VERSION,
+        },
+        "chunking": {
+            "size": config.CHUNK_SIZE,
+            "overlap": config.CHUNK_OVERLAP,
+        },
+        "analytical_context": config.ANALYTICAL_CONTEXT_ENABLED,
+        "document_sections_supported": _document_sections_supported(),
+        "contextual_retrieval": {
+            "enabled": config.CONTEXTUAL_RETRIEVAL_ENABLED,
+            "model": config.CONTEXTUAL_RETRIEVAL_MODEL,
+            "max_doc_chars": config.CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS,
+            "batch_size": config.CONTEXTUAL_RETRIEVAL_BATCH_SIZE,
+        },
+        "sections": [
+            {
+                "section_index": section.section_index,
+                "title": section.title,
+                "heading_path": section.heading_path,
+                "content": section.content,
+                "module": section.module,
+                "answer_mode": section.answer_mode,
+                "entities": section.entities,
+                "semantic_context": section.semantic_context,
+                "retrieval_text": _build_section_retrieval_text(title, section),
+            }
+            for section in sections
+        ],
+        "chunks": [
+            {
+                "chunk_index": chunk_index,
+                "storage_content": storage_content,
+                "retrieval_content": retrieval_content,
+                "section_index": section.section_index,
+            }
+            for chunk_index, storage_content, retrieval_content, section in chunk_items
+        ],
+    }
+    serialized = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def _path_to_document_filename(path: Path, docs_root: Path | None = None) -> str:
@@ -698,15 +773,6 @@ def _failed_sources_from_report() -> tuple[list[Path], list[str]]:
         if source_path.exists() and source_path.suffix.lower() in READERS:
             file_sources.append(source_path)
     return file_sources, list(dict.fromkeys(url_sources))
-
-
-def _get_indexed_filenames() -> set[str]:
-    try:
-        docs = supabase_select("documents", select="filename")
-        return {doc["filename"] for doc in docs if doc.get("filename")}
-    except Exception as e:
-        logger.warning("Nao foi possivel consultar documentos existentes: %s", e)
-        return set()
 
 
 def _is_url(value: str) -> bool:
@@ -1227,6 +1293,8 @@ def _build_chunk_row(
     module: str,
     title: str,
     doc_priority: int,
+    content_hash: str,
+    processing_hash: str,
     embedding: list[float],
     section: AnalyticalSection | None = None,
 ) -> dict:
@@ -1238,6 +1306,8 @@ def _build_chunk_row(
         "module": section.module if section else module,
         "title": title,
         "doc_priority": doc_priority,
+        "content_hash": content_hash,
+        "processing_hash": processing_hash,
     }
     if section:
         metadata.update(
@@ -1355,6 +1425,9 @@ def _prepare_document_section_rows(
     doc_id: str,
     title: str,
     sections: list[AnalyticalSection],
+    *,
+    content_hash: str,
+    processing_hash: str,
 ) -> list[dict]:
     if not _document_sections_supported():
         return []
@@ -1380,10 +1453,137 @@ def _prepare_document_section_rows(
                 "source": "ingest.py",
                 "document_id": str(doc_id),
                 "retrieval_ready": True,
+                "content_hash": content_hash,
+                "processing_hash": processing_hash,
             },
         }
         for section, retrieval_text, embedding in prepared
     ]
+
+
+def _find_reusable_document(processing_hash: str, filename: str) -> dict | None:
+    candidates = supabase_select(
+        "documents",
+        select="id,filename",
+        filters={
+            "processing_hash": f"eq.{processing_hash}",
+            "order": "created_at.asc",
+            "limit": 10,
+        },
+    )
+    return next(
+        (row for row in candidates if row.get("filename") != filename),
+        None,
+    )
+
+
+def _clone_prepared_rows(
+    *,
+    source_document_id: str,
+    document_id: str,
+    filename: str,
+    title: str,
+    doc_type: str,
+    source_type: str,
+    module: str,
+    doc_priority: int,
+    content_hash: str,
+    processing_hash: str,
+) -> tuple[list[dict], list[dict]]:
+    """Reaproveita vetores de um processamento identico sem perder a nova origem."""
+    section_rows: list[dict] = []
+    section_id_map: dict[str, str] = {}
+    if _document_sections_supported():
+        source_sections = supabase_select(
+            "document_sections",
+            select="*",
+            filters={
+                "document_id": f"eq.{source_document_id}",
+                "order": "section_index.asc",
+            },
+        )
+        section_columns = (
+            "section_index",
+            "heading_path",
+            "title",
+            "module",
+            "answer_mode",
+            "semantic_context",
+            "entities",
+            "retrieval_text",
+            "embedding",
+        )
+        for source_section in source_sections:
+            source_section_id = str(source_section["id"])
+            cloned_section_id = str(uuid4())
+            section_id_map[source_section_id] = cloned_section_id
+            metadata = dict(source_section.get("metadata") or {})
+            metadata.update(
+                {
+                    "document_id": document_id,
+                    "content_hash": content_hash,
+                    "processing_hash": processing_hash,
+                }
+            )
+            section_rows.append(
+                {
+                    "id": cloned_section_id,
+                    "document_id": document_id,
+                    **{
+                        column: source_section.get(column)
+                        for column in section_columns
+                    },
+                    "metadata": metadata,
+                }
+            )
+
+    source_chunks = supabase_select(
+        "document_chunks",
+        select="*",
+        filters={
+            "document_id": f"eq.{source_document_id}",
+            "order": "chunk_index.asc",
+        },
+    )
+    chunk_columns = (
+        "content",
+        "chunk_index",
+        "embedding",
+        "token_count",
+        "heading_path",
+        "semantic_context",
+        "entities",
+        "answer_mode",
+    )
+    chunk_rows: list[dict] = []
+    for source_chunk in source_chunks:
+        metadata = dict(source_chunk.get("metadata") or {})
+        metadata.update(
+            {
+                "filename": filename,
+                "doc_type": doc_type,
+                "source_type": source_type,
+                "module": module,
+                "title": title,
+                "doc_priority": doc_priority,
+                "content_hash": content_hash,
+                "processing_hash": processing_hash,
+            }
+        )
+        row = {
+            "document_id": document_id,
+            **{column: source_chunk.get(column) for column in chunk_columns},
+            "metadata": metadata,
+            "module": module,
+            "doc_type": doc_type,
+            "source_type": source_type,
+            "doc_priority": doc_priority,
+        }
+        source_section_id = source_chunk.get("section_id")
+        if source_section_id is not None:
+            row["section_id"] = section_id_map.get(str(source_section_id))
+        chunk_rows.append(row)
+    return section_rows, chunk_rows
 
 
 def _insert_chunk_rows(rows: list[dict], *, connection) -> set[int]:
@@ -1422,11 +1622,15 @@ def _replace_document_atomically(
         db_advisory_xact_lock(f"ingest:{filename}", connection=connection)
         existing = supabase_select(
             "documents",
-            select="id",
+            select="id,processing_hash",
             filters={"filename": f"eq.{filename}"},
             connection=connection,
         )
-        if existing and not force:
+        if (
+            existing
+            and not force
+            and existing[0].get("processing_hash") == document_row["processing_hash"]
+        ):
             return False
 
         if existing:
@@ -1460,6 +1664,8 @@ def _prepare_chunk_rows(
     module: str,
     doc_priority: int,
     chunk_items: list[tuple[int, str, str, AnalyticalSection]],
+    content_hash: str = "",
+    processing_hash: str = "",
 ) -> tuple[list[dict], list[int]]:
     if chunk_items:
         ensure_embedding_index_identity("corpus")
@@ -1528,6 +1734,8 @@ def _prepare_chunk_rows(
                     module=module,
                     title=title,
                     doc_priority=doc_priority,
+                    content_hash=content_hash,
+                    processing_hash=processing_hash,
                     embedding=embedding,
                     section=section,
                 )
@@ -1564,6 +1772,8 @@ def _prepare_chunk_rows(
                             module=module,
                             title=title,
                             doc_priority=doc_priority,
+                            content_hash=content_hash,
+                            processing_hash=processing_hash,
                             embedding=embedding,
                             section=section,
                         )
@@ -1594,20 +1804,6 @@ def _ingest_text_source(
             "error": "fonte vazia",
         }
 
-    existing = supabase_select(
-        "documents",
-        select="id",
-        filters={"filename": f"eq.{filename}"},
-    )
-    if existing and not force:
-        logger.info("Pulando %s (ja indexado). Use --force para re-ingerir.", filename)
-        return {
-            "filename": filename,
-            "chunks_count": 0,
-            "failed_chunks": 0,
-            "skipped": True,
-        }
-
     module = _infer_module(filename, title, source, doc_type)
     sections = _split_markdown_sections(
         text,
@@ -1634,16 +1830,6 @@ def _ingest_text_source(
         len(sections),
     )
     logger.info("Modulo inferido para %s: %s", filename, module)
-    if config.CONTEXTUAL_RETRIEVAL_ENABLED:
-        model_cfg = get_model_config()
-        logger.info(
-            "Contextual Retrieval ATIVO para %s (%d chunks serao enriquecidos via %s/%s)",
-            filename,
-            len(chunk_items),
-            model_cfg.get("llm_provider", "gemini"),
-            model_cfg.get("contextual_model", config.CONTEXTUAL_RETRIEVAL_MODEL),
-        )
-
     if not chunk_items:
         logger.error("Nenhum chunk valido gerado para %s.", filename)
         return {
@@ -1654,21 +1840,111 @@ def _ingest_text_source(
         }
 
     doc_priority = _infer_priority(filename, chunk_count=len(chunk_items))
+    content_digest = _content_hash(text)
+    processing_digest = _processing_hash(
+        content_hash=content_digest,
+        title=title,
+        doc_type=doc_type,
+        module=module,
+        doc_priority=doc_priority,
+        sections=sections,
+        chunk_items=chunk_items,
+    )
+    existing = supabase_select(
+        "documents",
+        select="id,processing_hash",
+        filters={"filename": f"eq.{filename}"},
+    )
+    if (
+        existing
+        and not force
+        and existing[0].get("processing_hash") == processing_digest
+    ):
+        supabase_update(
+            "documents",
+            {
+                "title": title,
+                "source": source,
+                "doc_type": doc_type,
+                "content_hash": content_digest,
+                "priority": doc_priority,
+            },
+            {"id": f"eq.{existing[0]['id']}"},
+        )
+        _save_failed_report_entry(
+            filename=filename,
+            source=source,
+            total_chunks=len(chunk_items),
+            failed_chunks=[],
+            source_type=source_type,
+        )
+        logger.info("Pulando %s: conteudo e preprocessamento nao mudaram.", filename)
+        return {
+            "filename": filename,
+            "chunks_count": 0,
+            "failed_chunks": 0,
+            "skipped": True,
+            "unchanged": True,
+            "content_hash": content_digest,
+            "processing_hash": processing_digest,
+        }
+
     doc_id = str(uuid4())
     all_chunk_indices = [item[0] for item in chunk_items]
+    section_rows: list[dict] = []
+    chunk_rows: list[dict] = []
+    failed_chunks: list[int] = []
+    reused_document = None if force else _find_reusable_document(processing_digest, filename)
+
     try:
-        section_rows = _prepare_document_section_rows(doc_id, title, sections)
-        chunk_rows, failed_chunks = _prepare_chunk_rows(
-            doc_id=doc_id,
-            filename=filename,
-            title=title,
-            text=text,
-            doc_type=doc_type,
-            source_type=source_type,
-            module=module,
-            doc_priority=doc_priority,
-            chunk_items=chunk_items,
-        )
+        if reused_document:
+            section_rows, chunk_rows = _clone_prepared_rows(
+                source_document_id=str(reused_document["id"]),
+                document_id=doc_id,
+                filename=filename,
+                title=title,
+                doc_type=doc_type,
+                source_type=source_type,
+                module=module,
+                doc_priority=doc_priority,
+                content_hash=content_digest,
+                processing_hash=processing_digest,
+            )
+            logger.info(
+                "Reaproveitando embeddings de %s para a origem %s.",
+                reused_document.get("filename"),
+                filename,
+            )
+        else:
+            if config.CONTEXTUAL_RETRIEVAL_ENABLED:
+                model_cfg = get_model_config()
+                logger.info(
+                    "Contextual Retrieval ATIVO para %s (%d chunks serao enriquecidos via %s/%s)",
+                    filename,
+                    len(chunk_items),
+                    model_cfg.get("llm_provider", "gemini"),
+                    model_cfg.get("contextual_model", config.CONTEXTUAL_RETRIEVAL_MODEL),
+                )
+            section_rows = _prepare_document_section_rows(
+                doc_id,
+                title,
+                sections,
+                content_hash=content_digest,
+                processing_hash=processing_digest,
+            )
+            chunk_rows, failed_chunks = _prepare_chunk_rows(
+                doc_id=doc_id,
+                filename=filename,
+                title=title,
+                text=text,
+                doc_type=doc_type,
+                source_type=source_type,
+                module=module,
+                doc_priority=doc_priority,
+                content_hash=content_digest,
+                processing_hash=processing_digest,
+                chunk_items=chunk_items,
+            )
     except Exception as preparation_error:
         logger.error(
             "Falha ao preparar reingestao de %s; versao anterior preservada: %s",
@@ -1721,6 +1997,8 @@ def _ingest_text_source(
         "doc_type": doc_type,
         "chunk_count": len(chunk_rows),
         "priority": doc_priority,
+        "content_hash": content_digest,
+        "processing_hash": processing_digest,
     }
     try:
         replaced = _replace_document_atomically(
@@ -1776,6 +2054,9 @@ def _ingest_text_source(
         "chunks_count": len(chunk_rows),
         "failed_chunks": 0,
         "module": module,
+        "reused_embeddings": bool(reused_document),
+        "content_hash": content_digest,
+        "processing_hash": processing_digest,
     }
 
 
@@ -1860,10 +2141,17 @@ def _collect_local_files(
             logger.info("Coloque seus documentos nele e execute novamente")
         return docs_path, []
 
+    use_recursive = config.INGEST_RECURSIVE if recursive is None else bool(recursive)
+    excluded_dirs = config.INGEST_EXCLUDED_DIRS
+    iterator = docs_path.rglob("*") if use_recursive else docs_path.iterdir()
     file_sources: list[Path] = []
-    for ext in READERS:
-        iterator = docs_path.glob(f"*{ext}")
-        file_sources.extend(path for path in iterator if path.is_file())
+    for path in iterator:
+        if not path.is_file() or path.suffix.lower() not in READERS:
+            continue
+        relative_parts = path.relative_to(docs_path).parts[:-1]
+        if any(part.lower() in excluded_dirs for part in relative_parts):
+            continue
+        file_sources.append(path)
 
     deduped_sources: list[Path] = []
     seen: set[str] = set()
@@ -1901,16 +2189,8 @@ def ingest_directory(
         _, file_sources = _collect_local_files(
             directory=directory,
             create_if_missing=False,
-            recursive=False,
+            recursive=recursive,
         )
-
-    if not force and not retry_failed_only:
-        indexed = _get_indexed_filenames()
-        file_sources = [
-            f for f in file_sources
-            if _path_to_document_filename(f, docs_path) not in indexed
-        ]
-        url_sources = [u for u in url_sources if _url_to_filename(u) not in indexed]
 
     results = []
     for filepath in sorted(file_sources):
@@ -1938,10 +2218,24 @@ def ingest_directory(
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Ingestao de documentos e URLs para RAG")
     parser.add_argument("directory", nargs="?", default=None, help="Diretorio de documentos")
-    parser.add_argument("--force", action="store_true", help="Re-ingere fontes ja indexadas")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Reprocessa fontes mesmo quando os hashes nao mudaram",
+    )
     parser.add_argument("--retry-failed", action="store_true")
-    parser.add_argument("--recursive", dest="recursive", action="store_true")
-    parser.add_argument("--no-recursive", dest="recursive", action="store_false")
+    parser.add_argument(
+        "--recursive",
+        dest="recursive",
+        action="store_true",
+        help="Percorre subdiretorios, respeitando INGEST_EXCLUDED_DIRS",
+    )
+    parser.add_argument(
+        "--no-recursive",
+        dest="recursive",
+        action="store_false",
+        help="Processa somente o diretorio informado",
+    )
     parser.set_defaults(recursive=None)
     parser.add_argument("--url", action="append", default=[])
     parser.add_argument("--urls-file", default=None)
