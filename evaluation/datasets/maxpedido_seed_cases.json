@@ -16,6 +16,47 @@
     "source": "seed"
   },
   {
+    "id": "cfg-conta-corrente-parametros",
+    "question": "Quais parâmetros estão relacionados à conta corrente do maxPedido?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "scope": {"level": "global"},
+    "source": "auditoria-bm-27",
+    "tags": ["bm-17", "bm-27", "conta-corrente"],
+    "expected_facts": [
+      "CON_USACREDRCA",
+      "EXIBIR_SALDOCC_DISPONIVEL",
+      "MXSUSUARI.USADEBCREDRCA",
+      "CON_TIPOMOVCCRCA",
+      {
+        "id": "mov-va",
+        "accepted_phrases": ["VA Debito na venda credito no acerto"]
+      },
+      {
+        "id": "mov-vf",
+        "accepted_phrases": ["VF Debito na venda credito no faturamento"]
+      },
+      {
+        "id": "mov-vv",
+        "accepted_phrases": ["VV Debito Credito na venda"]
+      },
+      {
+        "id": "mov-ff",
+        "accepted_phrases": ["FF Debito Credito no faturamento"]
+      }
+    ],
+    "reference_evidence": [
+      {
+        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
+        "contains": ["CON_USACREDRCA", "CON_TIPOMOVCCRCA"]
+      },
+      {
+        "source": "02-CONHECIMENTOS-GERAIS.md",
+        "contains": ["CON_USACREDRCA", "CON_TIPOMOVCCRCA"]
+      }
+    ]
+  },
+  {
     "id": "proc-cliente-bloqueado",
     "question": "O que validar quando cliente bloqueado impede envio de pedido?",
     "expected_behavior": "exact_answer",

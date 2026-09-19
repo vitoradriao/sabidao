@@ -24,6 +24,77 @@ class TestIntentRouting(unittest.TestCase):
         self.assertEqual(plan["intent"], "configuration")
         self.assertIn("parametros_configuracao", plan["modules"])
 
+    def test_configuration_intent_accepts_controlled_portuguese_variants(self):
+        variants = (
+            "parâmetro",
+            "parametro",
+            "parâmetros",
+            "parametros",
+            "parametrização",
+            "parametrizacao",
+        )
+
+        for variant in variants:
+            with self.subTest(variant=variant):
+                plan = rag._classify_query_intent(f"Como consultar {variant} do maxPedido?")
+
+                self.assertEqual(plan["intent"], "configuration")
+                self.assertIn("parametros_configuracao", plan["modules"])
+
+    def test_account_current_variants_keep_configuration_and_financial_modules(self):
+        variants = ("CC", "C/C", "Conta Corrente", "Flex")
+
+        for variant in variants:
+            with self.subTest(variant=variant):
+                plan = rag._classify_query_intent(f"Quais parâmetros existem para {variant}?")
+
+                self.assertEqual(plan["intent"], "configuration")
+                self.assertIn("parametros_configuracao", plan["modules"])
+                self.assertIn("financeiro_pagamentos", plan["modules"])
+
+    def test_account_current_reproduction_exposes_routing_signals(self):
+        plan = rag._classify_query_intent(
+            "parâmetros relacionados a conta corrente do maxpedido"
+        )
+
+        self.assertEqual(plan["intent"], "configuration")
+        self.assertEqual(
+            plan["modules"],
+            ["financeiro_pagamentos", "parametros_configuracao"],
+        )
+        self.assertIn(
+            "parametros",
+            plan["routing_signals"]["intent_keywords"]["configuration"],
+        )
+        self.assertIn(
+            "conta corrente",
+            plan["routing_signals"]["module_keywords"]["financeiro_pagamentos"],
+        )
+
+    def test_route_terms_do_not_match_substrings(self):
+        plan = rag._classify_query_intent("Como funciona a parametria comercial?")
+
+        self.assertEqual(plan["intent"], "general")
+        self.assertNotIn("parametros_configuracao", plan["modules"])
+
+    def test_maxpag_keeps_financial_module_without_account_current_signal(self):
+        plan = rag._classify_query_intent("Como funciona o saldo no MaxPag?")
+
+        self.assertIn("financeiro_pagamentos", plan["modules"])
+        self.assertNotIn("parametros_configuracao", plan["modules"])
+        self.assertEqual(
+            plan["routing_signals"]["module_keywords"]["financeiro_pagamentos"],
+            ["maxpag"],
+        )
+
+    def test_preprocess_preserves_technical_identifier_for_fts(self):
+        query = "Como configurar CON_USACREDRCA no maxPedido?"
+
+        _embedding_query, fts_query = rag._preprocess_query(query)
+
+        self.assertEqual(fts_query, query)
+        self.assertIn("CON_USACREDRCA", fts_query)
+
 
 class TestPromptFormatting(unittest.TestCase):
     def test_runtime_prompt_discourages_over_numbered_answers(self):
