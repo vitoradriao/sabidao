@@ -45,12 +45,32 @@ class TestOfflineEvaluator(unittest.TestCase):
 
         factual = summary["metrics"]["factual_correctness"]
         citations = summary["metrics"]["citation_validity"]
+        recall = summary["metrics"]["recall_at_k"]
         self.assertEqual(factual["evaluated"], 3)
         self.assertEqual(factual["not_evaluated"], 1)
         self.assertEqual(citations["evaluated"], 2)
         self.assertEqual(citations["not_evaluated"], 2)
+        self.assertEqual(recall, summary["metrics"]["retrieval_relevance"])
+        self.assertEqual(summary["metrics"]["false_abstention"]["evaluated"], 3)
+        self.assertEqual(summary["metrics"]["false_absence_claim"]["evaluated"], 3)
+        self.assertIsNotNone(summary["avg_latency_ms"])
+        self.assertIsNotNone(summary["p95_latency_ms"])
         self.assertIn("factual_correctness", summary["metric_definitions"])
         self.assertEqual(summary["score_evaluated"], 4)
+
+    def test_false_absence_claim_is_measured_only_for_expected_answers(self):
+        evaluation = run_offline_eval._evaluate_response(
+            case={
+                "expected_behavior": "exact_answer",
+                "expected_intent": "general",
+            },
+            answer="Esse parametro nao consta na documentacao.",
+            chunks=[],
+            trace={"query_plan": {"intent": "general"}, "abstained": False},
+        )
+
+        self.assertFalse(evaluation["false_abstention"])
+        self.assertTrue(evaluation["false_absence_claim"])
 
     def test_legacy_dataset_remains_loadable_without_claiming_factual_success(self):
         legacy_cases = run_offline_eval._load_dataset(LEGACY_DATASET)

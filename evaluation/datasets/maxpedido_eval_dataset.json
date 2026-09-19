@@ -20,6 +20,31 @@
     "source": "seed"
   },
   {
+    "id": "cfg-conta-corrente-maxpedido",
+    "question": "Quais parametros estao relacionados a conta corrente do maxPedido?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "general",
+    "scope": {
+      "level": "global"
+    },
+    "source": "seed",
+    "expected_facts": [
+      "CON_USACREDRCA",
+      "EXIBIR_SALDOCC_DISPONIVEL",
+      "MXSUSUARI.USADEBCREDRCA",
+      "CON_TIPOMOVCCRCA"
+    ],
+    "reference_evidence": [
+      {
+        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
+        "contains": [
+          "CON_USACREDRCA",
+          "CON_TIPOMOVCCRCA"
+        ]
+      }
+    ]
+  },
+  {
     "id": "proc-cliente-bloqueado",
     "question": "O que validar quando cliente bloqueado impede envio de pedido?",
     "expected_behavior": "exact_answer",

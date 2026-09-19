@@ -166,6 +166,308 @@ class TestAskIntegration(unittest.TestCase):
         self.assertEqual(trace["citation_validation"]["semantic_support"], "not_evaluated")
 
 
+class TestModuleGlobalChallengerIntegration(unittest.TestCase):
+    def setUp(self):
+        self.filtered_maxpag = _make_kb_chunk(
+            chunk_id="maxpag",
+            filename="12-MAXPAG.md",
+            similarity=0.774,
+            content="Configuracoes do MaxPag.",
+        )
+        self.canonical_account = _make_kb_chunk(
+            chunk_id="account",
+            filename="04-PARAMETROS-E-CONFIGURACAO.md",
+            similarity=0.844,
+            content=(
+                "CON_USACREDRCA e EXIBIR_SALDOCC_DISPONIVEL configuram a conta corrente. "
+                "MXSUSUARI.USADEBCREDRCA e CON_TIPOMOVCCRCA complementam o fluxo."
+            ),
+        )
+
+    def _search_by_plan(self, _query, **kwargs):
+        modules = (kwargs.get("query_plan") or {}).get("modules") or []
+        if modules:
+            return [copy.deepcopy(self.filtered_maxpag)]
+        return [copy.deepcopy(self.canonical_account)]
+
+    def test_wrong_module_keeps_canonical_document_reachable_with_bounded_cost(self):
+        retrieval_trace = {}
+        wrong_plan = {
+            "intent": "general",
+            "modules": ["financeiro_pagamentos"],
+            "doc_types": ["md"],
+        }
+
+        with patch.multiple(
+            config,
+            RAG_ENABLE_GLOBAL_CHALLENGER=True,
+            RAG_GLOBAL_CHALLENGER_COUNT=4,
+            RAG_GLOBAL_CHALLENGER_FETCH_LIMIT=16,
+            RAG_FILTER_BY_MODULE=True,
+            RAG_FILTER_BY_DOC_TYPE=True,
+            SECTION_MATCH_COUNT=12,
+            CHUNK_FETCH_LIMIT=80,
+            DB_STATEMENT_TIMEOUT_MS=15000,
+        ), patch(
+            "rag._search_feedback_memory_chunks",
+            return_value=[],
+        ), patch(
+            "rag.search_relevant_sections",
+            return_value=[],
+        ), patch(
+            "rag.search_similar_chunks",
+            side_effect=self._search_by_plan,
+        ) as search_mock:
+            merged, _feedback, kb_chunks = rag.retrieve_chunks_with_feedback(
+                "parametros relacionados a conta corrente do maxpedido",
+                query_plan=wrong_plan,
+                scope=None,
+                retrieval_trace=retrieval_trace,
+            )
+
+        self.assertIn(
+            "04-PARAMETROS-E-CONFIGURACAO.md",
+            [chunk["filename"] for chunk in kb_chunks],
+        )
+        self.assertEqual(len(search_mock.call_args_list), 2)
+        challenger_call = search_mock.call_args_list[1]
+        self.assertEqual(challenger_call.kwargs["query_plan"]["modules"], [])
+        self.assertEqual(challenger_call.kwargs["max_results"], 4)
+        self.assertEqual(challenger_call.kwargs["candidate_limit"], 16)
+        self.assertEqual(retrieval_trace["additional_database_searches"], 1)
+        self.assertEqual(retrieval_trace["additional_embedding_calls"], 0)
+        self.assertEqual(retrieval_trace["additional_generation_calls"], 0)
+        self.assertGreaterEqual(retrieval_trace["global_challenger_latency_ms"], 0)
+        self.assertEqual(retrieval_trace["database_statement_timeout_ms"], 15000)
+        self.assertEqual(len(merged), 2)
+
+    def test_correct_module_preserves_filtered_copy_when_challenger_duplicates_it(self):
+        supporting_chunk = _make_kb_chunk(
+            chunk_id="support",
+            filename="04-PARAMETROS-E-CONFIGURACAO.md",
+            similarity=0.821,
+            content="Detalhes complementares de conta corrente.",
+        )
+        global_related = _make_kb_chunk(
+            chunk_id="related",
+            filename="08-CONTA-CORRENTE.md",
+            similarity=0.814,
+            content="Regras relacionadas a conta corrente.",
+        )
+
+        def search(_query, **kwargs):
+            modules = (kwargs.get("query_plan") or {}).get("modules") or []
+            if modules:
+                return [copy.deepcopy(self.canonical_account), supporting_chunk]
+            return [copy.deepcopy(self.canonical_account), global_related]
+
+        with patch.multiple(
+            config,
+            RAG_ENABLE_GLOBAL_CHALLENGER=True,
+            RAG_GLOBAL_CHALLENGER_COUNT=4,
+            RAG_GLOBAL_CHALLENGER_FETCH_LIMIT=16,
+            RAG_FILTER_BY_MODULE=True,
+            RAG_FILTER_BY_DOC_TYPE=True,
+        ), patch(
+            "rag._search_feedback_memory_chunks",
+            return_value=[],
+        ), patch(
+            "rag.search_relevant_sections",
+            return_value=[],
+        ), patch(
+            "rag.search_similar_chunks",
+            side_effect=search,
+        ):
+            _merged, _feedback, kb_chunks = rag.retrieve_chunks_with_feedback(
+                "configurar conta corrente",
+                query_plan={
+                    "intent": "configuration",
+                    "modules": ["parametros_configuracao"],
+                    "doc_types": ["md"],
+                },
+                scope=None,
+            )
+
+        canonical_chunks = [chunk for chunk in kb_chunks if chunk["id"] == "account"]
+        self.assertEqual(len(canonical_chunks), 1)
+        self.assertEqual(canonical_chunks[0]["routing_scope"], "filtered")
+        self.assertIn("global_challenger", rag._routing_scope_counts(kb_chunks))
+
+    def test_challenger_failure_keeps_filtered_results_available(self):
+        retrieval_trace = {}
+
+        with patch.multiple(
+            config,
+            RAG_ENABLE_GLOBAL_CHALLENGER=True,
+            RAG_FILTER_BY_MODULE=True,
+            RAG_FILTER_BY_DOC_TYPE=True,
+        ), patch(
+            "rag._search_feedback_memory_chunks",
+            return_value=[],
+        ), patch(
+            "rag.search_relevant_sections",
+            return_value=[],
+        ), patch(
+            "rag.search_similar_chunks",
+            side_effect=[copy.deepcopy([self.filtered_maxpag]), RuntimeError("db unavailable")],
+        ):
+            merged, _feedback, kb_chunks = rag.retrieve_chunks_with_feedback(
+                "configurar conta corrente",
+                query_plan={
+                    "intent": "configuration",
+                    "modules": ["financeiro_pagamentos"],
+                    "doc_types": ["md"],
+                },
+                scope=None,
+                retrieval_trace=retrieval_trace,
+            )
+
+        self.assertEqual([chunk["id"] for chunk in kb_chunks], ["maxpag"])
+        self.assertEqual([chunk["id"] for chunk in merged], ["maxpag"])
+        self.assertTrue(retrieval_trace["relaxation_attempted"])
+        self.assertFalse(retrieval_trace["relaxation_applied"])
+        self.assertEqual(retrieval_trace["global_challenger_status"], "failed")
+        self.assertEqual(retrieval_trace["global_challenger_error"], "RuntimeError")
+
+    def test_wrong_module_answer_uses_canonical_challenger_and_traces_selection(self):
+        model_answer = (
+            "A configuracao usa CON_USACREDRCA, EXIBIR_SALDOCC_DISPONIVEL, "
+            "MXSUSUARI.USADEBCREDRCA e CON_TIPOMOVCCRCA.\n\n"
+            "Fontes:\n"
+            "- 04-PARAMETROS-E-CONFIGURACAO.md"
+        )
+
+        with patch.multiple(
+            config,
+            FULL_CONTEXT_ENABLED=False,
+            RAG_ENABLE_GLOBAL_CHALLENGER=True,
+            RAG_GLOBAL_CHALLENGER_COUNT=4,
+            RAG_GLOBAL_CHALLENGER_FETCH_LIMIT=16,
+            RAG_FILTER_BY_MODULE=True,
+            RAG_FILTER_BY_DOC_TYPE=True,
+            RAG_ENABLE_RERANKING=False,
+            RAG_STRICT_ABSTAIN=True,
+            RAG_MIN_RETRIEVED_CHUNKS=1,
+            RAG_MIN_STRONG_SIMILARITY=0.60,
+            RAG_OPERATIONAL_SIMILARITY_MARGIN=0.0,
+            RAG_ENABLE_BUSINESS_RULES=False,
+            RAG_ENABLE_GROUNDING_VALIDATION=True,
+            RAG_REQUIRE_SOURCES_SECTION=True,
+            RAG_MAX_REGEN_ATTEMPTS=0,
+        ), patch(
+            "rag._reformulate_query_with_history",
+            return_value="parametros relacionados a conta corrente do maxpedido",
+        ), patch(
+            "rag._classify_query_intent",
+            return_value={
+                "intent": "general",
+                "modules": ["financeiro_pagamentos"],
+                "doc_types": ["md"],
+            },
+        ), patch(
+            "rag._search_feedback_memory_chunks",
+            return_value=[],
+        ), patch(
+            "rag.search_relevant_sections",
+            return_value=[],
+        ), patch(
+            "rag.search_similar_chunks",
+            side_effect=self._search_by_plan,
+        ), patch(
+            "rag._ask_model",
+            return_value=model_answer,
+        ) as ask_model_mock:
+            answer, returned_chunks, trace = rag.ask(
+                "Quais os parametros de conta corrente do maxPedido?"
+            )
+
+        self.assertTrue(
+            all(
+                fact in answer
+                for fact in (
+                    "CON_USACREDRCA",
+                    "EXIBIR_SALDOCC_DISPONIVEL",
+                    "MXSUSUARI.USADEBCREDRCA",
+                    "CON_TIPOMOVCCRCA",
+                )
+            )
+        )
+        self.assertIn(
+            "04-PARAMETROS-E-CONFIGURACAO.md",
+            [chunk["filename"] for chunk in returned_chunks],
+        )
+        self.assertNotIn("12-MAXPAG.md", trace["cited_files"])
+        self.assertEqual(trace["retrieval_scope"]["filtered_candidate_count"], 1)
+        self.assertEqual(
+            trace["retrieval_scope"]["global_challenger_candidate_count"],
+            1,
+        )
+        self.assertEqual(
+            trace["retrieval_scope"]["selected_candidate_counts"],
+            {"filtered": 1, "global_challenger": 1},
+        )
+        system = ask_model_mock.call_args.kwargs["system"]
+        self.assertIn("<module_relaxation_policy>", system)
+        self.assertIn("nao existe", system)
+        self.assertEqual(ask_model_mock.call_count, 1)
+
+    def test_ambiguous_query_abstains_only_after_global_challenger(self):
+        def search(_query, **kwargs):
+            modules = (kwargs.get("query_plan") or {}).get("modules") or []
+            return [copy.deepcopy(self.filtered_maxpag)] if modules else []
+
+        with patch.multiple(
+            config,
+            FULL_CONTEXT_ENABLED=False,
+            RAG_ENABLE_GLOBAL_CHALLENGER=True,
+            RAG_GLOBAL_CHALLENGER_COUNT=4,
+            RAG_GLOBAL_CHALLENGER_FETCH_LIMIT=16,
+            RAG_FILTER_BY_MODULE=True,
+            RAG_FILTER_BY_DOC_TYPE=True,
+            RAG_ENABLE_RERANKING=False,
+            RAG_STRICT_ABSTAIN=True,
+            RAG_MIN_RETRIEVED_CHUNKS=1,
+            RAG_MIN_STRONG_SIMILARITY=0.60,
+            RAG_OPERATIONAL_SIMILARITY_MARGIN=0.0,
+            RAG_ENABLE_BUSINESS_RULES=False,
+            RAG_ENABLE_GROUNDING_VALIDATION=True,
+            RAG_REQUIRE_SOURCES_SECTION=True,
+            RAG_MAX_REGEN_ATTEMPTS=0,
+        ), patch(
+            "rag._reformulate_query_with_history",
+            return_value="a configuracao desconhecida existe?",
+        ), patch(
+            "rag._classify_query_intent",
+            return_value={
+                "intent": "configuration",
+                "modules": ["financeiro_pagamentos"],
+                "doc_types": ["md"],
+            },
+        ), patch(
+            "rag._search_feedback_memory_chunks",
+            return_value=[],
+        ), patch(
+            "rag.search_relevant_sections",
+            return_value=[],
+        ), patch(
+            "rag.search_similar_chunks",
+            side_effect=search,
+        ) as search_mock, patch(
+            "rag._ask_model",
+            return_value=config.NO_ANSWER_PHRASE,
+        ) as ask_model_mock:
+            answer, _returned_chunks, trace = rag.ask(
+                "A configuracao desconhecida existe?"
+            )
+
+        self.assertEqual(answer, config.NO_ANSWER_PHRASE)
+        self.assertTrue(trace["abstained"])
+        self.assertEqual(trace["abstention_reason"], "model_insufficient_evidence")
+        self.assertTrue(trace["retrieval_scope"]["relaxation_applied"])
+        self.assertEqual(len(search_mock.call_args_list), 2)
+        self.assertEqual(ask_model_mock.call_count, 1)
+
+
 class TestCorrectionWorkflowIntegration(unittest.TestCase):
     def test_submit_approve_publish_and_retrieve_feedback_chunk(self):
         state = {

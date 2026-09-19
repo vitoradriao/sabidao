@@ -59,11 +59,15 @@ python evaluation/run_offline_eval.py --limit 50 --output-report evaluation/repo
 | `behavior_match` | Se responder ou se abster corresponde a `expected_behavior`. |
 | `factual_correctness` | Se todos os fatos esperados aparecem na resposta. |
 | `retrieval_relevance` | Se uma evidência de referência foi recuperada. |
+| `recall_at_k` | O mesmo sinal de recuperação, medido no conjunto final limitado por `MAX_CONTEXT_CHUNKS`. |
 | `citation_validity` | Se a resposta cita uma fonte de referência sem erro de grounding. |
 | `intent_match` | Se a intenção prevista corresponde a `expected_intent`. |
+| `false_abstention` | Frequência de abstenção em casos que exigem resposta exata. |
+| `false_absence_claim` | Frequência de afirmações explícitas de ausência em casos que exigem resposta exata. |
 | `grounded_rate` | Diagnóstico do validador de grounding do fluxo, separado da correção factual. |
 | `abstain_rate` | Frequência de respostas que indicam falta de evidência. |
 | `avg_score` | Pontuação média apenas dos casos com critérios suficientes. |
+| `avg_latency_ms` e `p95_latency_ms` | Latência média e percentil 95 da execução dos casos. |
 
 O relatório informa, para cada métrica, quantos casos foram avaliados, aprovados,
 reprovados ou ficaram sem avaliação. Uma métrica sem referência não é convertida em
