@@ -1,13 +1,52 @@
 """
-config.py - Configuracoes centralizadas carregadas do .env
+config.py - Configuracoes centralizadas carregadas do ambiente e do .env
 """
 
+import logging
 import os
 from pathlib import Path
-from dotenv import dotenv_values, load_dotenv
+from urllib.parse import urlparse
+
+from dotenv import load_dotenv
 
 ENV_FILE = Path(__file__).with_name(".env")
-load_dotenv(dotenv_path=ENV_FILE)
+load_dotenv(dotenv_path=ENV_FILE, override=False)
+
+logger = logging.getLogger(__name__)
+_warned_legacy_settings: set[tuple[str, str]] = set()
+
+
+def _warn_legacy_setting(legacy_name: str, name: str) -> None:
+    warning_key = (legacy_name, name)
+    if warning_key in _warned_legacy_settings:
+        return
+    logger.warning(
+        "Configuracao %s esta obsoleta; use %s. O valor nao foi registrado.",
+        legacy_name,
+        name,
+    )
+    _warned_legacy_settings.add(warning_key)
+
+
+def _env_setting(
+    name: str,
+    default: str | None = None,
+    *,
+    legacy_names: tuple[str, ...] = (),
+) -> str | None:
+    """Le uma configuracao e usa nomes antigos apenas como fallback."""
+    value = os.getenv(name)
+    if value is not None and value.strip():
+        return value.strip()
+
+    for legacy_name in legacy_names:
+        legacy_value = os.getenv(legacy_name)
+        if legacy_value is None or not legacy_value.strip():
+            continue
+        _warn_legacy_setting(legacy_name, name)
+        return legacy_value.strip()
+
+    return default
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -41,31 +80,99 @@ def _env_float(name: str, default: float) -> float:
         )
 
 
-def _env_file_value(name: str) -> str | None:
-    return dotenv_values(ENV_FILE).get(name)
-
-
 # Discord
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 COMMAND_PREFIX = os.getenv("COMMAND_PREFIX", "!")
 BOT_NAME = os.getenv("BOT_NAME", "Assistente")
 
-# Google Gemini (LLM + embeddings)
+# Geracao e embeddings sao configurados de forma independente. Os nomes antigos
+# permanecem como fallback temporario para instalacoes existentes.
+GENERATION_PROVIDER = _env_setting(
+    "GENERATION_PROVIDER",
+    "gemini",
+    legacy_names=("LLM_PROVIDER",),
+).lower()
+_using_legacy_provider_config = not (os.getenv("GENERATION_PROVIDER") or "").strip()
+_embedding_provider_legacy_names = (
+    ("LLM_PROVIDER",) if _using_legacy_provider_config else ()
+)
+EMBEDDING_PROVIDER = _env_setting(
+    "EMBEDDING_PROVIDER",
+    "gemini",
+    legacy_names=_embedding_provider_legacy_names,
+).lower()
+
+_generation_legacy_key = (
+    "OPENAI_API_KEY" if GENERATION_PROVIDER == "openai" else "GEMINI_API_KEY"
+)
+_embedding_legacy_key = (
+    "OPENAI_API_KEY" if EMBEDDING_PROVIDER == "openai" else "GEMINI_API_KEY"
+)
+GENERATION_API_KEY = _env_setting(
+    "GENERATION_API_KEY",
+    legacy_names=(_generation_legacy_key,),
+)
+EMBEDDING_API_KEY = _env_setting(
+    "EMBEDDING_API_KEY",
+    legacy_names=(_embedding_legacy_key,),
+)
+
+GENERATION_BASE_URL = _env_setting(
+    "GENERATION_BASE_URL",
+    "https://api.openai.com/v1",
+    legacy_names=("OPENAI_BASE_URL",) if GENERATION_PROVIDER == "openai" else (),
+)
+EMBEDDING_BASE_URL = _env_setting(
+    "EMBEDDING_BASE_URL",
+    "https://api.openai.com/v1",
+    legacy_names=("OPENAI_BASE_URL",) if EMBEDDING_PROVIDER == "openai" else (),
+)
+
+_generation_default_model = (
+    "gpt-5.4" if GENERATION_PROVIDER == "openai" else "gemini-2.5-pro"
+)
+_generation_legacy_model = (
+    "OPENAI_MODEL" if GENERATION_PROVIDER == "openai" else "GEMINI_MODEL"
+)
+GENERATION_MODEL = _env_setting(
+    "GENERATION_MODEL",
+    _generation_default_model,
+    legacy_names=(_generation_legacy_model,),
+)
+
+_embedding_default_model = (
+    "text-embedding-3-large"
+    if EMBEDDING_PROVIDER == "openai"
+    else "gemini-embedding-001"
+)
+_embedding_legacy_models = (
+    ("OPENAI_EMBEDDING_MODEL",) if EMBEDDING_PROVIDER == "openai" else ()
+)
+EMBEDDING_MODEL = _env_setting(
+    "EMBEDDING_MODEL",
+    _embedding_default_model,
+    legacy_names=_embedding_legacy_models,
+)
+_legacy_openai_embedding_model = (os.getenv("OPENAI_EMBEDDING_MODEL") or "").strip()
+if (
+    _using_legacy_provider_config
+    and EMBEDDING_PROVIDER == "openai"
+    and EMBEDDING_MODEL.lower().startswith("gemini")
+    and _legacy_openai_embedding_model
+):
+    _warn_legacy_setting("OPENAI_EMBEDDING_MODEL", "EMBEDDING_MODEL")
+    EMBEDDING_MODEL = _legacy_openai_embedding_model
+
+# Aliases de leitura para codigo externo durante a transicao.
+LLM_PROVIDER = GENERATION_PROVIDER
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
-_embedding_provider_raw = os.getenv("EMBEDDING_PROVIDER")
-if _embedding_provider_raw is None or not _embedding_provider_raw.strip():
-    EMBEDDING_PROVIDER = LLM_PROVIDER
-else:
-    EMBEDDING_PROVIDER = _embedding_provider_raw.strip().lower()
-OPENAI_API_KEY = _env_file_value("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4")
 OPENAI_REFORMULATION_MODEL = os.getenv("OPENAI_REFORMULATION_MODEL", "gpt-5.4-mini")
 OPENAI_CONTEXTUAL_MODEL = os.getenv("OPENAI_CONTEXTUAL_MODEL", "gpt-5.4-mini")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
 EMBEDDING_DIMENSIONS = _env_int("EMBEDDING_DIMENSIONS", 1536)
 DB_POOL_MIN_SIZE = _env_int("DB_POOL_MIN_SIZE", 1)
 DB_POOL_MAX_SIZE = _env_int("DB_POOL_MAX_SIZE", 8)
@@ -265,14 +372,21 @@ def _check_range(name: str, value, min_val=None, max_val=None):
         raise EnvironmentError(f"{name} deve ser <= {max_val}, obtido: {value}")
 
 
-def validate():
-    """
-    Verifica se todas as variaveis obrigatorias estao definidas.
-    """
-    allowed_providers = {"gemini", "openai"}
-    if LLM_PROVIDER not in allowed_providers:
+def _validate_http_endpoint(name: str, value: str | None) -> None:
+    """Valida endpoints sem incluir o valor potencialmente sensivel no erro."""
+    parsed = urlparse(value or "")
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise EnvironmentError(
-            f"LLM_PROVIDER invalido: {LLM_PROVIDER}. "
+            f"{name} deve ser uma URL HTTP(S) absoluta e valida."
+        )
+
+
+def validate_ai_config() -> None:
+    """Valida providers sem iniciar clientes nem revelar credenciais."""
+    allowed_providers = {"gemini", "openai"}
+    if GENERATION_PROVIDER not in allowed_providers:
+        raise EnvironmentError(
+            f"GENERATION_PROVIDER invalido: {GENERATION_PROVIDER}. "
             f"Use um de: {', '.join(sorted(allowed_providers))}."
         )
     if EMBEDDING_PROVIDER not in allowed_providers:
@@ -281,22 +395,33 @@ def validate():
             f"Use um de: {', '.join(sorted(allowed_providers))}."
         )
 
-    required = {"DISCORD_TOKEN": DISCORD_TOKEN}
-    if LLM_PROVIDER == "gemini":
-        required["GEMINI_API_KEY"] = GEMINI_API_KEY
-    else:
-        required["OPENAI_API_KEY"] = OPENAI_API_KEY
-
-    if EMBEDDING_PROVIDER == "gemini":
-        required.setdefault("GEMINI_API_KEY", GEMINI_API_KEY)
-    else:
-        required.setdefault("OPENAI_API_KEY", OPENAI_API_KEY)
+    required = {
+        "GENERATION_API_KEY": GENERATION_API_KEY,
+        "GENERATION_MODEL": GENERATION_MODEL,
+        "EMBEDDING_API_KEY": EMBEDDING_API_KEY,
+        "EMBEDDING_MODEL": EMBEDDING_MODEL,
+    }
 
     missing = [name for name, val in required.items() if not val]
     if missing:
         raise EnvironmentError(
             f"Variaveis de ambiente obrigatorias nao definidas: {', '.join(missing)}. "
-            f"Verifique seu arquivo .env"
+            "Configure o ambiente do processo ou o arquivo .env."
+        )
+
+    if GENERATION_PROVIDER == "openai":
+        _validate_http_endpoint("GENERATION_BASE_URL", GENERATION_BASE_URL)
+    if EMBEDDING_PROVIDER == "openai":
+        _validate_http_endpoint("EMBEDDING_BASE_URL", EMBEDDING_BASE_URL)
+
+
+def validate():
+    """Verifica as configuracoes obrigatorias do bot."""
+    validate_ai_config()
+    if not DISCORD_TOKEN:
+        raise EnvironmentError(
+            "Variavel de ambiente obrigatoria nao definida: DISCORD_TOKEN. "
+            "Configure o ambiente do processo ou o arquivo .env."
         )
 
     # Validacoes de ranges para evitar config absurda que cause erros silenciosos

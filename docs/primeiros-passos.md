@@ -38,16 +38,16 @@ Edite `.env` com base no [arquivo de exemplo](../.env.example).
 | Variável | O que configurar |
 | --- | --- |
 | `DATABASE_URL` | Credenciais e endereço do PostgreSQL. |
-| `LLM_PROVIDER` | Provedor das respostas: `gemini` ou `openai`. |
-| `GEMINI_API_KEY` | Chave do Gemini, usado na configuração de exemplo. |
-| `EMBEDDING_PROVIDER` | Provedor dos embeddings; quando vazio, acompanha `LLM_PROVIDER`. |
-| `EMBEDDING_MODEL` | Modelo de embeddings do perfil configurado. |
+| `GENERATION_PROVIDER` | Provedor das respostas: `gemini` ou `openai`. |
+| `GENERATION_API_KEY`, `GENERATION_MODEL` | Credencial e modelo usados somente na geração. |
+| `GENERATION_BASE_URL` | Endpoint usado somente por providers de geração compatíveis com OpenAI. |
+| `EMBEDDING_PROVIDER` | Provedor dos embeddings, independente da geração. |
+| `EMBEDDING_API_KEY`, `EMBEDDING_MODEL` | Credencial e modelo usados somente nos embeddings. |
+| `EMBEDDING_BASE_URL` | Endpoint usado somente por providers de embeddings compatíveis com OpenAI. |
 | `EMBEDDING_DIMENSIONS` | Dimensão compatível com o esquema do banco; o exemplo usa `1536`. |
-| `OPENAI_API_KEY`, `OPENAI_BASE_URL` | Credenciais e endereço quando usar o provedor compatível com OpenAI. |
-| `OPENAI_MODEL`, `OPENAI_EMBEDDING_MODEL` | Modelos disponíveis no serviço escolhido. |
 | `DISCORD_TOKEN` | Token necessário para executar o Discord. |
 
-A configuração de exemplo usa Gemini para respostas e embeddings. Se trocar o provedor, revise também os modelos de reformulação e enriquecimento de contexto em `.env.example`.
+A configuração de exemplo usa Gemini para respostas e embeddings. As duas credenciais devem ser preenchidas, mesmo quando contêm a mesma chave. Se trocar o provedor, revise também os modelos de reformulação e enriquecimento de contexto em `.env.example`. A [referência de configuração](configuracao.md) explica precedência, compatibilidade e diferenças intencionais dos defaults.
 
 ### Endereço do banco
 
