@@ -284,6 +284,25 @@ _REFORMULATION_CLARIFY_RE = re.compile(
     flags=re.IGNORECASE,
 )
 _MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST = 1
+_MODEL_PRICING_VERSION = "2026-09-19"
+_MODEL_PRICING_USD_PER_MILLION = {
+    ("openai", "gpt-5.4"): {
+        "long_context_threshold": 272000,
+        "standard": {"input": 2.50, "cached_input": 0.25, "output": 15.00},
+        "long_context": {"input": 5.00, "cached_input": 0.50, "output": 22.50},
+    },
+    ("openai", "gpt-5.4-mini"): {
+        "standard": {"input": 0.75, "cached_input": 0.075, "output": 4.50},
+    },
+    ("gemini", "gemini-2.5-pro"): {
+        "long_context_threshold": 200000,
+        "standard": {"input": 1.25, "cached_input": 0.125, "output": 10.00},
+        "long_context": {"input": 2.50, "cached_input": 0.25, "output": 15.00},
+    },
+    ("gemini", "gemini-2.5-flash"): {
+        "standard": {"input": 0.30, "cached_input": 0.03, "output": 2.50},
+    },
+}
 
 _PROVIDER_ERROR_MESSAGES = frozenset(
     {
@@ -305,8 +324,288 @@ _http_client: httpx.Client | None = None
 class _GeneratedTextResponse:
     """Compatibilidade para trechos que esperam objeto com atributo .text."""
 
-    def __init__(self, text: str):
+    def __init__(
+        self,
+        text: str,
+        *,
+        provider: str | None = None,
+        model: str | None = None,
+        finish_reason: str | None = None,
+        usage: dict[str, int | None] | None = None,
+    ):
         self.text = text or ""
+        self.provider = provider
+        self.model = model
+        self.finish_reason = finish_reason
+        self.usage = usage
+
+
+def _value_from_object(value: Any, name: str) -> Any:
+    if isinstance(value, dict):
+        return value.get(name)
+    return getattr(value, name, None)
+
+
+def _token_count(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_openai_usage(raw_usage: Any) -> dict[str, int | None] | None:
+    if not raw_usage:
+        return None
+
+    prompt_tokens = _token_count(_value_from_object(raw_usage, "prompt_tokens"))
+    completion_tokens = _token_count(
+        _value_from_object(raw_usage, "completion_tokens")
+    )
+    total_tokens = _token_count(_value_from_object(raw_usage, "total_tokens"))
+    prompt_details = _value_from_object(raw_usage, "prompt_tokens_details")
+    completion_details = _value_from_object(raw_usage, "completion_tokens_details")
+    cached_tokens = _token_count(
+        _value_from_object(prompt_details, "cached_tokens")
+    )
+    reasoning_tokens = _token_count(
+        _value_from_object(completion_details, "reasoning_tokens")
+    )
+
+    input_tokens = prompt_tokens
+    if prompt_tokens is not None and cached_tokens is not None:
+        input_tokens = max(0, prompt_tokens - cached_tokens)
+    output_tokens = completion_tokens
+    if completion_tokens is not None and reasoning_tokens is not None:
+        output_tokens = max(0, completion_tokens - reasoning_tokens)
+    if total_tokens is None and prompt_tokens is not None and completion_tokens is not None:
+        total_tokens = prompt_tokens + completion_tokens
+
+    return {
+        "input_tokens": input_tokens,
+        "cached_input_tokens": cached_tokens,
+        "output_tokens": output_tokens,
+        "reasoning_tokens": reasoning_tokens,
+        "total_tokens": total_tokens,
+    }
+
+
+def _normalize_gemini_usage(raw_usage: Any) -> dict[str, int | None] | None:
+    if not raw_usage:
+        return None
+
+    prompt_tokens = _token_count(
+        _value_from_object(raw_usage, "prompt_token_count")
+    )
+    cached_tokens = _token_count(
+        _value_from_object(raw_usage, "cached_content_token_count")
+    )
+    output_tokens = _token_count(
+        _value_from_object(raw_usage, "candidates_token_count")
+    )
+    reasoning_tokens = _token_count(
+        _value_from_object(raw_usage, "thoughts_token_count")
+    )
+    total_tokens = _token_count(
+        _value_from_object(raw_usage, "total_token_count")
+    )
+
+    input_tokens = prompt_tokens
+    if prompt_tokens is not None and cached_tokens is not None:
+        input_tokens = max(0, prompt_tokens - cached_tokens)
+    if total_tokens is None:
+        known_parts = (
+            input_tokens,
+            cached_tokens,
+            output_tokens,
+            reasoning_tokens,
+        )
+        if all(part is not None for part in known_parts):
+            total_tokens = sum(int(part) for part in known_parts)
+
+    return {
+        "input_tokens": input_tokens,
+        "cached_input_tokens": cached_tokens,
+        "output_tokens": output_tokens,
+        "reasoning_tokens": reasoning_tokens,
+        "total_tokens": total_tokens,
+    }
+
+
+def _finish_reason_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    name = getattr(value, "name", None)
+    text = str(name or value).strip()
+    return text or None
+
+
+def _pricing_for_model(provider: str, model: str) -> dict[str, Any] | None:
+    normalized_model = (model or "").strip().lower()
+    matches = sorted(
+        (
+            (known_model, pricing)
+            for (known_provider, known_model), pricing in _MODEL_PRICING_USD_PER_MILLION.items()
+            if provider == known_provider
+            and (
+                normalized_model == known_model
+                or normalized_model.startswith(f"{known_model}-")
+            )
+        ),
+        key=lambda item: len(item[0]),
+        reverse=True,
+    )
+    return matches[0][1] if matches else None
+
+
+def _estimate_model_cost(
+    provider: str,
+    model: str,
+    usage: dict[str, int | None] | None,
+) -> tuple[float | None, str]:
+    if usage is None:
+        return None, "usage_unavailable"
+    pricing = _pricing_for_model(provider, model)
+    if pricing is None:
+        return None, "unknown_model"
+
+    input_tokens = usage.get("input_tokens")
+    output_tokens = usage.get("output_tokens")
+    cached_tokens = usage.get("cached_input_tokens")
+    reasoning_tokens = usage.get("reasoning_tokens")
+    if input_tokens is None or output_tokens is None:
+        return None, "usage_incomplete"
+
+    billable_input = input_tokens + (cached_tokens or 0)
+    billable_output = output_tokens + (reasoning_tokens or 0)
+    if (
+        provider == "gemini"
+        and reasoning_tokens is None
+        and usage.get("total_tokens") is not None
+    ):
+        billable_output = max(
+            billable_output,
+            int(usage["total_tokens"]) - billable_input,
+        )
+
+    threshold = pricing.get("long_context_threshold")
+    rate_key = "long_context" if threshold and billable_input > threshold else "standard"
+    rates = pricing[rate_key]
+    cost = (
+        (input_tokens * rates["input"])
+        + ((cached_tokens or 0) * rates["cached_input"])
+        + (billable_output * rates["output"])
+    ) / 1_000_000
+    breakdown_complete = cached_tokens is not None and reasoning_tokens is not None
+    return (
+        round(cost, 12),
+        "estimated" if breakdown_complete else "estimated_partial_breakdown",
+    )
+
+
+def _record_model_call(
+    model_calls: list[dict[str, Any]] | None,
+    *,
+    request_id: str | None,
+    stage: str,
+    provider: str,
+    requested_model: str,
+    response: _GeneratedTextResponse | None,
+    latency_ms: int,
+    status: str,
+    routing_reason: str,
+    error_type: str | None = None,
+) -> None:
+    if model_calls is None:
+        return
+    effective_model = (response.model if response else None) or requested_model
+    usage = response.usage if response else None
+    estimated_cost, cost_status = _estimate_model_cost(
+        provider,
+        effective_model,
+        usage,
+    )
+    attempt = 1 + sum(1 for call in model_calls if call.get("stage") == stage)
+    model_calls.append(
+        {
+            "request_id": request_id,
+            "stage": stage,
+            "attempt": attempt,
+            "provider": provider,
+            "requested_model": requested_model,
+            "model": effective_model,
+            "routing_reason": routing_reason,
+            "latency_ms": latency_ms,
+            "status": status,
+            "finish_reason": response.finish_reason if response else None,
+            "usage": usage,
+            "estimated_cost_usd": estimated_cost,
+            "cost_status": cost_status,
+            "pricing_version": _MODEL_PRICING_VERSION,
+            "error_type": error_type,
+        }
+    )
+
+
+def _summarize_model_calls(model_calls: list[dict[str, Any]]) -> dict[str, Any]:
+    token_fields = (
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "total_tokens",
+    )
+    usages = [call["usage"] for call in model_calls if call.get("usage") is not None]
+    totals: dict[str, int | None] = {}
+    totals_complete: dict[str, bool] = {}
+    for field in token_fields:
+        values = [usage[field] for usage in usages if usage.get(field) is not None]
+        totals[field] = sum(values) if values else None
+        totals_complete[field] = len(values) == len(model_calls) and bool(model_calls)
+
+    known_costs = [
+        float(call["estimated_cost_usd"])
+        for call in model_calls
+        if call.get("estimated_cost_usd") is not None
+    ]
+    cost_complete = (
+        len(known_costs) == len(model_calls)
+        and all(call.get("cost_status") == "estimated" for call in model_calls)
+        and bool(model_calls)
+    )
+    by_stage: dict[str, dict[str, int]] = {}
+    for call in model_calls:
+        stage = str(call.get("stage") or "unknown")
+        stage_summary = by_stage.setdefault(
+            stage,
+            {"call_count": 0, "calls_with_usage": 0},
+        )
+        stage_summary["call_count"] += 1
+        if call.get("usage") is not None:
+            stage_summary["calls_with_usage"] += 1
+
+    return {
+        "pricing_version": _MODEL_PRICING_VERSION,
+        "call_count": len(model_calls),
+        "calls_with_usage": len(usages),
+        "calls_without_usage": len(model_calls) - len(usages),
+        "usage_complete": (
+            len(usages) == len(model_calls)
+            and all(totals_complete.values())
+            and bool(model_calls)
+        ),
+        "totals": totals,
+        "totals_complete": totals_complete,
+        "known_estimated_cost_usd": (
+            round(sum(known_costs), 12) if known_costs else None
+        ),
+        "estimated_cost_usd": (
+            round(sum(known_costs), 12) if cost_complete else None
+        ),
+        "cost_complete": cost_complete,
+        "by_stage": by_stage,
+    }
 
 
 class _ProviderErrorResponse(str):
@@ -356,6 +655,24 @@ def _resolve_text_model(requested_model: str | None, *, purpose: str = "general"
     if purpose == "contextual":
         return config.CONTEXTUAL_RETRIEVAL_MODEL
     return config.GENERATION_MODEL
+
+
+def _resolve_generation_model() -> tuple[str, str]:
+    policy = (config.GENERATION_MODEL_POLICY or "primary").strip().lower()
+    if policy == "contextual":
+        requested_model = (
+            config.OPENAI_CONTEXTUAL_MODEL
+            if _active_llm_provider() == "openai"
+            else config.CONTEXTUAL_RETRIEVAL_MODEL
+        )
+        return (
+            _resolve_text_model(requested_model, purpose="contextual"),
+            "policy:contextual",
+        )
+    return (
+        _resolve_text_model(config.GENERATION_MODEL, purpose="general"),
+        "policy:primary",
+    )
 
 
 def _resolve_embedding_model() -> str:
@@ -487,6 +804,52 @@ def _openai_chat_generate(
     model: str,
     messages: list[dict],
     max_tokens: int = 2048,
+    request_id: str | None = None,
+    stage: str = "unspecified",
+    model_calls: list[dict[str, Any]] | None = None,
+    routing_reason: str = "configured_stage_model",
+) -> _GeneratedTextResponse:
+    started_at = _time.monotonic()
+    try:
+        response = _openai_chat_generate_request(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+        )
+    except Exception as exc:
+        _record_model_call(
+            model_calls,
+            request_id=request_id,
+            stage=stage,
+            provider="openai",
+            requested_model=model,
+            response=None,
+            latency_ms=int((_time.monotonic() - started_at) * 1000),
+            status="error",
+            routing_reason=routing_reason,
+            error_type=type(exc).__name__,
+        )
+        raise
+
+    _record_model_call(
+        model_calls,
+        request_id=request_id,
+        stage=stage,
+        provider="openai",
+        requested_model=model,
+        response=response,
+        latency_ms=int((_time.monotonic() - started_at) * 1000),
+        status="success" if response.text else "empty_response",
+        routing_reason=routing_reason,
+    )
+    return response
+
+
+def _openai_chat_generate_request(
+    *,
+    model: str,
+    messages: list[dict],
+    max_tokens: int = 2048,
 ) -> _GeneratedTextResponse:
     payload = {
         "model": model,
@@ -510,18 +873,24 @@ def _openai_chat_generate(
         )
     if resp.status_code >= 400:
         logger.error(
-            "OpenAI CHAT erro %s (model=%s): %s",
+            "OpenAI CHAT erro %s (model=%s).",
             resp.status_code,
             model,
-            resp.text[:2000],
         )
     resp.raise_for_status()
     data = resp.json()
 
     choices = data.get("choices") or []
+    usage = _normalize_openai_usage(data.get("usage"))
+    effective_model = str(data.get("model") or model)
     if not choices:
         extracted = _openai_extract_text(None, raw_response=data)
-        return _GeneratedTextResponse(extracted)
+        return _GeneratedTextResponse(
+            extracted,
+            provider="openai",
+            model=effective_model,
+            usage=usage,
+        )
 
     first_choice = choices[0] if isinstance(choices[0], dict) else {}
     message = first_choice.get("message") or {}
@@ -536,7 +905,13 @@ def _openai_chat_generate(
             model,
             first_choice.get("finish_reason"),
         )
-    return _GeneratedTextResponse(extracted)
+    return _GeneratedTextResponse(
+        extracted,
+        provider="openai",
+        model=effective_model,
+        finish_reason=_finish_reason_text(first_choice.get("finish_reason")),
+        usage=usage,
+    )
 
 
 def _gemini_generate(
@@ -545,6 +920,10 @@ def _gemini_generate(
     system: str | None = None,
     contents,
     max_tokens: int = 2048,
+    request_id: str | None = None,
+    stage: str = "unspecified",
+    model_calls: list[dict[str, Any]] | None = None,
+    routing_reason: str = "configured_stage_model",
 ):
     """
     Wrapper retrocompativel de geracao:
@@ -572,6 +951,10 @@ def _gemini_generate(
             model=resolved_model,
             messages=messages,
             max_tokens=max_tokens,
+            request_id=request_id,
+            stage=stage,
+            model_calls=model_calls,
+            routing_reason=routing_reason,
         )
 
     resolved_model = _resolve_text_model(
@@ -581,10 +964,55 @@ def _gemini_generate(
     cfg = _gtypes.GenerateContentConfig(max_output_tokens=max_tokens)
     if system:
         cfg.system_instruction = system
-    response = get_gemini().models.generate_content(
-        model=resolved_model,
-        contents=contents,
-        config=cfg,
+    started_at = _time.monotonic()
+    try:
+        raw_response = get_gemini().models.generate_content(
+            model=resolved_model,
+            contents=contents,
+            config=cfg,
+        )
+        try:
+            text = raw_response.text or ""
+        except (AttributeError, ValueError):
+            text = ""
+        candidates = getattr(raw_response, "candidates", None) or []
+        first_candidate = candidates[0] if candidates else None
+        response = _GeneratedTextResponse(
+            text,
+            provider="gemini",
+            model=str(getattr(raw_response, "model_version", None) or resolved_model),
+            finish_reason=_finish_reason_text(
+                getattr(first_candidate, "finish_reason", None)
+            ),
+            usage=_normalize_gemini_usage(
+                getattr(raw_response, "usage_metadata", None)
+            ),
+        )
+    except Exception as exc:
+        _record_model_call(
+            model_calls,
+            request_id=request_id,
+            stage=stage,
+            provider="gemini",
+            requested_model=resolved_model,
+            response=None,
+            latency_ms=int((_time.monotonic() - started_at) * 1000),
+            status="error",
+            routing_reason=routing_reason,
+            error_type=type(exc).__name__,
+        )
+        raise
+
+    _record_model_call(
+        model_calls,
+        request_id=request_id,
+        stage=stage,
+        provider="gemini",
+        requested_model=resolved_model,
+        response=response,
+        latency_ms=int((_time.monotonic() - started_at) * 1000),
+        status="success" if response.text else "empty_response",
+        routing_reason=routing_reason,
     )
     return response
 
@@ -961,6 +1389,7 @@ def _summarize_chunks_for_trace(chunks: list[dict]) -> dict[str, Any]:
 
 
 def _log_ask_trace(trace: dict[str, Any]) -> None:
+    trace["model_usage"] = _summarize_model_calls(trace.get("model_calls", []))
     try:
         logger.info("ASK_TRACE %s", json.dumps(trace, ensure_ascii=False))
     except Exception:
@@ -983,10 +1412,12 @@ def _set_response_state(
 
 def get_model_config() -> dict[str, str]:
     """Resumo do provider/modelos ativos para exibicao e diagnostico."""
+    generation_model, _routing_reason = _resolve_generation_model()
     return {
         "llm_provider": _active_llm_provider(),
         "embedding_provider": _active_embedding_provider(),
-        "generation_model": _resolve_text_model(config.GENERATION_MODEL, purpose="general"),
+        "generation_model": generation_model,
+        "generation_model_policy": config.GENERATION_MODEL_POLICY,
         "reformulation_model": _resolve_text_model(
             config.REFORMULATION_MODEL,
             purpose="reformulation",
@@ -2298,6 +2729,9 @@ def build_context(chunks: list[dict]) -> str:
 def _reformulate_query_with_history(
     question: str,
     conversation_history: list[dict] | None,
+    *,
+    request_id: str | None = None,
+    model_calls: list[dict[str, Any]] | None = None,
 ) -> str:
     """Usa historico recente para tornar perguntas de follow-up autocontidas."""
     if not config.RAG_ENABLE_QUERY_REFORMULATION:
@@ -2332,23 +2766,19 @@ def _reformulate_query_with_history(
                 f"Pergunta atual: {question}\n\n"
                 "Reescreva a pergunta para ser autocontida:"
             ),
+            request_id=request_id,
+            stage="reformulation",
+            model_calls=model_calls,
         )
         reformulated = response.text.strip()
         if reformulated and len(reformulated) < 500:
             if _looks_like_clarifying_request(reformulated):
-                logger.info(
-                    "Query reformulada descartada por virar pedido de esclarecimento: '%s'",
-                    reformulated[:80],
-                )
+                logger.info("Query reformulada descartada por virar pedido de esclarecimento.")
                 return question
-            logger.info(
-                "Query reformulada: '%s' -> '%s'",
-                question[:60],
-                reformulated[:60],
-            )
+            logger.info("Query reformulada com sucesso.")
             return reformulated
     except Exception as e:
-        logger.warning("Erro na reformulacao de query: %s", e)
+        logger.warning("Erro na reformulacao de query (%s).", type(e).__name__)
 
     return question
 
@@ -2358,6 +2788,9 @@ def _rerank_chunks_with_llm(
     query: str,
     chunks: list[dict],
     top_n: int | None = None,
+    *,
+    request_id: str | None = None,
+    model_calls: list[dict[str, Any]] | None = None,
 ) -> list[dict]:
     """Re-ranking seletivo para zona cinzenta, com diversidade antes do LLM."""
     if not chunks or len(chunks) <= 2:
@@ -2412,6 +2845,9 @@ def _rerank_chunks_with_llm(
                 "Retorne APENAS os numeros separados por virgula. Exemplo: 3,0,7,1"
             ),
             contents=f"Pergunta: {query}\n\nTrechos:\n{summaries_text}",
+            request_id=request_id,
+            stage="rerank",
+            model_calls=model_calls,
         )
 
         ranking_text = response.text.strip()
@@ -2440,7 +2876,7 @@ def _rerank_chunks_with_llm(
             return reranked
 
     except Exception as e:
-        logger.warning("Erro no re-ranking LLM: %s", e)
+        logger.warning("Erro no re-ranking LLM (%s).", type(e).__name__)
 
     return chunks
 
@@ -2549,28 +2985,30 @@ def _ask_model(
     conversation_history: list[dict] | None,
     images: list[dict] | None,
     max_tokens_override: int | None = None,
+    request_id: str | None = None,
+    stage: str = "generation",
+    model_calls: list[dict[str, Any]] | None = None,
 ) -> str:
     provider = _active_llm_provider()
     requested_max_tokens = int(max_tokens_override or config.ASK_MAX_TOKENS)
     try:
         if provider == "openai":
             max_tokens = max(256, min(requested_max_tokens, int(config.OPENAI_MAX_OUTPUT_TOKENS)))
-            prompt_chars = len(question or "") + len(system or "")
-            for msg in conversation_history or []:
-                prompt_chars += len(str(msg.get("content", "")))
             messages = _compose_openai_messages(
                 question=question,
                 system=system,
                 conversation_history=conversation_history,
                 images=images,
             )
-            primary_model = _resolve_text_model(config.GENERATION_MODEL, purpose="general")
-            if prompt_chars > 12000:
-                primary_model = _resolve_text_model(config.OPENAI_CONTEXTUAL_MODEL, purpose="contextual")
+            primary_model, routing_reason = _resolve_generation_model()
             response = _openai_chat_generate(
                 model=primary_model,
                 messages=messages,
                 max_tokens=max_tokens,
+                request_id=request_id,
+                stage=stage,
+                model_calls=model_calls,
+                routing_reason=routing_reason,
             )
             if response.text:
                 return response.text
@@ -2586,6 +3024,10 @@ def _ask_model(
                     model=fallback_model,
                     messages=messages,
                     max_tokens=max_tokens,
+                    request_id=request_id,
+                    stage=stage,
+                    model_calls=model_calls,
+                    routing_reason="empty_response_fallback",
                 )
                 if fallback_response.text:
                     return fallback_response.text
@@ -2595,38 +3037,43 @@ def _ask_model(
 
         max_tokens = max(128, requested_max_tokens)
         gemini_contents = _compose_gemini_contents(question, conversation_history, images)
+        generation_model, routing_reason = _resolve_generation_model()
         response = _gemini_generate(
-            model=config.GENERATION_MODEL,
+            model=generation_model,
             max_tokens=max_tokens,
             system=system,
             contents=gemini_contents,
+            request_id=request_id,
+            stage=stage,
+            model_calls=model_calls,
+            routing_reason=routing_reason,
         )
         if response.text:
             return response.text
-        logger.warning("Resposta inesperada do Gemini: %s", response)
+        logger.warning("Resposta vazia do Gemini (model=%s).", generation_model)
         return _provider_error_response("Nao foi possivel extrair uma resposta do modelo.")
     except Exception as e:
         error_str = str(e).lower()
         provider_label = "OpenAI" if provider == "openai" else "Gemini"
         if "429" in str(e) or "resource_exhausted" in error_str or "rate" in error_str:
-            logger.error("Rate limit do %s atingido: %s", provider_label, e)
+            logger.error("Rate limit do %s atingido (%s).", provider_label, type(e).__name__)
             return _provider_error_response(
                 "O servico esta sobrecarregado no momento. Tente novamente em alguns segundos."
             )
         if "401" in str(e) or "403" in str(e) or "api_key" in error_str or "permission" in error_str:
-            logger.error("Erro de autenticacao com %s: %s", provider_label, e)
+            logger.error("Erro de autenticacao com %s (%s).", provider_label, type(e).__name__)
             return _provider_error_response("Erro de configuracao do bot. Contate o administrador.")
         if "timeout" in error_str:
-            logger.error("Timeout na chamada ao %s: %s", provider_label, e)
+            logger.error("Timeout na chamada ao %s (%s).", provider_label, type(e).__name__)
             return _provider_error_response(
                 "A consulta demorou demais. Tente reformular com uma pergunta mais curta."
             )
         if "connect" in error_str:
-            logger.error("Erro de conexao com %s: %s", provider_label, e)
+            logger.error("Erro de conexao com %s (%s).", provider_label, type(e).__name__)
             return _provider_error_response(
                 "Nao foi possivel conectar ao servico. Tente novamente em instantes."
             )
-        logger.error("Erro ao chamar %s: %s", provider_label, e, exc_info=True)
+        logger.error("Erro ao chamar %s (%s).", provider_label, type(e).__name__)
         return _provider_error_response("Ocorreu um erro inesperado. Tente novamente.")
 
 
@@ -2665,6 +3112,8 @@ def _apply_grounding_regeneration(
     images: list[dict] | None,
     allowed_sources: set[str],
     source_display_map: dict[str, str] | None = None,
+    request_id: str | None = None,
+    model_calls: list[dict[str, Any]] | None = None,
 ) -> tuple[str, list[str], set[str], int]:
     if _is_provider_error_response(answer):
         return str(answer).strip(), [], set(), 0
@@ -2725,6 +3174,9 @@ def _apply_grounding_regeneration(
             conversation_history=None,
             images=None,
             max_tokens_override=1024,
+            request_id=request_id,
+            stage="regeneration",
+            model_calls=model_calls,
         )
         if _is_provider_error_response(revised_answer):
             return str(revised_answer).strip(), [], set(), regeneration_attempts
@@ -2776,6 +3228,7 @@ def ask(
     query_id = _new_query_id()
     trace: dict[str, Any] = {
         "query_id": query_id,
+        "request_id": query_id,
         "platform": platform,
         "abstained": False,
         "abstention_reason": None,
@@ -2799,13 +3252,19 @@ def ask(
             "semantic_support": "not_evaluated",
         },
         "stage_timings_ms": {},
+        "model_calls": [],
     }
 
     def _mark_stage(stage_name: str, started_at: float) -> None:
         trace["stage_timings_ms"][stage_name] = int((_time.monotonic() - started_at) * 1000)
 
     stage_started_at = _time.monotonic()
-    search_query = _reformulate_query_with_history(question, conversation_history)
+    search_query = _reformulate_query_with_history(
+        question,
+        conversation_history,
+        request_id=query_id,
+        model_calls=trace["model_calls"],
+    )
     _mark_stage("reformulation", stage_started_at)
     base_system = system_prompt or config.SYSTEM_PROMPT
 
@@ -2840,6 +3299,9 @@ def ask(
             system=system,
             conversation_history=conversation_history,
             images=images,
+            request_id=query_id,
+            stage="generation",
+            model_calls=trace["model_calls"],
         )
         _mark_stage("generation", stage_started_at)
         if _is_provider_error_response(answer):
@@ -2897,7 +3359,12 @@ def ask(
 
     stage_started_at = _time.monotonic()
     chunks = _limit_chunk_diversity(
-        _rerank_chunks_with_llm(search_query, merged_chunks),
+        _rerank_chunks_with_llm(
+            search_query,
+            merged_chunks,
+            request_id=query_id,
+            model_calls=trace["model_calls"],
+        ),
         max_per_section=config.MAX_CHUNKS_PER_SECTION,
         max_per_document=config.MAX_CHUNKS_PER_DOCUMENT,
         top_limit=config.MAX_CONTEXT_CHUNKS,
@@ -2962,7 +3429,12 @@ def ask(
             )
             combined_chunks = _dedupe_chunks(chunks + broad_merged)
             fallback_chunks = _limit_chunk_diversity(
-                _rerank_chunks_with_llm(search_query, combined_chunks),
+                _rerank_chunks_with_llm(
+                    search_query,
+                    combined_chunks,
+                    request_id=query_id,
+                    model_calls=trace["model_calls"],
+                ),
                 max_per_section=config.MAX_CHUNKS_PER_SECTION,
                 max_per_document=config.MAX_CHUNKS_PER_DOCUMENT,
                 top_limit=config.MAX_CONTEXT_CHUNKS,
@@ -3131,6 +3603,9 @@ def ask(
         system=system,
         conversation_history=conversation_history,
         images=images,
+        request_id=query_id,
+        stage="generation",
+        model_calls=trace["model_calls"],
     )
     _mark_stage("generation", stage_started_at)
 
@@ -3143,6 +3618,8 @@ def ask(
         images=images,
         allowed_sources=allowed_sources,
         source_display_map=source_display_map,
+        request_id=query_id,
+        model_calls=trace["model_calls"],
     )
     _mark_stage("grounding", stage_started_at)
     trace["grounding_errors"] = grounding_errors

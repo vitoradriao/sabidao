@@ -21,6 +21,16 @@ mesma chave, defina as duas variáveis de credencial de forma explícita. Altera
 o provider, endpoint ou modelo de geração não modifica a configuração dos
 embeddings e não migra os vetores já armazenados.
 
+`GENERATION_MODEL_POLICY` controla explicitamente o modelo usado na resposta:
+
+- `primary` (default) usa `GENERATION_MODEL`, independentemente do tamanho do prompt;
+- `contextual` usa o modelo contextual do provider (`CONTEXTUAL_RETRIEVAL_MODEL`
+  no Gemini ou `OPENAI_CONTEXTUAL_MODEL` no OpenAI).
+
+Não existe troca automática de modelo por quantidade de caracteres. Um fallback
+por resposta vazia continua possível, mas fica registrado como uma chamada
+separada no trace.
+
 O espaço vetorial é identificado por `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`,
 `EMBEDDING_DIMENSIONS` e `EMBEDDING_PREPROCESSING_VERSION`. Esta versão aceita
 somente 1536 dimensões. Alterar qualquer componente da identidade exige validar
@@ -73,6 +83,25 @@ intencionalmente alguns deles:
 
 Para conferir a configuração sem expor credenciais, use `!status`: o resumo
 mostra providers e modelos ativos, mas não mostra chaves.
+
+## Telemetria de geração e custo estimado
+
+O `ASK_TRACE` registra cada chamada de modelo separadamente com `request_id`,
+etapa (`reformulation`, `rerank`, `generation` ou `regeneration`), provider,
+modelo efetivo, latência, status, tentativa, `finish_reason` e usage informado
+pelo provider. Entrada, cache, saída e reasoning são mantidos em campos
+separados; dados ausentes permanecem `null` e não são convertidos em zero.
+
+O custo é uma estimativa em USD com a tabela `2026-09-19` embutida no código.
+Ela cobre os modelos padrão do projeto e usa os preços públicos das páginas
+oficiais do [GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4),
+[GPT-5.4 Mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini) e do
+[Gemini](https://ai.google.dev/gemini-api/docs/pricing). Modelos ou dados de
+usage desconhecidos produzem custo `null`; o trace também informa quanto do
+custo conhecido pôde ser agregado. Atualize a versão e os valores da tabela
+quando os preços oficiais mudarem. A estimativa usa a tarifa paga padrão para
+texto e não inclui free tier, batch, flex, priority, processamento regional,
+armazenamento de cache ou ferramentas cobradas separadamente.
 
 ## Relaxamento controlado do filtro de módulo
 

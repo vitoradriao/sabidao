@@ -239,13 +239,13 @@ async def extract_images(message: discord.Message) -> list[dict]:
     logger.info("extract_images: %d attachments na mensagem", len(message.attachments))
     images = []
     for att in message.attachments:
-        logger.info("  -> attachment: %s | content_type=%s | size=%d", att.filename, att.content_type, att.size)
+        logger.info("Attachment recebido: content_type=%s size=%d", att.content_type, att.size)
         media_type = _get_image_media_type(att)
         if not media_type:
-            logger.debug("Attachment %s ignorado (nao e imagem: %s)", att.filename, att.content_type)
+            logger.debug("Attachment ignorado (nao e imagem: %s)", att.content_type)
             continue
         if att.size > config.MAX_IMAGE_SIZE_BYTES:
-            logger.warning("Imagem %s ignorada (%.1f MB > 20 MB)", att.filename, att.size / 1024 / 1024)
+            logger.warning("Imagem ignorada por tamanho (%.1f MB > 20 MB)", att.size / 1024 / 1024)
             continue
         if len(images) >= config.MAX_IMAGES_PER_MESSAGE:
             break
@@ -255,9 +255,9 @@ async def extract_images(message: discord.Message) -> list[dict]:
                 "data": base64.standard_b64encode(img_bytes).decode("utf-8"),
                 "media_type": media_type,
             })
-            logger.info("Imagem capturada: %s (%s, %.1f KB)", att.filename, media_type, att.size / 1024)
+            logger.info("Imagem capturada (%s, %.1f KB)", media_type, att.size / 1024)
         except Exception as e:
-            logger.error("Erro ao ler imagem %s: %s", att.filename, e)
+            logger.error("Erro ao ler imagem (%s).", type(e).__name__)
     return images
 
 
@@ -279,7 +279,7 @@ async def handle_question(target, user_id: int, channel_id: int, question: str, 
         await target.reply(f"Aguarde {remaining:.0f}s antes de perguntar novamente.")
         return
 
-    logger.info("QUERY user=%s channel=%s len=%d images=%d", user_id, channel_id, len(question), len(images or []))
+    logger.info("QUERY len=%d images=%d", len(question), len(images or []))
 
     channel = target.channel if hasattr(target, "channel") else target
     async with channel.typing():
@@ -305,7 +305,7 @@ async def handle_question(target, user_id: int, channel_id: int, question: str, 
             )
             return
         except Exception as e:
-            logger.error("Erro no RAG: %s", e)
+            logger.error("Erro no RAG (%s).", type(e).__name__)
             await target.reply(f"Erro ao processar a pergunta: {str(e)[:200]}")
             return
         elapsed = time.monotonic() - t_start
@@ -326,8 +326,6 @@ async def handle_question(target, user_id: int, channel_id: int, question: str, 
             json.dumps(
                 {
                     "platform": "discord",
-                    "user_id": user_id,
-                    "channel_id": channel_id,
                     "elapsed_ms": int(elapsed * 1000),
                     "trace": trace,
                 },
