@@ -7,6 +7,7 @@ Encontre o procedimento pelo que você precisa fazer. Estes guias descrevem o pr
 | Quero… | Guia |
 | --- | --- |
 | Preparar uma máquina e iniciar o bot | [Primeiros passos](primeiros-passos.md) |
+| Configurar providers, modelos e secrets | [Configuração](configuracao.md) |
 | Entender os componentes e o fluxo de dados | [Arquitetura](arquitetura.md) |
 | Executar os serviços em contêineres | [Docker](../GUIA_DOCKER.md) |
 | Indexar ou atualizar documentos | [Operação da base](operacao.md) |

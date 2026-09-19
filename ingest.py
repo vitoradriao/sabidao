@@ -1945,6 +1945,7 @@ def _parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    config.validate_ai_config()
     validate_database_config()
     args = _parse_args()
 

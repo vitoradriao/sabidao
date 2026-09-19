@@ -285,7 +285,8 @@ _PROVIDER_ERROR_MESSAGES = frozenset(
 )
 
 # ── Clientes ──────────────────────────────────────────────
-_gemini: genai.Client | None = None
+_gemini_generation: genai.Client | None = None
+_gemini_embeddings: genai.Client | None = None
 _http_client: httpx.Client | None = None
 
 
@@ -312,12 +313,12 @@ def _is_provider_error_response(answer: str) -> bool:
 
 
 def _active_llm_provider() -> str:
-    provider = (config.LLM_PROVIDER or "gemini").strip().lower()
+    provider = (config.GENERATION_PROVIDER or "gemini").strip().lower()
     return provider if provider in {"gemini", "openai"} else "gemini"
 
 
 def _active_embedding_provider() -> str:
-    provider = (config.EMBEDDING_PROVIDER or config.LLM_PROVIDER or "gemini").strip().lower()
+    provider = (config.EMBEDDING_PROVIDER or "gemini").strip().lower()
     return provider if provider in {"gemini", "openai"} else "gemini"
 
 
@@ -330,10 +331,10 @@ def _resolve_text_model(requested_model: str | None, *, purpose: str = "general"
         if requested and not requested_lower.startswith("gemini"):
             return requested
         if purpose == "reformulation":
-            return config.OPENAI_REFORMULATION_MODEL or config.OPENAI_MODEL
+            return config.OPENAI_REFORMULATION_MODEL or config.GENERATION_MODEL
         if purpose == "contextual":
-            return config.OPENAI_CONTEXTUAL_MODEL or config.OPENAI_REFORMULATION_MODEL or config.OPENAI_MODEL
-        return config.OPENAI_MODEL
+            return config.OPENAI_CONTEXTUAL_MODEL or config.OPENAI_REFORMULATION_MODEL or config.GENERATION_MODEL
+        return config.GENERATION_MODEL
 
     # Provider Gemini: evita usar modelo OpenAI por engano.
     if requested and not requested_lower.startswith("gpt-") and not requested_lower.startswith("o"):
@@ -342,42 +343,38 @@ def _resolve_text_model(requested_model: str | None, *, purpose: str = "general"
         return config.REFORMULATION_MODEL
     if purpose == "contextual":
         return config.CONTEXTUAL_RETRIEVAL_MODEL
-    return config.GEMINI_MODEL
+    return config.GENERATION_MODEL
 
 
 def _resolve_embedding_model() -> str:
-    provider = _active_embedding_provider()
-    configured = (config.EMBEDDING_MODEL or "").strip()
-    configured_lower = configured.lower()
-
-    if provider == "openai":
-        if configured and not configured_lower.startswith("gemini"):
-            return configured
-        return config.OPENAI_EMBEDDING_MODEL
-
-    if configured and not configured_lower.startswith("text-embedding-"):
-        return configured
-    return "gemini-embedding-001"
+    return (config.EMBEDDING_MODEL or "").strip()
 
 
 def get_gemini() -> genai.Client:
-    global _gemini
-    if _gemini is None:
-        _gemini = genai.Client(api_key=config.GEMINI_API_KEY)
-    return _gemini
+    global _gemini_generation
+    if _gemini_generation is None:
+        _gemini_generation = genai.Client(api_key=config.GENERATION_API_KEY)
+    return _gemini_generation
 
 
-def _openai_headers() -> dict[str, str]:
-    if not config.OPENAI_API_KEY:
-        raise EnvironmentError("OPENAI_API_KEY nao configurada.")
+def get_gemini_embeddings() -> genai.Client:
+    global _gemini_embeddings
+    if _gemini_embeddings is None:
+        _gemini_embeddings = genai.Client(api_key=config.EMBEDDING_API_KEY)
+    return _gemini_embeddings
+
+
+def _openai_headers(api_key: str | None, setting_name: str) -> dict[str, str]:
+    if not api_key:
+        raise EnvironmentError(f"{setting_name} nao configurada.")
     return {
-        "Authorization": f"Bearer {config.OPENAI_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
 
-def _openai_url(path: str) -> str:
-    base = (config.OPENAI_BASE_URL or "https://api.openai.com/v1").rstrip("/")
+def _openai_url(base_url: str, path: str) -> str:
+    base = base_url.rstrip("/")
     clean_path = path.lstrip("/")
     return f"{base}/{clean_path}"
 
@@ -485,8 +482,8 @@ def _openai_chat_generate(
         "max_completion_tokens": max_tokens,
     }
     resp = _get_http_client().post(
-        _openai_url("/chat/completions"),
-        headers=_openai_headers(),
+        _openai_url(config.GENERATION_BASE_URL, "/chat/completions"),
+        headers=_openai_headers(config.GENERATION_API_KEY, "GENERATION_API_KEY"),
         json=payload,
         timeout=120,
     )
@@ -494,8 +491,8 @@ def _openai_chat_generate(
         payload.pop("max_completion_tokens", None)
         payload["max_tokens"] = max_tokens
         resp = _get_http_client().post(
-            _openai_url("/chat/completions"),
-            headers=_openai_headers(),
+            _openai_url(config.GENERATION_BASE_URL, "/chat/completions"),
+            headers=_openai_headers(config.GENERATION_API_KEY, "GENERATION_API_KEY"),
             json=payload,
             timeout=120,
         )
@@ -976,7 +973,7 @@ def get_model_config() -> dict[str, str]:
     return {
         "llm_provider": _active_llm_provider(),
         "embedding_provider": _active_embedding_provider(),
-        "generation_model": _resolve_text_model(config.GEMINI_MODEL, purpose="general"),
+        "generation_model": _resolve_text_model(config.GENERATION_MODEL, purpose="general"),
         "reformulation_model": _resolve_text_model(
             config.REFORMULATION_MODEL,
             purpose="reformulation",
@@ -1077,8 +1074,8 @@ def _openai_create_embeddings(contents: list[str], model: str) -> list[list[floa
         payload["dimensions"] = config.EMBEDDING_DIMENSIONS
 
     resp = _get_http_client().post(
-        _openai_url("/embeddings"),
-        headers=_openai_headers(),
+        _openai_url(config.EMBEDDING_BASE_URL, "/embeddings"),
+        headers=_openai_headers(config.EMBEDDING_API_KEY, "EMBEDDING_API_KEY"),
         json=payload,
         timeout=120,
     )
@@ -1117,7 +1114,7 @@ def create_embeddings(contents: list[str], task_type: str = "RETRIEVAL_DOCUMENT"
         return vectors
 
     payload = contents if len(contents) > 1 else contents[0]
-    result = get_gemini().models.embed_content(
+    result = get_gemini_embeddings().models.embed_content(
         model=model,
         contents=payload,
         config={
@@ -2383,7 +2380,7 @@ def _ask_model(
                 conversation_history=conversation_history,
                 images=images,
             )
-            primary_model = _resolve_text_model(config.OPENAI_MODEL, purpose="general")
+            primary_model = _resolve_text_model(config.GENERATION_MODEL, purpose="general")
             if prompt_chars > 12000:
                 primary_model = _resolve_text_model(config.OPENAI_CONTEXTUAL_MODEL, purpose="contextual")
             response = _openai_chat_generate(
@@ -2415,7 +2412,7 @@ def _ask_model(
         max_tokens = max(128, requested_max_tokens)
         gemini_contents = _compose_gemini_contents(question, conversation_history, images)
         response = _gemini_generate(
-            model=config.GEMINI_MODEL,
+            model=config.GENERATION_MODEL,
             max_tokens=max_tokens,
             system=system,
             contents=gemini_contents,
