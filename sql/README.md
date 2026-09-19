@@ -6,26 +6,28 @@ O esquema precisa corresponder à dimensão produzida pelo modelo de embeddings 
 
 | Arquivo | Perfil |
 | --- | --- |
-| `setup_1536.sql` | Vetores de 1536 dimensões, padrão da configuração e do Docker. |
-| `setup_3072.sql` | Vetores de 3072 dimensões, para avaliação separada conforme o suporte do ambiente. |
+| `setup_1536.sql` | Vetores de 1536 dimensões, único perfil suportado pela aplicação e pelo Docker. |
+| `setup_3072.sql` | Referência histórica/experimental; não é suportado pela aplicação atual. |
 
 Os scripts de configuração recriam estruturas da base. Revise o SQL e faça uma cópia de segurança antes de aplicá-los a um banco com dados.
 
 ## Configuração
 
-Para o perfil padrão:
+O único perfil aceito nesta versão é:
 
 ```env
 EMBEDDING_DIMENSIONS=1536
+EMBEDDING_PREPROCESSING_VERSION=rag-text-v1
 ```
 
-Para o perfil de 3072 dimensões, use o esquema correspondente e configure:
+O perfil `VECTOR(3072)` excede o limite de 2000 dimensões do índice HNSW para
+`VECTOR`, e a memória de feedback permanece em 1536 dimensões. Por isso,
+`EMBEDDING_DIMENSIONS=3072` falha na
+inicialização. Não execute os scripts 3072 em ambientes operacionais.
 
-```env
-EMBEDDING_DIMENSIONS=3072
-```
-
-Depois de uma mudança de modelo ou dimensão, reingira os documentos para gerar embeddings compatíveis. Se o ambiente não aceitar o perfil de 3072 dimensões, utilize o perfil de 1536.
+Provider, modelo, dimensão e versão de preprocessamento formam uma identidade
+única. Consulte [Identidade do índice vetorial](../docs/identidade-indice-vetorial.md)
+antes de mudar qualquer um desses valores.
 
 ## Migrações disponíveis
 
@@ -39,7 +41,8 @@ Depois de uma mudança de modelo ou dimensão, reingira os documentos para gerar
 | `add_analytical_context.sql` | Seções de documentos e metadados dos trechos. |
 | `migrate_priority.sql` | Priorização de documentos. |
 | `add_section_retrieval_1536.sql` | Consulta de seções com embeddings de 1536 dimensões. |
-| `add_section_retrieval_3072.sql` | Consulta de seções com embeddings de 3072 dimensões. |
+| `add_section_retrieval_3072.sql` | Referência histórica/experimental não suportada no runtime atual. |
+| `add_embedding_index_identity.sql` | Registra e valida a identidade vetorial de corpus, seções e feedback. |
 
 ### Contrato da busca híbrida
 
@@ -63,10 +66,10 @@ Vizinhos não herdam `fusion_score` nem similaridade do candidato principal. A a
 preserva a ordem devolvida pelo RRF até que um reranker seja executado; nesse caso, a
 ordem do reranker prevalece até a montagem do contexto.
 
-Em bases existentes, reaplique o arquivo `add_section_retrieval_1536.sql` ou
-`add_section_retrieval_3072.sql` correspondente à dimensão configurada. A migração
+Em bases existentes, reaplique `add_section_retrieval_1536.sql`. A migração
 recria somente as funções e os índices/colunas aditivos; não remove tabelas nem exige
-reindexação dos documentos.
+reindexação dos documentos. Depois aplique `add_embedding_index_identity.sql` e siga
+o procedimento de identificação da base legada antes de iniciar o bot ou a ingestão.
 
 A fixture [hybrid_rrf_fixture.sql](../tests/postgres/hybrid_rrf_fixture.sql) valida o
 contrato em PostgreSQL com pgvector. Ela deve ser executada somente em uma base de teste
@@ -85,5 +88,6 @@ Em um volume novo, `docker/postgres/init/00-bootstrap.sh` aplica:
 6. `add_analytical_context.sql`
 7. `migrate_priority.sql`
 8. `add_section_retrieval_1536.sql`
+9. `add_embedding_index_identity.sql`
 
 A inicialização não é repetida em volumes existentes. Para atualizá-los, revise as migrações aplicáveis em um ambiente de testes antes da implantação.

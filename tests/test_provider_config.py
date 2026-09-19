@@ -140,6 +140,16 @@ class TestProviderIsolation(unittest.TestCase):
 
 
 class TestProviderValidation(unittest.TestCase):
+    def test_rejects_unsupported_3072_dimension_profile(self):
+        env = os.environ.copy()
+        env["EMBEDDING_DIMENSIONS"] = "3072"
+
+        result = _run_isolated_config("import config", env)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("deve ser 1536 nesta versao", result.stderr)
+        self.assertIn("memoria de feedback permanece em 1536", result.stderr)
+
     def test_invalid_endpoint_fails_without_revealing_credentials(self):
         generation_secret = "segredo-geracao"
         embedding_secret = "segredo-embedding"

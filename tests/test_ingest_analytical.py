@@ -95,7 +95,7 @@ class TestAnalyticalIngest(unittest.TestCase):
             module="pedidos_vendas",
             title="Base",
             doc_priority=10,
-            embedding=[0.1, 0.2],
+            embedding=[0.1] * config.EMBEDDING_DIMENSIONS,
             section=section,
         )
 

@@ -44,7 +44,8 @@ Edite `.env` com base no [arquivo de exemplo](../.env.example).
 | `EMBEDDING_PROVIDER` | Provedor dos embeddings, independente da geração. |
 | `EMBEDDING_API_KEY`, `EMBEDDING_MODEL` | Credencial e modelo usados somente nos embeddings. |
 | `EMBEDDING_BASE_URL` | Endpoint usado somente por providers de embeddings compatíveis com OpenAI. |
-| `EMBEDDING_DIMENSIONS` | Dimensão compatível com o esquema do banco; o exemplo usa `1536`. |
+| `EMBEDDING_DIMENSIONS` | Dimensão compatível com o esquema do banco; esta versão exige `1536`. |
+| `EMBEDDING_PREPROCESSING_VERSION` | Versão que identifica o preparo dos textos; mantenha `rag-text-v1` até uma migração planejada. |
 | `DISCORD_TOKEN` | Token necessário para executar o Discord. |
 
 A configuração de exemplo usa Gemini para respostas e embeddings. As duas credenciais devem ser preenchidas, mesmo quando contêm a mesma chave. Se trocar o provedor, revise também os modelos de reformulação e enriquecimento de contexto em `.env.example`. A [referência de configuração](configuracao.md) explica precedência, compatibilidade e diferenças intencionais dos defaults.
@@ -101,5 +102,5 @@ Use `!ping`, `!status` e `!ajuda` para conferir a disponibilidade. Depois envie 
 | --- | --- |
 | Python local não encontra o host `postgres` | Use `localhost` para acessar o banco do Compose pela máquina hospedeira. |
 | Contêiner não alcança um provedor local de IA | `127.0.0.1` aponta para o próprio contêiner; use um endereço acessível pela rede do serviço. |
-| Erro de dimensão dos vetores | Confira o modelo, `EMBEDDING_DIMENSIONS` e o esquema SQL. |
+| Erro de dimensão ou identidade dos vetores | Confira provider, modelo, dimensão, preprocessamento e o [registro do índice](identidade-indice-vetorial.md). |
 | Documento não aparece nas respostas | Confira o diretório usado, o resultado da ingestão e os relatórios de falha. |

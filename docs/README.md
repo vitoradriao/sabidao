@@ -8,6 +8,7 @@ Encontre o procedimento pelo que você precisa fazer. Estes guias descrevem o pr
 | --- | --- |
 | Preparar uma máquina e iniciar o bot | [Primeiros passos](primeiros-passos.md) |
 | Configurar providers, modelos e secrets | [Configuração](configuracao.md) |
+| Identificar ou migrar o índice vetorial | [Identidade do índice vetorial](identidade-indice-vetorial.md) |
 | Entender os componentes e o fluxo de dados | [Arquitetura](arquitetura.md) |
 | Executar os serviços em contêineres | [Docker](../GUIA_DOCKER.md) |
 | Indexar ou atualizar documentos | [Operação da base](operacao.md) |
