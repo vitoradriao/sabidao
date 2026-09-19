@@ -38,7 +38,12 @@ def _normalize_case(case: dict[str, Any], idx: int, default_source: str) -> dict
         return None
 
     expected_behavior = str(case.get("expected_behavior") or "exact_answer").strip().lower()
-    if expected_behavior not in {"exact_answer", "partial_abstain", "no_answer"}:
+    if expected_behavior not in {
+        "exact_answer",
+        "partial_abstain",
+        "no_answer",
+        "clarify",
+    }:
         expected_behavior = "exact_answer"
 
     expected_intent = str(case.get("expected_intent") or "general").strip().lower()
@@ -72,6 +77,30 @@ def _normalize_case(case: dict[str, Any], idx: int, default_source: str) -> dict
     if isinstance(reference_evidence, list):
         normalized["reference_evidence"] = reference_evidence
 
+    forbidden_facts = case.get("forbidden_facts")
+    if isinstance(forbidden_facts, list):
+        normalized["forbidden_facts"] = forbidden_facts
+
+    split = str(case.get("split") or "development").strip().lower()
+    normalized["split"] = split if split in {"development", "holdout"} else "development"
+
+    answerability = str(case.get("answerability") or "").strip().lower()
+    if answerability not in {"answerable", "ambiguous", "no_evidence"}:
+        answerability = {
+            "clarify": "ambiguous",
+            "no_answer": "no_evidence",
+        }.get(expected_behavior, "answerable")
+    normalized["answerability"] = answerability
+
+    for field in ("provenance", "review"):
+        value = case.get(field)
+        if isinstance(value, dict) or isinstance(value, list):
+            normalized[field] = value
+
+    conversation_history = case.get("conversation_history")
+    if isinstance(conversation_history, list):
+        normalized["conversation_history"] = conversation_history
+
     return normalized
 
 
@@ -98,6 +127,17 @@ def _build_gap_cases(limit: int) -> list[dict[str, Any]]:
                 "expected_intent": "general",
                 "scope": {"level": "global"},
                 "source": "knowledge_gap",
+                "split": "development",
+                "answerability": "no_evidence",
+                "provenance": {
+                    "kind": "knowledge_gap",
+                    "source": "knowledge_gaps",
+                },
+                "review": {
+                    "status": "pending_human",
+                    "reviewer": None,
+                    "method": "generated_from_runtime_gap",
+                },
             }
         )
     return cases

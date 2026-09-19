@@ -1,183 +1,1177 @@
 [
   {
-    "id": "cfg-usagrade",
-    "question": "Como configurar o parametro USAGRADE no maxPedido?",
+    "id": "dev-fluxo-tabela-nuvem",
+    "question": "Em qual tabela da nuvem o pedido do maxPedido e gravado?",
     "expected_behavior": "exact_answer",
-    "expected_intent": "configuration",
+    "expected_intent": "sql_lookup",
     "scope": {
       "level": "global"
     },
-    "source": "seed"
-  },
-  {
-    "id": "cfg-paramfilial-132",
-    "question": "Onde ajusto a rotina ParamFilial 132 para pedidos no maxPedido?",
-    "expected_behavior": "exact_answer",
-    "expected_intent": "configuration",
-    "scope": {
-      "level": "global"
-    },
-    "source": "seed"
-  },
-  {
-    "id": "cfg-conta-corrente-parametros",
-    "question": "Quais parâmetros estão relacionados à conta corrente do maxPedido?",
-    "expected_behavior": "exact_answer",
-    "expected_intent": "configuration",
-    "scope": {
-      "level": "global"
-    },
-    "source": "auditoria-bm-27",
+    "source": "bm-17",
     "tags": [
-      "bm-17",
-      "bm-27",
+      "fluxo",
+      "sql"
+    ],
+    "expected_facts": [
+      "MXSINTEGRACAOPEDIDO"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "Pedido e gravado",
+          "MXSINTEGRACAOPEDIDO"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "MXSHISTORICOPEDC recebe primeiro o pedido"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Camada 1 - Guia operacional rapido"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-fluxo-status-inicial",
+    "question": "Com qual status o Server grava inicialmente o pedido em MXSINTEGRACAOPEDIDO?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "fluxo",
+      "status"
+    ],
+    "expected_facts": [
+      "status 0"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "Server grava",
+          "status 0"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "status 9"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Fluxo canonico de pedido"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-fluxo-get-erp",
+    "question": "Quem realiza o GET para buscar o pedido depois que ele chega a nuvem?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "integration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "fluxo",
+      "integracao"
+    ],
+    "expected_facts": [
+      "ERP realiza GET"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "ERP realiza GET",
+          "endpoint de pedidos"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "APK realiza GET"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Fluxo canonico de pedido"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-fluxo-put-status",
+    "question": "Quais status o ERP devolve no PUT para sucesso e erro de processamento?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "integration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "fluxo",
+      "erro"
+    ],
+    "expected_facts": [
+      "status 4",
+      "status 5"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "PUT de retorno",
+          "status 4",
+          "status 5"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "status 9 para erro"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Fluxo canonico de pedido"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-sql-verificacao-inicial",
+    "question": "Qual SQL faz a verificacao inicial dos pedidos mais recentes na MXSINTEGRACAOPEDIDO?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "sql_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "sql",
+      "diagnostico"
+    ],
+    "expected_facts": [
+      "SELECT * FROM MXSINTEGRACAOPEDIDO",
+      "ORDER BY DTINCLUSAO DESC"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "SELECT * FROM MXSINTEGRACAOPEDIDO",
+          "ORDER BY DTINCLUSAO DESC"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "DELETE FROM MXSINTEGRACAOPEDIDO"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Query de verificacao inicial"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-parametros-cliente-bloqueado",
+    "question": "Quais parametros principais controlam venda para cliente bloqueado?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "parametros",
+      "cliente-bloqueado"
+    ],
+    "expected_facts": [
+      "BLOQUEAR_CONFECCAO_PEDIDO_CLIENTE_BLOQ",
+      "ACEITAVENDAAVISTACLIBLOQ",
+      "CON_ACEITAVENDABLOQ"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "Cliente bloqueado",
+          "ACEITAVENDAAVISTACLIBLOQ",
+          "CON_ACEITAVENDABLOQ"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "USAGRADE controla cliente bloqueado"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Matriz de parametros criticos por cenario"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-parametros-filial-retira",
+    "question": "Quais parametros definem a filial retira e o desmembramento do pedido?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "parametros",
+      "filial-retira"
+    ],
+    "expected_facts": [
+      "DEFINE_FILIAL_RETIRA_PADRAO",
+      "DESMEMBRAR_PED_FILIAL_RETIRA"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "Filial retira",
+          "DEFINE_FILIAL_RETIRA_PADRAO",
+          "DESMEMBRAR_PED_FILIAL_RETIRA"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "USAR_CAMPANHA_DESCONTO_PROGRESSIVO"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Matriz de parametros criticos por cenario"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-parametros-conta-corrente",
+    "question": "Quais parametros estao relacionados a conta corrente do RCA?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "parametros",
       "conta-corrente"
     ],
     "expected_facts": [
       "CON_USACREDRCA",
       "EXIBIR_SALDOCC_DISPONIVEL",
-      "MXSUSUARI.USADEBCREDRCA",
-      "CON_TIPOMOVCCRCA",
-      {
-        "id": "mov-va",
-        "accepted_phrases": [
-          "VA Debito na venda credito no acerto"
-        ]
-      },
-      {
-        "id": "mov-vf",
-        "accepted_phrases": [
-          "VF Debito na venda credito no faturamento"
-        ]
-      },
-      {
-        "id": "mov-vv",
-        "accepted_phrases": [
-          "VV Debito Credito na venda"
-        ]
-      },
-      {
-        "id": "mov-ff",
-        "accepted_phrases": [
-          "FF Debito Credito no faturamento"
-        ]
-      }
+      "GERAR_DADOS_CC_RCA",
+      "IMPEDIR_ABATIMENTO_SEMSALDORCA"
     ],
     "reference_evidence": [
       {
-        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
+        "source": "MAXIMA_RAG_UNIFICADO.md",
         "contains": [
+          "Conta corrente",
           "CON_USACREDRCA",
-          "CON_TIPOMOVCCRCA"
+          "EXIBIR_SALDOCC_DISPONIVEL"
         ]
+      }
+    ],
+    "forbidden_facts": [
+      "CON_ACEITAVENDABLOQ habilita conta corrente"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Matriz de parametros criticos por cenario"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-status-zero",
+    "question": "O que significa o status 0 em MXSINTEGRACAOPEDIDO?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "status",
+      "erro"
+    ],
+    "expected_facts": [
+      "RecebidoPeloServer"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "0 | RecebidoPeloServer"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "ProcessadoPeloErp"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Tabela canonica de status"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-status-cinco",
+    "question": "O que representa o status 5 do pedido na integracao?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "status",
+      "erro"
+    ],
+    "expected_facts": [
+      "ErroProcessamentoErp"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "5 | ErroProcessamentoErp"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "PedidoAprovado"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Tabela canonica de status"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-timeline-data-abertura",
+    "question": "O que precisa acontecer com DTABERTURAPEDPALM para a timeline consolidar em outros ERPs?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "timeline",
+      "erro"
+    ],
+    "expected_facts": [
+      "DTABERTURAPEDPALM",
+      "ERP deve devolver o mesmo"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "DTABERTURAPEDPALM",
+          "devolver o mesmo"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "a data pode ser omitida"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Timeline nao atualiza (Outros ERPs)"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-critica-historico",
+    "question": "Qual integracao deve ser validada ao reenviar uma critica de pedido?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "critica",
+      "erro"
+    ],
+    "expected_facts": [
+      "MXSHISTORICOCRITICA"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "Reenvio de critica",
+          "MXSHISTORICOCRITICA"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "apagar a MXSINTEGRACAOPEDIDO"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Reenvio de critica"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-followup-tabelas-log",
+    "question": "E quais tabelas de log ajudam nesse diagnostico?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "sql_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "follow-up",
+      "sql"
+    ],
+    "expected_facts": [
+      "MXSINTEGRACAOPEDIDO_LOGST",
+      "MXSINTEGRACAOPEDIDOLOG",
+      "MXSHISTORICOCRITICA"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "MXSINTEGRACAOPEDIDO_LOGST",
+          "MXSINTEGRACAOPEDIDOLOG",
+          "MXSHISTORICOCRITICA"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "DROP TABLE"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Tabelas-chave do fluxo"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    },
+    "conversation_history": [
+      {
+        "role": "user",
+        "content": "Estou investigando o fluxo de integracao de pedidos."
       },
       {
-        "source": "02-CONHECIMENTOS-GERAIS.md",
-        "contains": [
-          "CON_USACREDRCA",
-          "CON_TIPOMOVCCRCA"
-        ]
+        "role": "assistant",
+        "content": "Comece pela MXSINTEGRACAOPEDIDO e pelo status atual."
       }
     ]
   },
   {
-    "id": "proc-cliente-bloqueado",
-    "question": "O que validar quando cliente bloqueado impede envio de pedido?",
-    "expected_behavior": "exact_answer",
-    "expected_intent": "process",
-    "scope": {
-      "level": "global"
-    },
-    "source": "seed"
-  },
-  {
-    "id": "proc-filial-retira",
-    "question": "Qual o fluxo de filial retira no maxPedido?",
-    "expected_behavior": "exact_answer",
-    "expected_intent": "process",
-    "scope": {
-      "level": "global"
-    },
-    "source": "seed"
-  },
-  {
-    "id": "int-statuspedidos",
-    "question": "Como funciona a integracao de statuspedidos entre maxPedido e ERP?",
-    "expected_behavior": "exact_answer",
-    "expected_intent": "integration",
-    "scope": {
-      "level": "global"
-    },
-    "source": "seed"
-  },
-  {
-    "id": "int-json-retorno",
-    "question": "Quais validacoes devo fazer no json_retorno de integracao de pedidos?",
-    "expected_behavior": "exact_answer",
-    "expected_intent": "integration",
-    "scope": {
-      "level": "global"
-    },
-    "source": "seed"
-  },
-  {
-    "id": "sql-mxsintegracaopedido",
-    "question": "Qual select ajuda a investigar a tabela mxsintegracaopedido?",
-    "expected_behavior": "exact_answer",
-    "expected_intent": "sql_lookup",
-    "scope": {
-      "level": "global"
-    },
-    "source": "seed"
-  },
-  {
-    "id": "sql-historico-critica",
-    "question": "Quais campos da mxshistoricocritica sao usados para diagnostico?",
-    "expected_behavior": "exact_answer",
-    "expected_intent": "sql_lookup",
-    "scope": {
-      "level": "global"
-    },
-    "source": "seed"
-  },
-  {
-    "id": "trb-sincronizacao",
-    "question": "Pedido nao sincroniza para o ERP. Qual checklist devo seguir?",
+    "id": "dev-followup-status-erro",
+    "question": "E se o retorno for de erro?",
     "expected_behavior": "exact_answer",
     "expected_intent": "troubleshooting",
     "scope": {
       "level": "global"
     },
-    "source": "seed"
+    "source": "bm-17",
+    "tags": [
+      "follow-up",
+      "erro"
+    ],
+    "expected_facts": [
+      "status 5"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "status 4",
+          "status 5"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "status 9"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Fluxo canonico de pedido"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    },
+    "conversation_history": [
+      {
+        "role": "user",
+        "content": "Qual status o ERP devolve quando processa o pedido com sucesso?"
+      },
+      {
+        "role": "assistant",
+        "content": "No sucesso, o ERP devolve status 4."
+      }
+    ]
   },
   {
-    "id": "trb-critica-integracao",
-    "question": "Como tratar uma critica de integracao no maxPedido?",
-    "expected_behavior": "exact_answer",
+    "id": "dev-ambigua-status",
+    "question": "Qual status devo usar?",
+    "expected_behavior": "clarify",
+    "expected_intent": "general",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade"
+    ],
+    "forbidden_facts": [
+      "use o status 4"
+    ],
+    "split": "development",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_entity",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-ambigua-erro",
+    "question": "Como corrijo esse erro no pedido?",
+    "expected_behavior": "clarify",
     "expected_intent": "troubleshooting",
     "scope": {
       "level": "global"
     },
-    "source": "seed"
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade",
+      "erro"
+    ],
+    "forbidden_facts": [
+      "reinicie o extrator"
+    ],
+    "split": "development",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_error",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
   },
   {
-    "id": "abstain-erp-especifico",
+    "id": "dev-ambigua-parametro",
+    "question": "Qual parametro habilita isso no aplicativo?",
+    "expected_behavior": "clarify",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade",
+      "parametro"
+    ],
+    "forbidden_facts": [
+      "USAGRADE"
+    ],
+    "split": "development",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_feature",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-ambigua-followup-sem-historico",
+    "question": "E depois disso, o que eu faco?",
+    "expected_behavior": "clarify",
+    "expected_intent": "general",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade",
+      "follow-up"
+    ],
+    "forbidden_facts": [
+      "execute um DELETE"
+    ],
+    "split": "development",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_history",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "dev-sem-evidencia-erp-xptos",
     "question": "Qual menu do ERP XPTOS abre a tela secreta de integracao Z99?",
     "expected_behavior": "no_answer",
     "expected_intent": "configuration",
     "scope": {
       "level": "global"
     },
-    "source": "seed"
+    "source": "bm-17-synthetic",
+    "tags": [
+      "sem-evidencia"
+    ],
+    "forbidden_facts": [
+      "menu Z99"
+    ],
+    "split": "development",
+    "answerability": "no_evidence",
+    "provenance": {
+      "kind": "synthetic_negative",
+      "design_reference": "BM-17",
+      "invented_entity": "ERP XPTOS"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "invented_entity_negative",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
   },
   {
-    "id": "abstain-campo-inexistente",
-    "question": "Qual coluna oculta da tabela mxsparametrovalor habilita modo turbo?",
+    "id": "dev-sem-evidencia-modo-turbo",
+    "question": "Qual coluna oculta de MXSPARAMETROVALOR habilita o modo turbo?",
     "expected_behavior": "no_answer",
     "expected_intent": "sql_lookup",
     "scope": {
       "level": "global"
     },
-    "source": "seed"
+    "source": "bm-17-synthetic",
+    "tags": [
+      "sem-evidencia",
+      "sql"
+    ],
+    "forbidden_facts": [
+      "MODO_TURBO"
+    ],
+    "split": "development",
+    "answerability": "no_evidence",
+    "provenance": {
+      "kind": "synthetic_negative",
+      "design_reference": "BM-17",
+      "invented_feature": "modo turbo"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "invented_feature_negative",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-status-dois",
+    "question": "O que significa EnviadoParaErp na tabela de integracao?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "integration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "status"
+    ],
+    "expected_facts": [
+      "status 2"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "2 | EnviadoParaErp"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "status 3"
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Tabela canonica de status"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-status-quatro",
+    "question": "Qual status indica que o pedido foi processado pelo ERP?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "status"
+    ],
+    "expected_facts": [
+      "status 4",
+      "ProcessadoPeloErp"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "4 | ProcessadoPeloErp"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "status 5 indica sucesso"
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Tabela canonica de status"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-status-quatorze",
+    "question": "Qual e o significado do status 14 na MXSINTEGRACAOPEDIDO?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "status",
+      "erro"
+    ],
+    "expected_facts": [
+      "ErroIntegracaoErp"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "14 | ErroIntegracaoErp"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "Autorizacao rejeitada"
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Tabela canonica de status"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-pedido-preso",
+    "question": "O que devo checar quando o pedido fica preso no aplicativo e nao chega ao ERP?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "procedimento",
+      "erro"
+    ],
+    "expected_facts": [
+      "BLOQUEIA_PEDIDO_CLIENTE_SEMLIMITE",
+      "status",
+      "extrator"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "Pedido preso na APK",
+          "BLOQUEIA_PEDIDO_CLIENTE_SEMLIMITE",
+          "extrator"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "apague o pedido"
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Pedido preso na APK / nao chega ao ERP"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-parametros-lucratividade",
+    "question": "Quais parametros exibem ou ocultam a lucratividade na negociacao?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "parametros"
+    ],
+    "expected_facts": [
+      "MOSTRAR_LUCRATIVIDADE_TOTAL_NEGOCIACAO",
+      "OCULTAR_LUCRATIVIDADE_PRODUTO"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "Lucratividade",
+          "MOSTRAR_LUCRATIVIDADE_TOTAL_NEGOCIACAO",
+          "OCULTAR_LUCRATIVIDADE_PRODUTO"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "HABILITA_MAPA_OPORTUNIDADE"
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Matriz de parametros criticos por cenario"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-tabelas-json-log",
+    "question": "Quais tabelas guardam o log de status e o log do JSON dos pedidos?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "sql_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "sql",
+      "logs"
+    ],
+    "expected_facts": [
+      "MXSINTEGRACAOPEDIDO_LOGST",
+      "MXSINTEGRACAOPEDIDOLOG"
+    ],
+    "reference_evidence": [
+      {
+        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "contains": [
+          "MXSINTEGRACAOPEDIDO_LOGST",
+          "MXSINTEGRACAOPEDIDOLOG"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "MXSPARAMETROVALOR guarda o JSON"
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md",
+      "locator": "Tabelas-chave do fluxo"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "cross_check_committed_source",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-ambigua-rotina",
+    "question": "Qual rotina preciso conferir para resolver?",
+    "expected_behavior": "clarify",
+    "expected_intent": "general",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade"
+    ],
+    "forbidden_facts": [
+      "rotina 316"
+    ],
+    "split": "holdout",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_problem",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-ambigua-depois",
+    "question": "E qual e o proximo passo?",
+    "expected_behavior": "clarify",
+    "expected_intent": "general",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade",
+      "follow-up"
+    ],
+    "forbidden_facts": [
+      "reinicie o banco"
+    ],
+    "split": "holdout",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_history",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-sem-evidencia-pegasus",
+    "question": "Como habilito o conector Pegasus Quantum no maxPedido?",
+    "expected_behavior": "no_answer",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "sem-evidencia"
+    ],
+    "forbidden_facts": [
+      "PEGASUS_QUANTUM"
+    ],
+    "split": "holdout",
+    "answerability": "no_evidence",
+    "provenance": {
+      "kind": "synthetic_negative",
+      "design_reference": "BM-17",
+      "invented_feature": "Pegasus Quantum"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "invented_feature_negative",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
+  },
+  {
+    "id": "holdout-sem-evidencia-coluna-secreta",
+    "question": "Qual coluna SECRETO_ADMIN libera todos os pedidos sem validacao?",
+    "expected_behavior": "no_answer",
+    "expected_intent": "sql_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "sem-evidencia",
+      "sql"
+    ],
+    "forbidden_facts": [
+      "SECRETO_ADMIN"
+    ],
+    "split": "holdout",
+    "answerability": "no_evidence",
+    "provenance": {
+      "kind": "synthetic_negative",
+      "design_reference": "BM-17",
+      "invented_field": "SECRETO_ADMIN"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "invented_field_negative",
+      "reviewed_at": "2026-09-19",
+      "human_review": "pending"
+    }
   }
 ]

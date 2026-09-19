@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from evaluation import build_dataset, run_offline_eval
 
@@ -8,7 +9,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 SYNTHETIC_FIXTURE = (
     ROOT_DIR / "evaluation" / "datasets" / "evaluator_synthetic_fixture.json"
 )
-LEGACY_DATASET = ROOT_DIR / "evaluation" / "datasets" / "maxpedido_eval_dataset.json"
+BASELINE_DATASET = ROOT_DIR / "evaluation" / "datasets" / "maxpedido_eval_dataset.json"
 
 
 class TestOfflineEvaluator(unittest.TestCase):
@@ -45,12 +46,15 @@ class TestOfflineEvaluator(unittest.TestCase):
 
         factual = summary["metrics"]["factual_correctness"]
         citations = summary["metrics"]["citation_validity"]
-        recall = summary["metrics"]["recall_at_k"]
+        recall_10 = summary["metrics"]["recall_at_10"]
+        recall_20 = summary["metrics"]["recall_at_20"]
         self.assertEqual(factual["evaluated"], 3)
         self.assertEqual(factual["not_evaluated"], 1)
         self.assertEqual(citations["evaluated"], 2)
         self.assertEqual(citations["not_evaluated"], 2)
-        self.assertEqual(recall, summary["metrics"]["retrieval_relevance"])
+        self.assertEqual(recall_10["evaluated"], 3)
+        self.assertEqual(recall_20["evaluated"], 3)
+        self.assertEqual(recall_10["rate"], recall_20["rate"])
         self.assertEqual(summary["metrics"]["false_abstention"]["evaluated"], 3)
         self.assertEqual(summary["metrics"]["false_absence_claim"]["evaluated"], 3)
         self.assertNotIn("passed", summary["metrics"]["false_abstention"])
@@ -58,6 +62,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertNotIn("passed", summary["metrics"]["false_absence_claim"])
         self.assertIn("occurrences", summary["metrics"]["false_absence_claim"])
         self.assertIsNotNone(summary["avg_latency_ms"])
+        self.assertIsNotNone(summary["p50_latency_ms"])
         self.assertIsNotNone(summary["p95_latency_ms"])
         self.assertIn("factual_correctness", summary["metric_definitions"])
         self.assertEqual(summary["score_evaluated"], 4)
@@ -96,15 +101,17 @@ class TestOfflineEvaluator(unittest.TestCase):
                 )
 
     def test_legacy_dataset_remains_loadable_without_claiming_factual_success(self):
-        legacy_cases = run_offline_eval._load_dataset(LEGACY_DATASET)
-        case = legacy_cases[0]
+        case = {
+            "expected_behavior": "exact_answer",
+            "expected_intent": "general",
+        }
 
         evaluation = run_offline_eval._evaluate_response(
             case=case,
             answer="Uma resposta qualquer com fonte. [Fonte: legado.md]",
             chunks=[{"filename": "legado.md", "content": "conteudo"}],
             trace={
-                "query_plan": {"intent": case["expected_intent"]},
+                "query_plan": {"intent": "general"},
                 "abstained": False,
                 "cited_files": ["legado.md"],
                 "grounding_errors": [],
@@ -115,8 +122,18 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIsNone(evaluation["citation_validity"])
         self.assertIsNone(evaluation["score"])
 
-    def test_dataset_builder_preserves_v2_reference_fields(self):
+    def test_dataset_builder_preserves_baseline_fields(self):
         fixture_case = run_offline_eval._load_dataset(SYNTHETIC_FIXTURE)[0]
+        fixture_case.update(
+            {
+                "split": "holdout",
+                "answerability": "answerable",
+                "forbidden_facts": ["valor N"],
+                "provenance": {"source": "fixture"},
+                "review": {"status": "reviewed"},
+                "conversation_history": [{"role": "user", "content": "contexto"}],
+            }
+        )
 
         normalized = build_dataset._normalize_case(fixture_case, 1, "fixture")
 
@@ -125,6 +142,232 @@ class TestOfflineEvaluator(unittest.TestCase):
             normalized["reference_evidence"],
             fixture_case["reference_evidence"],
         )
+        for field in (
+            "split",
+            "answerability",
+            "forbidden_facts",
+            "provenance",
+            "review",
+            "conversation_history",
+        ):
+            self.assertEqual(normalized[field], fixture_case[field])
+
+    def test_baseline_has_30_traceable_cases_and_is_split(self):
+        dataset = run_offline_eval._load_dataset(BASELINE_DATASET)
+
+        self.assertEqual(len(dataset), 30)
+        self.assertEqual(sum(case["split"] == "development" for case in dataset), 20)
+        self.assertEqual(sum(case["split"] == "holdout" for case in dataset), 10)
+        self.assertTrue(all(case.get("provenance") for case in dataset))
+        self.assertTrue(all(case.get("review", {}).get("reviewer") for case in dataset))
+        self.assertEqual(
+            {case["answerability"] for case in dataset},
+            {"answerable", "ambiguous", "no_evidence"},
+        )
+
+    def test_ranked_retrieval_metrics_measure_two_cutoffs_and_ndcg(self):
+        evidence = [
+            {"source": "a.md", "contains": ["alfa"]},
+            {"source": "b.md", "contains": ["beta"]},
+        ]
+        chunks = [
+            {"filename": "a.md", "content": "alfa"},
+            *[
+                {"filename": f"noise-{index}.md", "content": "ruido"}
+                for index in range(1, 15)
+            ],
+            {"filename": "b.md", "content": "beta"},
+        ]
+
+        metrics, details = run_offline_eval._retrieval_metrics(chunks, evidence)
+
+        self.assertEqual(metrics["recall_at_10"], 0.5)
+        self.assertEqual(metrics["recall_at_20"], 1.0)
+        self.assertGreater(metrics["ndcg_at_10"], 0.0)
+        self.assertLess(metrics["ndcg_at_10"], 1.0)
+        self.assertEqual(details["retrieved_depth"], 16)
+
+    def test_report_separates_decision_outcomes_and_evaluates_holdout_gates(self):
+        dataset = [
+            {
+                "id": "answer",
+                "split": "holdout",
+                "question": "q1",
+                "answerability": "answerable",
+                "expected_behavior": "exact_answer",
+                "expected_intent": "general",
+                "expected_facts": ["fato"],
+            },
+            {
+                "id": "clarify",
+                "split": "holdout",
+                "question": "q2",
+                "answerability": "ambiguous",
+                "expected_behavior": "clarify",
+                "expected_intent": "general",
+            },
+            {
+                "id": "abstain",
+                "split": "holdout",
+                "question": "q3",
+                "answerability": "no_evidence",
+                "expected_behavior": "no_answer",
+                "expected_intent": "general",
+            },
+        ]
+        responses = {
+            "q1": ("fato", [], {"query_plan": {"intent": "general"}}),
+            "q2": (
+                "Pode informar qual pedido?",
+                [],
+                {"query_plan": {"intent": "general"}},
+            ),
+            "q3": (
+                "sem evidencia",
+                [],
+                {"query_plan": {"intent": "general"}, "abstained": True},
+            ),
+        }
+        baseline_config = {
+            "non_regression": [
+                {
+                    "id": "answers",
+                    "path": "outcomes.correct_answers.rate",
+                    "operator": ">=",
+                    "value": 1.0,
+                    "critical": True,
+                }
+            ]
+        }
+
+        summary = run_offline_eval.run_evaluation(
+            dataset=dataset,
+            dataset_name="decisions",
+            dry_run=True,
+            limit=None,
+            answer_provider=lambda question, _scope: responses[question],
+            baseline_config=baseline_config,
+        )
+
+        self.assertEqual(summary["outcomes"]["correct_answers"]["count"], 1)
+        self.assertEqual(
+            summary["outcomes"]["necessary_clarifications"]["count"],
+            1,
+        )
+        self.assertEqual(summary["outcomes"]["correct_abstentions"]["count"], 1)
+        self.assertEqual(summary["non_regression"]["status"], "passed")
+        self.assertIn("git_commit", summary["runtime"])
+        self.assertIn("model_config", summary["runtime"])
+        self.assertIn("embedding_index_identity", summary["runtime"])
+
+    def test_runner_passes_follow_up_history_to_rag(self):
+        history = [{"role": "user", "content": "contexto anterior"}]
+        dataset = [
+            {
+                "id": "follow-up",
+                "question": "E depois?",
+                "conversation_history": history,
+                "expected_behavior": "no_answer",
+                "expected_intent": "general",
+            }
+        ]
+
+        with patch.object(
+            run_offline_eval.rag,
+            "ask",
+            return_value=("sem evidencia", [], {"abstained": True}),
+        ) as ask:
+            run_offline_eval.run_evaluation(
+                dataset=dataset,
+                dataset_name="follow-up",
+                dry_run=True,
+                limit=None,
+            )
+
+        self.assertEqual(ask.call_args.kwargs["conversation_history"], history)
+        self.assertEqual(ask.call_args.kwargs["platform"], "offline_eval")
+
+    def test_model_usage_aggregates_every_call_and_cost(self):
+        calls = [
+            {
+                "usage": {
+                    "input_tokens": 10,
+                    "cached_input_tokens": 2,
+                    "output_tokens": 3,
+                    "reasoning_tokens": 1,
+                    "total_tokens": 16,
+                },
+                "estimated_cost_usd": 0.01,
+            },
+            {
+                "usage": {
+                    "input_tokens": 20,
+                    "cached_input_tokens": 0,
+                    "output_tokens": 4,
+                    "reasoning_tokens": 2,
+                    "total_tokens": 26,
+                },
+                "estimated_cost_usd": 0.02,
+            },
+        ]
+
+        summary = run_offline_eval._summarize_model_usage(
+            [{"trace": {"model_calls": calls}}]
+        )
+
+        self.assertEqual(summary["call_count"], 2)
+        self.assertEqual(summary["totals"]["total_tokens"], 42)
+        self.assertEqual(summary["estimated_cost_usd"], 0.03)
+        self.assertTrue(summary["cost_complete"])
+
+    def test_model_usage_marks_unpriced_embedding_call_as_incomplete(self):
+        summary = run_offline_eval._summarize_model_usage(
+            [
+                {
+                    "trace": {
+                        "model_calls": [],
+                        "external_calls": [
+                            {
+                                "stage": "query_embedding",
+                                "usage": None,
+                                "estimated_cost_usd": None,
+                            }
+                        ],
+                    }
+                }
+            ]
+        )
+
+        self.assertEqual(summary["call_count"], 1)
+        self.assertEqual(summary["external_call_count"], 1)
+        self.assertEqual(summary["calls_without_usage"], 1)
+        self.assertFalse(summary["cost_complete"])
+
+    def test_query_embedding_records_provider_call_and_cache_hit(self):
+        calls = []
+        token = run_offline_eval.rag._request_external_calls.set(calls)
+        try:
+            with (
+                patch.object(
+                    run_offline_eval.rag,
+                    "_query_embedding_cache",
+                    run_offline_eval.rag._TTLCache(maxsize=2, ttl=60),
+                ),
+                patch.object(
+                    run_offline_eval.rag,
+                    "create_query_embedding",
+                    return_value=[0.1],
+                ) as create_embedding,
+            ):
+                run_offline_eval.rag._get_cached_query_embedding("consulta unica")
+                run_offline_eval.rag._get_cached_query_embedding("consulta unica")
+        finally:
+            run_offline_eval.rag._request_external_calls.reset(token)
+
+        self.assertEqual(create_embedding.call_count, 1)
+        self.assertEqual([call["status"] for call in calls], ["success", "cache_hit"])
+        self.assertTrue(calls[0]["billable"])
+        self.assertFalse(calls[1]["billable"])
 
     def _run_synthetic_fixture(self):
         dataset = run_offline_eval._load_dataset(SYNTHETIC_FIXTURE)

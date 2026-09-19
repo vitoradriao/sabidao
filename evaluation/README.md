@@ -1,107 +1,153 @@
-# Avaliação das respostas do maxPedido
+# Avaliação do RAG do maxPedido
 
 [Documentação](../docs/README.md) / Avaliação
 
-Este diretório reúne cenários de referência e ferramentas para comparar a qualidade das respostas do Sabidão.
+Este diretório mantém um baseline reproduzível para medir recuperação, decisão de
+responder, esclarecimento, abstenção, correção factual, latência e custo. O baseline
+inicial tem 30 casos: 20 de desenvolvimento e 10 de holdout.
 
 | Arquivo | Finalidade |
 | --- | --- |
-| `datasets/maxpedido_seed_cases.json` | Cenários iniciais revisados. |
-| `datasets/evaluator_synthetic_fixture.json` | Casos sintéticos para testar o avaliador sem banco ou API de IA. |
-| `build_dataset.py` | Combina os casos usados na avaliação. |
-| `run_offline_eval.py` | Executa o fluxo de consulta e geração e calcula as métricas. |
+| `baseline_config.json` | Política congelada e critérios de não regressão definidos antes do holdout. |
+| `datasets/maxpedido_seed_cases.json` | Fonte curada dos 30 casos. |
+| `datasets/maxpedido_eval_dataset.json` | Dataset normalizado usado pelo runner. |
+| `datasets/evaluator_synthetic_fixture.json` | Fixture sem banco ou API para testar o avaliador. |
+| `build_dataset.py` | Normaliza os casos e acrescenta, opcionalmente, lacunas do banco. |
+| `run_offline_eval.py` | Executa o RAG, calcula métricas e produz o relatório. |
 
-Execute os comandos na raiz do repositório, com o ambiente Python ativo.
+## Proveniência e revisão
 
-## 1. Preparar os cenários
+Cada caso identifica `provenance`, `review`, `split` e `answerability`. Os casos
+respondíveis foram conferidos contra uma fonte versionada no repositório; os casos
+sintéticos declaram explicitamente a entidade inventada ou a ambiguidade usada. A
+revisão inicial é automatizada e `human_review` permanece `pending`: ela não deve ser
+apresentada como validação humana do domínio.
 
-Para incluir até 20 lacunas de conhecimento registradas no banco:
+Lacunas importadas de `knowledge_gaps` também recebem `review.status` igual a
+`pending_human`. Antes de promovê-las ao holdout ou tratá-las como verdade de
+referência, uma pessoa deve confirmar que a lacuna continua válida e registrar a
+revisão no caso.
+
+Os valores de `answerability` são:
+
+- `answerable`: deve haver resposta sustentada pelos fatos e evidências anotados;
+- `ambiguous`: faltam dados e o comportamento esperado é pedir esclarecimento;
+- `no_evidence`: a resposta correta é a abstenção.
+
+`expected_facts` lista fatos obrigatórios, `forbidden_facts` lista afirmações que
+constituem falha crítica e `reference_evidence` identifica fonte e termos esperados no
+retrieval.
+
+## Preparar o dataset
+
+Execute na raiz do repositório, com o ambiente Python ativo:
+
+```sh
+python evaluation/build_dataset.py --knowledge-gap-limit 0
+```
+
+Para acrescentar até 20 lacunas operacionais ainda pendentes de revisão:
 
 ```sh
 python evaluation/build_dataset.py --knowledge-gap-limit 20
 ```
 
-Para montar a base sem acrescentar essas lacunas, use `--knowledge-gap-limit 0`.
-
 A saída padrão é `evaluation/datasets/maxpedido_eval_dataset.json`.
 
-## 2. Executar a avaliação
+## Calibrar e executar o baseline
 
-Para executar sem persistir os resultados da avaliação no banco:
+Primeiro execute somente o conjunto de desenvolvimento. Esta etapa pode orientar
+ajustes na política, desde que `baseline_config.json` seja atualizado e versionado
+antes de abrir o holdout:
 
 ```sh
-python evaluation/run_offline_eval.py --dry-run
+python evaluation/run_offline_eval.py --dry-run --split development
 ```
 
-Apesar do nome “offline”, o fluxo consulta os serviços de banco e IA configurados. A opção `--dry-run` não elimina essas chamadas e ainda gera um relatório local.
+Depois de congelar configuração, modelos, índice, critérios e limiares, execute o
+holdout sem reajustar a solução a partir dos resultados:
 
-Para registrar a execução nas tabelas de avaliação:
+```sh
+python evaluation/run_offline_eval.py --dry-run --split holdout
+```
+
+Para produzir o relatório consolidado:
+
+```sh
+python evaluation/run_offline_eval.py --dry-run --split all
+```
+
+Apesar do nome “offline”, o runner usa os serviços de banco e IA configurados. A
+opção `--dry-run` impede escrita nas tabelas de avaliação, mas não elimina chamadas
+externas nem custo. Nenhuma chamada paga é executada pelos testes unitários.
+
+Para persistir uma execução, prepare as tabelas e retire `--dry-run`:
 
 ```sh
 psql "$DATABASE_URL" -f sql/migrate_evaluation_metrics_v2.sql
-python evaluation/run_offline_eval.py
+python evaluation/run_offline_eval.py --split all
 ```
 
-A migração é necessária uma vez em instalações que já possuíam as tabelas de avaliação.
-Ela preserva os resultados anteriores e passa a representar métricas não avaliadas com
-`NULL`.
-
-Para limitar os casos e escolher o relatório:
+É possível limitar casos e definir o relatório:
 
 ```sh
-python evaluation/run_offline_eval.py --limit 50 --output-report evaluation/reports/latest.json
+python evaluation/run_offline_eval.py --limit 10 --output-report evaluation/reports/latest.json
 ```
 
-## Métricas
+Relatórios gerados em `evaluation/reports/` são ignorados pelo Git.
+
+## Conteúdo do relatório
+
+O bloco `runtime` registra commit, hash do dataset, provider/modelos, identidade do
+índice vetorial, configuração relevante do RAG e a política do baseline. Isso permite
+comparar somente execuções compatíveis.
 
 | Campo | O que acompanha |
 | --- | --- |
-| `behavior_match` | Se responder ou se abster corresponde a `expected_behavior`. |
-| `factual_correctness` | Se todos os fatos esperados aparecem na resposta. |
-| `retrieval_relevance` | Se uma evidência de referência foi recuperada. |
-| `recall_at_k` | O mesmo sinal de recuperação, medido no conjunto final limitado por `MAX_CONTEXT_CHUNKS`. |
-| `citation_validity` | Se a resposta cita uma fonte de referência sem erro de grounding. |
-| `intent_match` | Se a intenção prevista corresponde a `expected_intent`. |
-| `false_abstention` | Frequência de abstenção em casos que exigem resposta exata. |
-| `false_absence_claim` | Frequência de afirmações explícitas de ausência em casos que exigem resposta exata. |
-| `grounded_rate` | Diagnóstico do validador de grounding do fluxo, separado da correção factual. |
-| `abstain_rate` | Frequência de respostas que indicam falta de evidência. |
-| `avg_score` | Pontuação média apenas dos casos com critérios suficientes. |
-| `avg_latency_ms` e `p95_latency_ms` | Latência média e percentil 95 da execução dos casos. |
+| `factual_correctness` | Presença de todos os fatos obrigatórios predefinidos. |
+| `unsupported_claims` | Proxy de fatos proibidos e erros do validador de grounding. |
+| `recall_at_10` / `recall_at_20` | Fração das evidências esperadas encontrada até cada corte. |
+| `ndcg_at_10` | Qualidade da posição das evidências distintas nos dez primeiros resultados. |
+| `citation_validity` | Citação de fonte de referência sem erro de grounding. |
+| `behavior_match` | Correspondência entre responder, esclarecer ou abster-se e o esperado. |
+| `false_abstention` / `false_absence_claim` | Abstenção indevida e alegação de ausência em pergunta respondível. |
+| `p50_latency_ms` / `p95_latency_ms` | Mediana e cauda de latência dos casos. |
+| `model_usage` | Todas as chamadas observadas, tokens, custo conhecido e completude do custo. |
 
-O relatório informa, para cada métrica positiva, quantos casos foram avaliados,
-aprovados, reprovados ou ficaram sem avaliação. Para `false_abstention` e
-`false_absence_claim`, informa ocorrências e não ocorrências; nesses casos, a taxa
-representa frequência de erro. Uma métrica sem referência não é convertida em sucesso.
-Em particular, respostas que exigem fatos e não possuem `expected_facts` continuam
-executáveis, mas não recebem pontuação composta.
+`outcomes` separa respostas corretas, respostas sem suporte, abstenções corretas e
+indevidas, esclarecimentos necessários e desnecessários. Cada taxa traz contagem,
+denominador e intervalo de confiança de Wilson de 95%. `answerable_coverage` informa
+quantas perguntas respondíveis receberam uma resposta, separadamente da correção.
+O relatório repete métricas e outcomes por `development` e `holdout` e avalia, apenas
+no holdout, os critérios predefinidos em `baseline_config.json`.
 
-## Contrato dos casos
+Scores de similaridade, fusão ou reranking são sinais de ordenação e não devem ser
+interpretados como probabilidade de a resposta estar correta.
 
-Os campos existentes continuam válidos. Casos novos podem acrescentar:
+Chamadas de embedding e acertos de cache aparecem em `external_calls`. Quando o
+provider não expõe uso ou preço suficiente, o custo conhecido continua visível, mas
+`cost_complete` fica `false`; o relatório não transforma custo ausente em zero.
 
-```json
-{
-  "expected_facts": [
-    "frase obrigatória",
-    {"id": "fact-2", "accepted_phrases": ["forma aceita A", "forma aceita B"]}
-  ],
-  "reference_evidence": [
-    {"source": "documento.md", "contains": ["termo obrigatório no chunk"]}
-  ]
-}
-```
+## Limitações
 
-Cada fato passa quando uma de suas frases aceitas ocorre na resposta normalizada; todos
-os fatos do caso são obrigatórios. As entradas de `reference_evidence` são alternativas:
-basta recuperar uma delas. `source` valida o nome do arquivo e `contains`, quando
-informado, valida o conteúdo recuperado. Em casos `no_answer`, fatos e citações ficam
-como não aplicáveis quando não foram informados.
+- O conjunto inicial é pequeno; os intervalos de confiança tornam a incerteza visível.
+- Correção factual usa frases aceitas e não reconhece toda paráfrase possível.
+- `unsupported_claims` não substitui revisão semântica humana.
+- Recall@20 fica limitado se o pipeline devolver menos de 20 candidatos; cada caso
+  registra `retrieved_depth` no detalhe da métrica.
+- O baseline não usa LLM-as-judge. Se esse método for adotado, versão do juiz, prompt,
+  ordem, viés de provider e concordância com revisão humana precisam ser medidos.
+- Os casos ainda aguardam revisão humana de domínio, registrada explicitamente no
+  dataset; não os use como verdade regulatória ou contratual.
 
-Para validar somente o avaliador com a fixture sintética, sem serviços externos:
+## Teste determinístico do avaliador
+
+O comando abaixo usa apenas fixtures locais e não chama banco nem provider:
 
 ```sh
 python -m unittest tests.test_offline_eval
 ```
 
-Compare execuções feitas com os mesmos cenários antes de publicar mudanças na recuperação, nos modelos ou na documentação consultada. Os relatórios gerados ficam em `evaluation/reports/` e são ignorados pelo Git.
+Compare soluções apenas com dataset, política e holdout congelados. Mudanças no
+provider, modelo, índice ou configuração devem aparecer no relatório e impedir uma
+comparação silenciosa entre execuções incompatíveis.

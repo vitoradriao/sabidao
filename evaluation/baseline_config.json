@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "name": "maxpedido_baseline_v1",
+  "registered_at": "2026-09-19",
+  "dataset": "evaluation/datasets/maxpedido_eval_dataset.json",
+  "split_policy": {
+    "development": "Pode ser usado para calibrar a politica antes da comparacao.",
+    "holdout": "Executar sem ajustar prompts, limiares, fatos ou evidencias a partir dos resultados."
+  },
+  "decision_policy": {
+    "version": "v1",
+    "calibration_split": "development",
+    "frozen_before_holdout": true,
+    "answer": "Responder quando a pergunta for respondível e houver evidencia suficiente.",
+    "clarify": "Pedir a entidade, erro, rotina ou contexto ausente quando a pergunta for ambigua.",
+    "abstain": "Usar a frase de no-answer quando a base nao sustentar uma resposta.",
+    "retrieval_scores": "Sinais de ranking; nao representam probabilidade de correcao."
+  },
+  "non_regression": [
+    {
+      "id": "critical-no-unsupported-answer",
+      "description": "Nenhuma resposta do holdout pode conter fato proibido ou erro de grounding.",
+      "critical": true,
+      "path": "outcomes.unsupported_answers.rate",
+      "operator": "<=",
+      "value": 0.0
+    },
+    {
+      "id": "critical-no-false-absence",
+      "description": "Nao declarar ausencia em perguntas respondiveis do holdout.",
+      "critical": true,
+      "path": "metrics.false_absence_claim.rate",
+      "operator": "<=",
+      "value": 0.0
+    },
+    {
+      "id": "answerable-coverage",
+      "description": "Responder pelo menos 80% das perguntas respondiveis do holdout.",
+      "critical": false,
+      "path": "outcomes.answerable_coverage.rate",
+      "operator": ">=",
+      "value": 0.8
+    },
+    {
+      "id": "correct-answer-rate",
+      "description": "Acertar os fatos obrigatorios em pelo menos 70% das perguntas respondiveis.",
+      "critical": false,
+      "path": "outcomes.correct_answers.rate",
+      "operator": ">=",
+      "value": 0.7
+    },
+    {
+      "id": "correct-abstention-rate",
+      "description": "Abster-se em pelo menos 80% dos casos sem evidencia.",
+      "critical": false,
+      "path": "outcomes.correct_abstentions.rate",
+      "operator": ">=",
+      "value": 0.8
+    },
+    {
+      "id": "clarification-rate",
+      "description": "Pedir esclarecimento em pelo menos 80% dos casos ambiguos.",
+      "critical": false,
+      "path": "outcomes.necessary_clarifications.rate",
+      "operator": ">=",
+      "value": 0.8
+    },
+    {
+      "id": "retrieval-recall-20",
+      "description": "Recuperar em media pelo menos 80% das evidencias esperadas ate a posicao 20.",
+      "critical": false,
+      "path": "metrics.recall_at_20.rate",
+      "operator": ">=",
+      "value": 0.8
+    }
+  ],
+  "judge_policy": {
+    "llm_as_judge_enabled": false,
+    "reason": "O baseline inicial usa verificacoes deterministicas reproduziveis.",
+    "limitations_if_enabled": [
+      "variacao entre modelos e versoes",
+      "sensibilidade ao prompt e a ordem",
+      "possivel preferencia pelo proprio provider",
+      "necessidade de concordancia contra revisao humana"
+    ]
+  }
+}
