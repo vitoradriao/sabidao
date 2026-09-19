@@ -88,6 +88,9 @@ INTENT_KEYWORDS = {
     ),
     "configuration": (
         "parametro",
+        "parametros",
+        "parametrizacao",
+        "parametrizacoes",
         "configuracao",
         "permissao",
         "habilitar",
@@ -165,6 +168,9 @@ QUERY_MODULE_HINTS = {
     ),
     "parametros_configuracao": (
         "parametro",
+        "parametros",
+        "parametrizacao",
+        "parametrizacoes",
         "configuracao",
         "permissao",
         "central",
@@ -208,6 +214,10 @@ QUERY_MODULE_HINTS = {
         "inadimplente",
         "limite",
         "conta corrente",
+        "cc",
+        "c c",
+        "flex",
+        "maxpag",
         "titulos abertos",
         "mxstitulosabertos",
     ),
@@ -1285,21 +1295,38 @@ def _normalize_route_text(value: str) -> str:
     return f" {normalize_text(value)} "
 
 
+def _matched_route_keywords(normalized_query: str, keywords: tuple[str, ...]) -> list[str]:
+    matches = {
+        normalized_keyword
+        for keyword in keywords
+        if (normalized_keyword := normalize_text(keyword))
+        and f" {normalized_keyword} " in normalized_query
+    }
+    return sorted(matches)
+
+
 def _classify_query_intent(query: str) -> dict:
     if not config.RAG_ENABLE_INTENT_ROUTING:
-        return {"intent": "general", "doc_types": [], "modules": []}
+        return {
+            "intent": "general",
+            "doc_types": [],
+            "modules": [],
+            "routing_signals": {
+                "intent_keywords": {},
+                "module_keywords": {},
+                "default_modules": [],
+            },
+        }
 
     normalized = _normalize_route_text(query)
     scores: dict[str, int] = {}
+    intent_matches: dict[str, list[str]] = {}
 
     for intent, keywords in INTENT_KEYWORDS.items():
-        score = 0
-        for keyword in keywords:
-            normalized_keyword = _normalize_route_text(keyword).strip()
-            if f" {normalized_keyword} " in normalized:
-                score += 1
-        if score > 0:
-            scores[intent] = score
+        matches = _matched_route_keywords(normalized, keywords)
+        if matches:
+            intent_matches[intent] = matches
+            scores[intent] = len(matches)
 
     if scores:
         best_score = max(scores.values())
@@ -1308,19 +1335,25 @@ def _classify_query_intent(query: str) -> dict:
     else:
         intent = "general"
 
-    modules: set[str] = set(INTENT_DEFAULT_MODULES.get(intent, []))
+    default_modules = list(INTENT_DEFAULT_MODULES.get(intent, []))
+    modules: set[str] = set(default_modules)
+    module_matches: dict[str, list[str]] = {}
     for module, keywords in QUERY_MODULE_HINTS.items():
-        for keyword in keywords:
-            normalized_keyword = _normalize_route_text(keyword).strip()
-            if f" {normalized_keyword} " in normalized:
-                modules.add(module)
-                break
+        matches = _matched_route_keywords(normalized, keywords)
+        if matches:
+            module_matches[module] = matches
+            modules.add(module)
 
     doc_types = list(INTENT_DOC_TYPES.get(intent, []))
     return {
         "intent": intent,
         "doc_types": doc_types,
         "modules": sorted(modules),
+        "routing_signals": {
+            "intent_keywords": intent_matches,
+            "module_keywords": module_matches,
+            "default_modules": default_modules,
+        },
     }
 
 
