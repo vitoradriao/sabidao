@@ -1,0 +1,4 @@
+-r requirements.in
+
+# Atualizacao dos arquivos resolvidos
+pip-tools==7.5.3

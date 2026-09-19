@@ -1,0 +1,24 @@
+# Bot Discord
+discord.py>=2.3.0
+
+# LLM + Embeddings (Google Gemini)
+google-genai>=1.0.0
+
+# Supabase (HTTP client direto - sem dependencias pesadas)
+httpx>=0.26.0
+
+psycopg[binary]>=3.2.0
+psycopg-pool>=3.2.0
+
+# Document parsing
+PyPDF2>=3.0.0
+python-docx>=1.1.0
+
+# Text splitting
+langchain-text-splitters>=0.3.0
+
+# Web parsing
+beautifulsoup4>=4.12.0
+
+# Utils
+python-dotenv>=1.0.0
