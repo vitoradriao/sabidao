@@ -3,10 +3,13 @@ bot_common.py — Utilitarios de conversa e formatacao do bot Discord.
 Evita duplicacao de codigo de historico, cooldown, split e formatacao.
 """
 
+import asyncio
 import re
 import time
 import unicodedata
 from collections import OrderedDict
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import config
 
@@ -56,6 +59,45 @@ class ConversationManager:
             return remaining
         self._user_last_ask[user_id] = time.monotonic()
         return None
+
+
+class InFlightTaskLimiter:
+    """Admite trabalho local ate um limite e conta a execucao real da task.
+
+    O chamador pode abandonar a espera com ``asyncio.shield`` sem liberar a
+    vaga. A vaga so volta a ficar disponivel quando a task termina de fato.
+    """
+
+    def __init__(self, max_concurrency: int):
+        if max_concurrency < 1:
+            raise ValueError("max_concurrency deve ser pelo menos 1")
+        self._max_concurrency = max_concurrency
+        self._tasks: set[asyncio.Task[Any]] = set()
+
+    @property
+    def active_count(self) -> int:
+        return len(self._tasks)
+
+    def try_start(
+        self,
+        coroutine_factory: Callable[[], Awaitable[Any]],
+    ) -> asyncio.Task[Any] | None:
+        """Inicia sem enfileirar; retorna ``None`` quando todas as vagas estao ocupadas."""
+        if len(self._tasks) >= self._max_concurrency:
+            return None
+
+        task = asyncio.create_task(coroutine_factory())
+        self._tasks.add(task)
+        task.add_done_callback(self._finish)
+        return task
+
+    def _finish(self, task: asyncio.Task[Any]) -> None:
+        self._tasks.discard(task)
+        if task.cancelled():
+            return
+        # Recupera eventual excecao da task que terminou depois de o chamador
+        # abandonar a espera, evitando warning sem mascarar o erro no await.
+        task.exception()
 
 
 def normalize_text(value: str) -> str:

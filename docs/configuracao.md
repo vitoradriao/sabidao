@@ -76,6 +76,7 @@ intencionalmente alguns deles:
 | `RAG_OPERATIONAL_SIMILARITY_MARGIN` | 0,05 | 0,03 | usar margem menor no perfil calibrado |
 | `RAG_MAX_REGEN_ATTEMPTS` | 1 | 2 | permitir uma correção adicional de grounding |
 | `ASK_TIMEOUT_SECONDS` | 120 | 240 | acomodar respostas extensas em produção |
+| `ASK_MAX_CONCURRENCY` | 4 | 4 | limitar o trabalho simultâneo aceito pelo processo |
 | `ASK_MAX_TOKENS` | 8192 | 16384 | permitir o limite operacional configurado |
 | `MAX_HISTORY_PAIRS` | 20 | 12 | limitar o crescimento do contexto por conversa |
 | `CONTEXTUAL_RETRIEVAL_MAX_TOKENS` | 150 | 250 | enriquecer chunks com mais contexto no perfil atual |
@@ -83,6 +84,26 @@ intencionalmente alguns deles:
 
 Para conferir a configuração sem expor credenciais, use `!status`: o resumo
 mostra providers e modelos ativos, mas não mostra chaves.
+
+## Concorrência, deadline e retries
+
+`ASK_MAX_CONCURRENCY` limita quantas perguntas podem manter trabalho ativo no
+processo. Quando todas as vagas estão ocupadas, uma nova pergunta é recusada
+imediatamente com uma mensagem de ocupação, sem formar fila local. Cada vaga só
+é liberada quando a execução real termina, inclusive se o Discord já recebeu a
+mensagem de timeout.
+
+`ASK_TIMEOUT_SECONDS` também define o orçamento total propagado pelas etapas do
+RAG. Uma etapa ou tentativa nova não começa depois do deadline, e os timeouts
+das chamadas aos providers são reduzidos ao tempo restante. O encerramento da
+espera no Discord não cancela uma requisição que o provider já tenha aceitado e
+não garante interrupção de cobrança ou processamento remoto.
+
+Falhas transitórias de transporte e HTTP 408, 429 ou 5xx elegíveis usam no
+máximo `RAG_PROVIDER_MAX_RETRIES` novas tentativas, com espera exponencial a
+partir de `RAG_RETRY_BASE_SECONDS` ou o cabeçalho `Retry-After`. A tentativa é
+pulada se a espera não couber no deadline. Erros de autenticação e permissão
+não são repetidos.
 
 ## Telemetria de geração e custo estimado
 
