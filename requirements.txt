@@ -4,16 +4,10 @@
 #
 #    pip-compile --no-strip-extras --output-file=requirements.txt requirements.in
 #
-absl-py==2.5.0
-    # via
-    #   langextract
-    #   ml-collections
 aiohappyeyeballs==2.7.1
     # via aiohttp
 aiohttp==3.14.3
-    # via
-    #   discord-py
-    #   langextract
+    # via discord-py
 aiosignal==1.4.0
     # via aiohttp
 annotated-types==0.8.0
@@ -24,8 +18,6 @@ anyio==4.15.1
     #   httpx
     #   httpx2
     #   langsmith
-async-timeout==5.0.1
-    # via langextract
 attrs==26.1.0
     # via aiohttp
 beautifulsoup4==4.15.0
@@ -39,8 +31,6 @@ cffi==2.1.1
     # via cryptography
 charset-normalizer==3.5.1
     # via requests
-colorama==0.4.6
-    # via tqdm
 cryptography==50.0.1
     # via google-auth
 discord-py==2.7.1
@@ -49,38 +39,14 @@ distro==1.9.0
     # via
     #   google-genai
     #   langsmith
-exceptiongroup==1.3.1
-    # via langextract
 frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
-google-api-core==2.38.0
-    # via
-    #   google-cloud-core
-    #   google-cloud-storage
 google-auth[requests]==2.58.0
-    # via
-    #   google-api-core
-    #   google-cloud-core
-    #   google-cloud-storage
-    #   google-genai
-google-cloud-core==2.7.0
-    # via google-cloud-storage
-google-cloud-storage==3.14.1
-    # via langextract
-google-crc32c==1.8.0
-    # via
-    #   google-cloud-storage
-    #   google-resumable-media
+    # via google-genai
 google-genai==2.24.0
-    # via
-    #   -r requirements.in
-    #   langextract
-google-resumable-media==2.10.2
-    # via google-cloud-storage
-googleapis-common-protos==1.75.3
-    # via google-api-core
+    # via -r requirements.in
 h11==0.16.0
     # via
     #   httpcore
@@ -113,45 +79,24 @@ langchain-protocol==0.0.19
     # via langchain-core
 langchain-text-splitters==1.1.2
     # via -r requirements.in
-langextract==1.7.0
-    # via -r requirements.in
 langsmith==0.13.0
     # via langchain-core
 lxml==6.1.3
     # via python-docx
-ml-collections==1.1.0
-    # via langextract
-more-itertools==11.1.0
-    # via langextract
 multidict==6.9.0
     # via
     #   aiohttp
     #   yarl
-numpy==2.4.6
-    # via
-    #   langextract
-    #   pandas
-opentelemetry-api==1.44.0
-    # via google-api-core
 orjson==3.12.0
     # via langsmith
 packaging==26.3
     # via
     #   langchain-core
     #   langsmith
-pandas==3.0.6
-    # via langextract
 propcache==0.5.4
     # via
     #   aiohttp
     #   yarl
-proto-plus==1.28.4
-    # via google-api-core
-protobuf==7.36.2
-    # via
-    #   google-api-core
-    #   googleapis-common-protos
-    #   proto-plus
 psycopg[binary]==3.3.6
     # via -r requirements.in
 psycopg-binary==3.3.6
@@ -168,40 +113,25 @@ pydantic==2.13.5
     # via
     #   google-genai
     #   langchain-core
-    #   langextract
     #   langsmith
 pydantic-core==2.46.5
     # via pydantic
 pypdf2==3.0.1
     # via -r requirements.in
-python-dateutil==2.9.0.post0
-    # via pandas
 python-docx==1.2.0
     # via -r requirements.in
 python-dotenv==1.2.3
-    # via
-    #   -r requirements.in
-    #   langextract
+    # via -r requirements.in
 pyyaml==6.0.3
-    # via
-    #   langchain-core
-    #   langextract
-    #   ml-collections
-regex==2026.9.10
-    # via langextract
+    # via langchain-core
 requests==2.34.2
     # via
-    #   google-api-core
     #   google-auth
-    #   google-cloud-storage
     #   google-genai
-    #   langextract
     #   langsmith
     #   requests-toolbelt
 requests-toolbelt==1.0.0
     # via langsmith
-six==1.17.0
-    # via python-dateutil
 sniffio==1.3.1
     # via
     #   google-genai
@@ -212,8 +142,6 @@ tenacity==9.1.4
     # via
     #   google-genai
     #   langchain-core
-tqdm==4.70.1
-    # via langextract
 truststore==0.10.4
     # via
     #   httpcore2
@@ -224,14 +152,11 @@ typing-extensions==4.16.0
     #   aiosignal
     #   anyio
     #   beautifulsoup4
-    #   exceptiongroup
     #   google-genai
     #   httpx2
     #   langchain-core
     #   langchain-protocol
-    #   langextract
     #   langsmith
-    #   opentelemetry-api
     #   psycopg
     #   psycopg-pool
     #   pydantic
@@ -241,9 +166,7 @@ typing-extensions==4.16.0
 typing-inspection==0.4.4
     # via pydantic
 tzdata==2026.4
-    # via
-    #   pandas
-    #   psycopg
+    # via psycopg
 urllib3==2.8.0
     # via requests
 uuid-utils==0.17.1
