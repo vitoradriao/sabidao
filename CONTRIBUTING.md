@@ -17,11 +17,25 @@ As regras de exclusão do Git não removem arquivos já versionados. Confira o c
 
 ## Validação
 
-Com as dependências instaladas e o ambiente virtual ativo, execute a suíte publicada, baseada em `unittest`:
+Use Python 3.11, como na imagem Docker e no instalador Windows. `requirements.in` lista as dependências diretas de produção; `requirements.txt` fixa as versões diretas e transitivas usadas pelo bot. `requirements-dev.in` acrescenta a ferramenta de atualização dos locks, e `requirements-dev.txt` fixa o ambiente de desenvolvimento e CI. O Docker e o instalador continuam instalando `requirements.txt`.
+
+Em um ambiente virtual limpo, instale as dependências de desenvolvimento e execute a suíte publicada, baseada em `unittest`:
 
 ```sh
+python -m pip install -r requirements-dev.txt
+python -m pip check
 python -m unittest discover -s tests -p "test_*.py"
 ```
+
+Para atualizar as versões, edite os arquivos `.in` e gere novamente os dois arquivos `.txt` em Python 3.11:
+
+```sh
+python -m pip install pip-tools==7.5.3
+pip-compile --no-strip-extras --output-file=requirements.txt requirements.in
+pip-compile --no-strip-extras --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
+```
+
+Revise as versões alteradas e valide uma instalação em ambiente limpo antes de enviar o PR. O workflow de CI roda a suíte sem credenciais de IA e, em um job separado, aplica o esquema SQL em PostgreSQL/pgvector e executa os testes de integração habilitados por `RUN_DB_INTEGRATION_TESTS=1` e a fixture de busca híbrida.
 
 A [avaliação das respostas](evaluation/README.md) é um fluxo separado: utiliza os serviços configurados de banco e IA. A opção `--dry-run` não elimina essas chamadas; ela evita a persistência dos resultados da avaliação no banco e ainda gera um relatório local.
 
