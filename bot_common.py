@@ -9,6 +9,8 @@ import time
 import unicodedata
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from typing import Any
 
 import config
@@ -23,33 +25,89 @@ _TITLE_PREFIX_RE = re.compile(
 )
 
 
-class ConversationManager:
-    """Gerencia historico de conversa por canal/conversa com LRU e cooldown por usuario."""
+@dataclass
+class _ConversationState:
+    history: list[dict] = field(default_factory=list)
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    users: int = 0
 
-    def __init__(self):
-        self.history: OrderedDict = OrderedDict()
+
+class ConversationManager:
+    """Serializa e limita historicos por chave de conversa com evicao LRU."""
+
+    def __init__(self, max_conversations: int | None = None):
+        self._max_conversations = max_conversations or config.MAX_HISTORY_CHANNELS
+        self._states: OrderedDict[Any, _ConversationState] = OrderedDict()
         self._user_last_ask: dict = {}
 
-    def get_history(self, channel_id) -> list[dict]:
-        """Retorna historico do canal com evicao LRU."""
-        if channel_id in self.history:
-            self.history.move_to_end(channel_id)
-            return self.history[channel_id]
-        if len(self.history) >= config.MAX_HISTORY_CHANNELS:
-            self.history.popitem(last=False)
-        self.history[channel_id] = []
-        return self.history[channel_id]
+    @property
+    def conversation_count(self) -> int:
+        return len(self._states)
 
-    def trim_history(self, channel_id):
-        """Mantem apenas as ultimas MAX_HISTORY_PAIRS trocas."""
-        history = self.history.get(channel_id, [])
-        max_msgs = config.MAX_HISTORY_PAIRS * 2
-        if len(history) > max_msgs:
-            self.history[channel_id] = history[-max_msgs:]
+    def _get_or_create_state(self, conversation_key: Any) -> _ConversationState:
+        state = self._states.get(conversation_key)
+        if state is None:
+            state = _ConversationState()
+            self._states[conversation_key] = state
+        else:
+            self._states.move_to_end(conversation_key)
+        return state
 
-    def clear_history(self, channel_id):
-        """Limpa historico de um canal."""
-        self.history.pop(channel_id, None)
+    def _evict_inactive(self) -> None:
+        while len(self._states) > self._max_conversations:
+            evicted = False
+            for key, state in self._states.items():
+                if state.users == 0 and not state.lock.locked():
+                    del self._states[key]
+                    evicted = True
+                    break
+            if not evicted:
+                break
+
+    @asynccontextmanager
+    async def serialized(self, conversation_key: Any):
+        """Mantem uma operacao por conversa sem bloquear conversas diferentes."""
+        state = self._get_or_create_state(conversation_key)
+        state.users += 1
+        self._evict_inactive()
+        try:
+            async with state.lock:
+                self._states.move_to_end(conversation_key)
+                yield
+        finally:
+            state.users -= 1
+            if conversation_key in self._states:
+                self._states.move_to_end(conversation_key)
+            self._evict_inactive()
+
+    def get_history_snapshot(self, conversation_key: Any) -> list[dict]:
+        """Copia o historico atual; a lista interna nunca escapa do gerenciador."""
+        state = self._get_or_create_state(conversation_key)
+        return [dict(message) for message in state.history]
+
+    def append_exchange(
+        self,
+        conversation_key: Any,
+        question: str,
+        answer: str,
+    ) -> None:
+        """Inclui um par e aplica trim sem substituir a lista interna."""
+        state = self._get_or_create_state(conversation_key)
+        state.history.extend(
+            (
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": answer},
+            )
+        )
+        max_messages = config.MAX_HISTORY_PAIRS * 2
+        if len(state.history) > max_messages:
+            del state.history[:-max_messages]
+
+    def clear_history(self, conversation_key: Any) -> None:
+        """Limpa em lugar para não invalidar uma operação que já usa o estado."""
+        state = self._states.get(conversation_key)
+        if state is not None:
+            state.history.clear()
 
     def check_cooldown(self, user_id) -> float | None:
         """Retorna segundos restantes se em cooldown, senao None."""

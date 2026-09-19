@@ -45,6 +45,77 @@ _TABLE_PATTERN = re.compile(
 )
 
 
+def _discord_conversation_scope(target) -> dict[str, str]:
+    """Identifica uma conversa Discord sem tratar o escopo como ACL documental."""
+    channel = getattr(target, "channel", target)
+    guild = getattr(target, "guild", None) or getattr(channel, "guild", None)
+    channel_id = str(getattr(channel, "id", ""))
+    parent_id = getattr(channel, "parent_id", None)
+
+    if guild is None:
+        return {
+            "level": "conversation",
+            "platform": "discord",
+            "guild_id": "",
+            "channel_id": channel_id,
+            "thread_id": "",
+        }
+
+    return {
+        "level": "conversation",
+        "platform": "discord",
+        "guild_id": str(guild.id),
+        "channel_id": str(parent_id or channel_id),
+        "thread_id": channel_id if parent_id else "",
+    }
+
+
+def _discord_conversation_key(target) -> tuple[str, ...]:
+    scope = _discord_conversation_scope(target)
+    return (
+        scope["platform"],
+        scope["guild_id"],
+        scope["channel_id"],
+        scope["thread_id"],
+    )
+
+
+def _is_global_feedback_reviewer(user_id: int | str) -> bool:
+    return str(user_id) in config.GLOBAL_FEEDBACK_REVIEWER_IDS
+
+
+def _is_guild_administrator(ctx: commands.Context) -> bool:
+    permissions = getattr(getattr(ctx, "author", None), "guild_permissions", None)
+    return getattr(ctx, "guild", None) is not None and bool(
+        getattr(permissions, "administrator", False)
+    )
+
+
+def _can_review_feedback_scope(ctx: commands.Context, scope: dict | None) -> bool:
+    normalized_scope = rag._normalize_scope(scope)
+    if normalized_scope.get("level") == "global":
+        return _is_global_feedback_reviewer(ctx.author.id)
+    if normalized_scope.get("level") != "conversation":
+        return _is_global_feedback_reviewer(ctx.author.id)
+    return _is_guild_administrator(ctx) and normalized_scope == rag._normalize_scope(
+        _discord_conversation_scope(ctx)
+    )
+
+
+def _feedback_submission_scope(target, requested_scope: dict | None) -> dict[str, str]:
+    normalized_scope = rag._normalize_scope(requested_scope)
+    level = normalized_scope.get("level")
+    if not level or level == "conversation":
+        return _discord_conversation_scope(target)
+    if level == "global":
+        return {"level": "global"}
+    if level not in {"tenant", "erp", "version"}:
+        raise ValueError(
+            "Escopo invalido. Use conversation, global, tenant, erp ou version."
+        )
+    return normalized_scope
+
+
 def _markdown_table_to_codeblock(text: str) -> str:
     """Converte tabelas Markdown (| col | col |) em blocos de codigo monospace alinhados.
 
@@ -141,13 +212,14 @@ def _parse_feedback_command_payload(payload: str) -> dict:
     if len(parts) < 3:
         raise ValueError(
             "Formato invalido. Use: pergunta || resposta_bot || resposta_corrigida "
-            "[|| level=global|tenant;tenant=...;erp=...;version=...] [|| tag1,tag2]"
+            "[|| level=conversation|global|tenant;tenant=...;erp=...;version=...] "
+            "[|| tag1,tag2]"
         )
 
     question = parts[0]
     bot_answer = parts[1]
     corrected_answer = parts[2]
-    scope: dict[str, str] = {"level": "global"}
+    scope: dict[str, str] = {}
     tags: list[str] = []
 
     if len(parts) >= 4 and parts[3]:
@@ -269,7 +341,7 @@ async def extract_images(message: discord.Message) -> list[dict]:
 
 # ── Handler de perguntas (compartilhado) ─────────────────
 
-async def handle_question(target, user_id: int, channel_id: int, question: str, images: list[dict] = None):
+async def handle_question(target, user_id: int, question: str, images: list[dict] = None):
     """Logica compartilhada entre comando e mencao."""
     # Validacao de tamanho
     if len(question) > config.MAX_QUESTION_LENGTH:
@@ -285,11 +357,30 @@ async def handle_question(target, user_id: int, channel_id: int, question: str, 
         await target.reply(f"Aguarde {remaining:.0f}s antes de perguntar novamente.")
         return
 
+    conversation_key = _discord_conversation_key(target)
+    conversation_scope = _discord_conversation_scope(target)
+    async with _conv.serialized(conversation_key):
+        await _handle_serialized_question(
+            target,
+            conversation_key,
+            conversation_scope,
+            question,
+            images,
+        )
+
+
+async def _handle_serialized_question(
+    target,
+    conversation_key: tuple[str, ...],
+    conversation_scope: dict[str, str],
+    question: str,
+    images: list[dict] | None,
+) -> None:
     logger.info("QUERY len=%d images=%d", len(question), len(images or []))
 
     channel = target.channel if hasattr(target, "channel") else target
     async with channel.typing():
-        history = _conv.get_history(channel_id)
+        history = _conv.get_history_snapshot(conversation_key)
 
         t_start = time.monotonic()
         deadline = t_start + config.ASK_TIMEOUT_SECONDS
@@ -301,7 +392,7 @@ async def handle_question(target, user_id: int, channel_id: int, question: str, 
                 images,
                 None,
                 "discord",
-                None,
+                conversation_scope,
                 deadline=deadline,
             )
         )
@@ -337,9 +428,7 @@ async def handle_question(target, user_id: int, channel_id: int, question: str, 
             answer_text = str(answer)
 
         # Atualizar historico (sem imagens para nao estourar memoria)
-        history.append({"role": "user", "content": question})
-        history.append({"role": "assistant", "content": answer_text})
-        _conv.trim_history(channel_id)
+        _conv.append_exchange(conversation_key, question, answer_text)
 
         logger.info(
             "ANSWER_TRACE %s",
@@ -371,7 +460,7 @@ async def handle_question(target, user_id: int, channel_id: int, question: str, 
 async def cmd_perguntar(ctx: commands.Context, *, question: str):
     """Faz uma pergunta consultando a base de documentos. Anexe imagens para analise."""
     images = await extract_images(ctx.message)
-    await handle_question(ctx, ctx.author.id, ctx.channel.id, question, images)
+    await handle_question(ctx, ctx.author.id, question, images)
 
 
 # ── Comando: status ───────────────────────────────────────
@@ -465,8 +554,10 @@ async def cmd_ingerir(ctx: commands.Context):
 
 @bot.command(name="limpar", aliases=["clear"])
 async def cmd_limpar(ctx: commands.Context):
-    """Limpa o historico de conversa do canal."""
-    _conv.clear_history(ctx.channel.id)
+    """Limpa o historico da conversa (canal, thread ou DM)."""
+    conversation_key = _discord_conversation_key(ctx)
+    async with _conv.serialized(conversation_key):
+        _conv.clear_history(conversation_key)
     await ctx.reply("Historico de conversa limpo!")
 
 
@@ -513,20 +604,22 @@ async def cmd_corrigir(ctx: commands.Context, *, payload: str):
     """
     Registra uma correcao para revisao.
     Formato:
-      !corrigir pergunta || resposta_bot || resposta_corrigida || level=tenant;tenant=ACME;erp=Winthor || tag1,tag2
+      !corrigir pergunta || resposta_bot || resposta_corrigida || level=conversation|global || tag1,tag2
     """
     try:
         parsed = _parse_feedback_command_payload(payload)
+        feedback_scope = _feedback_submission_scope(ctx, parsed["scope"])
         feedback_id = await asyncio.to_thread(
             rag.submit_feedback_item,
             query=parsed["question"],
             bot_answer=parsed["bot_answer"],
             corrected_answer=parsed["corrected_answer"],
             tags=parsed["tags"],
-            scope=parsed["scope"],
+            scope=feedback_scope,
             created_by=f"discord:{ctx.author.id}",
             platform="discord",
             source_message_id=str(ctx.message.id),
+            metadata={"discord_conversation_scope": _discord_conversation_scope(ctx)},
         )
         await ctx.reply(
             f"Correcao registrada com sucesso. ID: `{feedback_id}` (status: `PENDING`)."
@@ -536,15 +629,32 @@ async def cmd_corrigir(ctx: commands.Context, *, payload: str):
 
 
 @bot.command(name="correcoes", aliases=["correcoes_pendentes", "correcoes-pendentes"])
-@commands.has_permissions(administrator=True)
 async def cmd_correcoes(ctx: commands.Context, action: str = "pendentes", limit: int = 10):
     """Lista correcoes pendentes para revisao."""
-    if action.lower() not in {"pendentes", "pending"}:
-        await ctx.reply("Uso: `!correcoes pendentes [limite]`")
+    normalized_action = action.lower()
+    if normalized_action in {"globais", "global"}:
+        if not _is_global_feedback_reviewer(ctx.author.id):
+            await ctx.reply("Voce nao tem permissao global para revisar correcoes.")
+            return
+        review_scope = {"level": "global"}
+    elif normalized_action in {"pendentes", "pending", "locais", "local"}:
+        if _is_guild_administrator(ctx):
+            review_scope = _discord_conversation_scope(ctx)
+        elif _is_global_feedback_reviewer(ctx.author.id):
+            review_scope = {"level": "global"}
+        else:
+            await ctx.reply("Voce nao tem permissao para revisar correcoes neste escopo.")
+            return
+    else:
+        await ctx.reply("Uso: `!correcoes pendentes [limite]` ou `!correcoes globais [limite]`")
         return
     async with ctx.typing():
         try:
-            pending = await asyncio.to_thread(rag.list_pending_feedback_items, limit)
+            pending = await asyncio.to_thread(
+                rag.list_pending_feedback_items,
+                limit,
+                scope=review_scope,
+            )
             if not pending:
                 await ctx.reply("Nao ha correcoes pendentes.")
                 return
@@ -574,10 +684,13 @@ async def cmd_correcoes(ctx: commands.Context, action: str = "pendentes", limit:
 
 
 @bot.command(name="aprovar_correcao", aliases=["aprovar-correcao"])
-@commands.has_permissions(administrator=True)
 async def cmd_aprovar_correcao(ctx: commands.Context, feedback_id: str, *, note: str = ""):
     """Aprova uma correcao pendente."""
     try:
+        item = await asyncio.to_thread(rag.get_feedback_item, feedback_id)
+        if not _can_review_feedback_scope(ctx, item.get("scope")):
+            await ctx.reply("Voce nao tem permissao para aprovar correcoes neste escopo.")
+            return
         await asyncio.to_thread(
             rag.approve_feedback_item,
             feedback_id,
@@ -590,10 +703,13 @@ async def cmd_aprovar_correcao(ctx: commands.Context, feedback_id: str, *, note:
 
 
 @bot.command(name="rejeitar_correcao", aliases=["rejeitar-correcao"])
-@commands.has_permissions(administrator=True)
 async def cmd_rejeitar_correcao(ctx: commands.Context, feedback_id: str, *, note: str = ""):
     """Rejeita uma correcao pendente."""
     try:
+        item = await asyncio.to_thread(rag.get_feedback_item, feedback_id)
+        if not _can_review_feedback_scope(ctx, item.get("scope")):
+            await ctx.reply("Voce nao tem permissao para rejeitar correcoes neste escopo.")
+            return
         await asyncio.to_thread(
             rag.reject_feedback_item,
             feedback_id,
@@ -606,10 +722,13 @@ async def cmd_rejeitar_correcao(ctx: commands.Context, feedback_id: str, *, note
 
 
 @bot.command(name="publicar_correcao", aliases=["publicar-correcao"])
-@commands.has_permissions(administrator=True)
 async def cmd_publicar_correcao(ctx: commands.Context, feedback_id: str):
     """Publica correcao aprovada na memoria vetorial."""
     try:
+        item = await asyncio.to_thread(rag.get_feedback_item, feedback_id)
+        if not _can_review_feedback_scope(ctx, item.get("scope")):
+            await ctx.reply("Voce nao tem permissao para publicar correcoes neste escopo.")
+            return
         chunk_id = await asyncio.to_thread(
             rag.publish_feedback_item,
             feedback_id,
@@ -667,18 +786,22 @@ async def cmd_ajuda(ctx: commands.Context):
         name=f"`{config.COMMAND_PREFIX}corrigir <payload>`",
         value=(
             "Registra correcao para revisao. Formato: "
-            "`pergunta || resposta_bot || resposta_corrigida || level=...;tenant=... || tag1,tag2`"
+            "`pergunta || resposta_bot || resposta_corrigida || level=...;tenant=... || tag1,tag2`. "
+            "Sem `level`, usa a conversa atual."
         ),
         inline=False,
     )
     embed.add_field(
         name=f"`{config.COMMAND_PREFIX}correcoes pendentes`",
-        value="(Admin) Lista fila de revisao de correcoes.",
+        value="(Admin local ou revisor global configurado) Lista a fila do escopo autorizado.",
         inline=False,
     )
     embed.add_field(
         name=f"`{config.COMMAND_PREFIX}aprovar-correcao <id>` / `{config.COMMAND_PREFIX}rejeitar-correcao <id>` / `{config.COMMAND_PREFIX}publicar-correcao <id>`",
-        value="(Admin) Aprova, rejeita ou publica correcoes na memoria vetorial.",
+        value=(
+            "Admins revisam apenas a conversa atual; correcoes globais exigem um "
+            "revisor configurado explicitamente."
+        ),
         inline=False,
     )
     embed.set_footer(text="Dica: Anexe screenshots para analise de erros e telas do sistema.")
@@ -715,7 +838,7 @@ async def on_message(message: discord.Message):
         if not question and images:
             question = "Analise esta imagem e descreva o que voce ve. Se for um erro ou tela do sistema, explique o que esta acontecendo."
 
-        await handle_question(message, message.author.id, message.channel.id, question, images)
+        await handle_question(message, message.author.id, question, images)
 
 
 # ── Error handling ────────────────────────────────────────

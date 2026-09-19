@@ -248,7 +248,7 @@ def _parse_scalar(value: str) -> Any:
 def _parse_filter(column: str, raw_value: Any) -> tuple[str, list[Any]]:
     quoted_column = _quote_identifier(column)
     if not isinstance(raw_value, str):
-        return f"{quoted_column} = %s", [raw_value]
+        return f"{quoted_column} = %s", [_prepare_value(column, raw_value)]
 
     operators = (
         ("eq.", "="),
