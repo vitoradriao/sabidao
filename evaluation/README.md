@@ -96,6 +96,39 @@ python evaluation/run_offline_eval.py --limit 10 --output-report evaluation/repo
 
 Relatórios gerados em `evaluation/reports/` são ignorados pelo Git.
 
+### Aprovação automática do holdout
+
+Use `--gate` para consumir o resultado em automações:
+
+```sh
+python evaluation/run_offline_eval.py --split holdout --gate --output-report evaluation/reports/holdout.json
+```
+
+Esse comando executa o RAG e pode chamar providers pagos. `--dry-run` apenas
+desativa a persistência no banco; não torna a execução local ou gratuita.
+
+Todos os critérios de `non_regression` são obrigatórios. O status é `passed`
+somente quando todos passam, todos os casos do holdout do dataset carregado são
+executados e há casos `answerable`, `ambiguous` e `no_evidence`. Uma taxa sem
+denominador permanece indisponível; não conta como sucesso.
+
+Uma falha em qualquer critério, crítico ou não, produz `failed`. Falhas têm
+precedência sobre lacunas de avaliação, que continuam visíveis em `complete`,
+`missing_checks` e `coverage`. `critical_failures` identifica as falhas críticas.
+Sem falhas conhecidas, critérios indisponíveis, classes ausentes ou holdout parcial
+produzem `incomplete`. Uma política ausente não aprova o gate.
+
+Com `--gate`, a saída é `0` apenas para `passed` e `1` para os demais resultados;
+o relatório é salvo antes dessa saída. Sem a opção, execuções concluídas mantêm
+saída `0` para exploração, mesmo com `failed` ou `incomplete` no relatório.
+`--split development` não avalia o holdout. `--limit` só permite aprovação se
+a seleção ainda incluir todo o holdout; limitar desenvolvimento não impede a
+aprovação quando todos os casos do holdout foram executados.
+
+A cobertura é relativa ao dataset fornecido. Isso não certifica sua revisão humana,
+identidade experimental ou validade operacional; essas validações continuam
+necessárias antes de tratar o resultado como um baseline de produção.
+
 ## Conteúdo do relatório
 
 O bloco `runtime` registra commit, hash do dataset, provider/modelos, identidade do
