@@ -53,6 +53,22 @@ O caminho do relatório é definido por `FAILED_INGEST_REPORT`. No Compose, ele 
 
 Antes de uma atualização ampla, faça uma cópia de segurança do banco, valide a mudança em um ambiente de testes e compare as respostas com a [avaliação de referência](../evaluation/README.md).
 
+## Logs, retenção e dados sensíveis
+
+Por padrão, os logs operacionais não devem registrar perguntas, prompts,
+respostas completas, anexos, nomes de fontes, tokens, credenciais nem URLs que
+contenham credenciais. Falhas inesperadas retornam ao Discord uma mensagem
+genérica com `request_id`; o log correspondente preserva apenas `request_id`,
+etapa e classe do erro. Traces do RAG mantêm métricas, estados e contagens, sem
+o conteúdo consultado ou os identificadores das fontes.
+
+O aplicativo escreve logs na saída padrão e não define retenção própria. O
+operador deve restringir o acesso no coletor de logs e configurar uma retenção
+compatível com a política da organização; na ausência de outra exigência, use
+no máximo 30 dias. Antes de compartilhar um trecho, remova secrets e dados de
+usuário. Se houver suspeita de exposição, restrinja o acesso, preserve apenas a
+evidência necessária e rotacione imediatamente as credenciais envolvidas.
+
 ## Fontes da web
 
 A ferramenta também aceita URLs:

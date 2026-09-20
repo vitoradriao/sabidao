@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import time
+import uuid
 from pathlib import Path
 
 import discord
@@ -43,6 +44,29 @@ _TABLE_PATTERN = re.compile(
     r"((?:^[ \t]*\|.+\|[ \t]*$\n?){2,})",
     re.MULTILINE,
 )
+
+_GENERIC_ERROR_MESSAGE = (
+    "Nao foi possivel concluir a operacao. Tente novamente mais tarde. "
+    "Referencia: `{request_id}`."
+)
+
+
+def _record_operational_error(stage: str, error: BaseException) -> str:
+    """Registra somente metadados seguros e devolve uma referencia correlacionavel."""
+    request_id = uuid.uuid4().hex
+    root_error = getattr(error, "original", error)
+    logger.error(
+        "OPERATION_ERROR request_id=%s stage=%s error_type=%s",
+        request_id,
+        stage,
+        type(root_error).__name__,
+    )
+    return request_id
+
+
+def _operational_error_message(stage: str, error: BaseException) -> str:
+    request_id = _record_operational_error(stage, error)
+    return _GENERIC_ERROR_MESSAGE.format(request_id=request_id)
 
 
 def _discord_conversation_scope(target) -> dict[str, str]:
@@ -195,11 +219,11 @@ async def send_split_response(target, response: str, is_reply: bool = True):
                     await target.reply(part)
                     continue
                 except Exception as reply_error:
-                    logger.warning("Falha no reply(); tentando channel.send(): %s", reply_error)
+                    _record_operational_error("discord_reply", reply_error)
 
             await channel.send(part)
         except Exception as e:
-            logger.error("Erro ao enviar mensagem (parte %d/%d): %s", i + 1, len(parts), e)
+            _record_operational_error("discord_send", e)
 
 
 def _parse_feedback_command_payload(payload: str) -> dict:
@@ -248,7 +272,7 @@ def _parse_feedback_command_payload(payload: str) -> dict:
 
 @bot.event
 async def on_ready():
-    logger.info("Bot conectado como %s (ID: %s)", bot.user, bot.user.id)
+    logger.info("Bot conectado ao Discord.")
     logger.info("Prefixo: %s", config.COMMAND_PREFIX)
     await bot.change_presence(
         activity=discord.Activity(
@@ -416,8 +440,7 @@ async def _handle_serialized_question(
             )
             return
         except Exception as e:
-            logger.error("Erro no RAG (%s).", type(e).__name__)
-            await target.reply(f"Erro ao processar a pergunta: {str(e)[:200]}")
+            await target.reply(_operational_error_message("rag", e))
             return
         elapsed = time.monotonic() - t_start
 
@@ -436,7 +459,7 @@ async def _handle_serialized_question(
                 {
                     "platform": "discord",
                     "elapsed_ms": int(elapsed * 1000),
-                    "trace": trace,
+                    "trace": rag._sanitize_trace_for_log(trace),
                 },
                 ensure_ascii=False,
             ),
@@ -494,7 +517,7 @@ async def cmd_status(ctx: commands.Context):
             )
             await ctx.reply(embed=embed)
         except Exception as e:
-            await ctx.reply(f"Erro ao buscar status: {e}")
+            await ctx.reply(_operational_error_message("status", e))
 
 
 # ── Comando: fontes ───────────────────────────────────────
@@ -525,7 +548,7 @@ async def cmd_fontes(ctx: commands.Context):
 
             await ctx.reply(embed=embed)
         except Exception as e:
-            await ctx.reply(f"Erro ao listar documentos: {e}")
+            await ctx.reply(_operational_error_message("fontes", e))
 
 
 # ── Comando: ingerir (admin) ──────────────────────────────
@@ -547,7 +570,7 @@ async def cmd_ingerir(ctx: commands.Context):
                 f"{total} chunks indexados no total"
             )
         except Exception as e:
-            await ctx.reply(f"Erro na ingestao: {e}")
+            await ctx.reply(_operational_error_message("ingestao", e))
 
 
 # ── Comando: limpar (historico) ───────────────────────────
@@ -590,7 +613,7 @@ async def cmd_lacunas(ctx: commands.Context):
                 )
             await ctx.reply(embed=embed)
         except Exception as e:
-            await ctx.reply(f"Erro ao buscar lacunas: {e}")
+            await ctx.reply(_operational_error_message("lacunas", e))
 
 
 # ── Comando: ajuda ───────────────────────────────────────
@@ -625,7 +648,7 @@ async def cmd_corrigir(ctx: commands.Context, *, payload: str):
             f"Correcao registrada com sucesso. ID: `{feedback_id}` (status: `PENDING`)."
         )
     except Exception as e:
-        await ctx.reply(f"Erro ao registrar correcao: {e}")
+        await ctx.reply(_operational_error_message("registrar_correcao", e))
 
 
 @bot.command(name="correcoes", aliases=["correcoes_pendentes", "correcoes-pendentes"])
@@ -680,7 +703,7 @@ async def cmd_correcoes(ctx: commands.Context, action: str = "pendentes", limit:
                 )
             await ctx.reply(embed=embed)
         except Exception as e:
-            await ctx.reply(f"Erro ao listar correcoes pendentes: {e}")
+            await ctx.reply(_operational_error_message("listar_correcoes", e))
 
 
 @bot.command(name="aprovar_correcao", aliases=["aprovar-correcao"])
@@ -699,7 +722,7 @@ async def cmd_aprovar_correcao(ctx: commands.Context, feedback_id: str, *, note:
         )
         await ctx.reply(f"Correcao `{feedback_id}` aprovada.")
     except Exception as e:
-        await ctx.reply(f"Erro ao aprovar correcao: {e}")
+        await ctx.reply(_operational_error_message("aprovar_correcao", e))
 
 
 @bot.command(name="rejeitar_correcao", aliases=["rejeitar-correcao"])
@@ -718,7 +741,7 @@ async def cmd_rejeitar_correcao(ctx: commands.Context, feedback_id: str, *, note
         )
         await ctx.reply(f"Correcao `{feedback_id}` rejeitada.")
     except Exception as e:
-        await ctx.reply(f"Erro ao rejeitar correcao: {e}")
+        await ctx.reply(_operational_error_message("rejeitar_correcao", e))
 
 
 @bot.command(name="publicar_correcao", aliases=["publicar-correcao"])
@@ -739,7 +762,7 @@ async def cmd_publicar_correcao(ctx: commands.Context, feedback_id: str):
             f"Correcao `{feedback_id}` publicada na memoria vetorial. Chunk: `{chunk_id}`."
         )
     except Exception as e:
-        await ctx.reply(f"Erro ao publicar correcao: {e}")
+        await ctx.reply(_operational_error_message("publicar_correcao", e))
 
 @bot.command(name="ajuda", aliases=["h"])
 async def cmd_ajuda(ctx: commands.Context):
@@ -850,8 +873,7 @@ async def on_command_error(ctx: commands.Context, error):
     elif isinstance(error, commands.MissingPermissions):
         await ctx.reply("Voce nao tem permissao para usar este comando.")
     else:
-        logger.error("Erro no comando: %s", error)
-        await ctx.reply(f"Ocorreu um erro: {str(error)[:200]}")
+        await ctx.reply(_operational_error_message("comando", error))
 
 
 # ── Start ─────────────────────────────────────────────────

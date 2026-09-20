@@ -6,6 +6,19 @@ O processo lê primeiro as variáveis já presentes no ambiente. O arquivo `.env
 quando existe, preenche somente as variáveis ausentes. Assim, secrets injetados
 por Docker, CI ou pelo serviço do sistema prevalecem sobre valores locais.
 
+O `.env.example` é apenas um ponto de partida local e contém placeholders, não
+credenciais adequadas para implantação. Em ambientes compartilhados ou de
+produção, injete `DISCORD_TOKEN`, chaves dos providers e `POSTGRES_PASSWORD`
+por um mecanismo protegido. A senha presente em `DATABASE_URL` deve coincidir
+com `POSTGRES_PASSWORD` e não deve aparecer em commits, logs ou mensagens do
+Discord.
+
+No Compose, o PostgreSQL é acessível entre contêineres por `postgres:5432` e,
+para ferramentas no host, fica vinculado por padrão apenas a
+`127.0.0.1:${POSTGRES_PORT}`. `POSTGRES_BIND_ADDRESS` existe para configuração
+explícita de rede; não use `0.0.0.0` sem necessidade documentada e proteção de
+rede apropriada.
+
 ## Geração e embeddings
 
 Geração de texto e embeddings têm configuração independente:
