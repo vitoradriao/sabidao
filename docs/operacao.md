@@ -62,6 +62,17 @@ genérica com `request_id`; o log correspondente preserva apenas `request_id`,
 etapa e classe do erro. Traces do RAG mantêm métricas, estados e contagens, sem
 o conteúdo consultado ou os identificadores das fontes.
 
+Na ingestão, arquivos e URLs são correlacionados por um `source_id` opaco e
+estável. Os eventos registram etapa, classe do erro e contagens necessárias,
+sem nomes, caminhos, conteúdo documental, corpo de resposta do provider ou
+texto arbitrário de exceções.
+
+O arquivo configurado em `FAILED_INGEST_REPORT` é uma exceção deliberada: ele
+preserva o caminho ou a URL exatos para que `--retry-failed` consiga repetir a
+fonte. Trate esse relatório como dado operacional sensível, restrinja seu
+acesso ao processo e aos operadores autorizados e não o compartilhe como se
+fosse um trecho de log sanitizado.
+
 O aplicativo escreve logs na saída padrão e não define retenção própria. O
 operador deve restringir o acesso no coletor de logs e configurar uma retenção
 compatível com a política da organização; na ausência de outra exigência, use
