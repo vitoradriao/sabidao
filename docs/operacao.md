@@ -78,4 +78,8 @@ python ingest.py --url https://exemplo.com/documentacao
 python ingest.py --urls-file ./documentos/urls.txt
 ```
 
-Substitua a URL de exemplo por uma fonte autorizada e revise o material resultante. As opções de coleta e revisão estão em `.env.example`.
+Substitua a URL de exemplo por uma fonte autorizada e revise o material resultante. A coleta aceita somente HTTP(S), rejeita credenciais embutidas na URL, valida todos os endereços IPv4/IPv6 resolvidos e repete a validação em cada redirecionamento. Falhas de DNS são bloqueadas, e respostas são lidas por streaming até `WEB_MAX_DOWNLOAD_BYTES`, sem carregar antecipadamente um corpo maior que o limite. `WEB_FETCH_TIMEOUT_SECONDS` e `WEB_MAX_REDIRECTS` limitam cada tentativa.
+
+Por padrão, qualquer host que resolva exclusivamente para endereços públicos é elegível. Em uma implantação com fontes conhecidas, defina `WEB_ALLOWED_HOSTS` com hosts exatos separados por vírgula; use `*.exemplo.com` somente quando todos os subdomínios estiverem dentro da mesma fronteira de confiança. O curinga não autoriza o domínio raiz. URLs com tokens ou credenciais não devem ser usadas como fontes.
+
+A verificação DNS anterior à conexão reduz SSRF, mas não elimina sozinha DNS rebinding ou mudanças de rota entre resolução e conexão. Restrinja a saída do contêiner ou host no firewall/proxy aos destinos necessários e trate a allowlist como uma camada adicional. Os testes usam transporte e DNS simulados; não realizam sondas contra redes internas. As demais opções de coleta e revisão estão em `.env.example`.
