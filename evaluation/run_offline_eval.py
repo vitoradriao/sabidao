@@ -755,6 +755,8 @@ def _nested_value(payload: dict[str, Any], path: str) -> Any:
 def _evaluate_non_regression(
     holdout_summary: dict[str, Any] | None,
     baseline_config: dict[str, Any] | None,
+    *,
+    expected_holdout_cases: int | None = None,
 ) -> dict[str, Any] | None:
     rules = (baseline_config or {}).get("non_regression")
     if not isinstance(rules, list):
@@ -788,14 +790,37 @@ def _evaluate_non_regression(
 
     evaluated = [check for check in checks if check["passed"] is not None]
     failed = [check for check in evaluated if not check["passed"]]
+    missing_checks = [check["id"] for check in checks if check["passed"] is None]
+    holdout = holdout_summary or {}
+    actual_cases = holdout.get("sample_size", 0)
+    population = (holdout.get("outcomes") or {}).get("population", {})
+    missing_populations = [
+        name
+        for name in ("answerable", "ambiguous", "no_evidence")
+        if not population.get(name)
+    ]
+    coverage_complete = (
+        expected_holdout_cases is not None
+        and expected_holdout_cases > 0
+        and actual_cases == expected_holdout_cases
+        and not missing_populations
+    )
+    complete = (
+        coverage_complete
+        and bool(checks)
+        and not missing_checks
+        and len(checks) == len(rules)
+    )
     return {
-        "status": (
-            "not_evaluated"
-            if not evaluated
-            else "failed"
-            if failed
-            else "passed"
-        ),
+        "status": "failed" if failed else "passed" if complete else "incomplete",
+        "complete": complete,
+        "missing_checks": missing_checks,
+        "coverage": {
+            "expected_holdout_cases": expected_holdout_cases,
+            "evaluated_holdout_cases": actual_cases,
+            "missing_populations": missing_populations,
+            "complete": coverage_complete,
+        },
         "checks": checks,
         "critical_failures": [
             check["id"] for check in failed if check["critical"]
@@ -1049,6 +1074,7 @@ def run_evaluation(
         "non_regression": _evaluate_non_regression(
             split_summaries.get("holdout"),
             baseline_config,
+            expected_holdout_cases=sum(case.get("split") == "holdout" for case in dataset),
         ),
         "model_usage": _summarize_model_usage(results),
         "limitations": [
@@ -1150,6 +1176,11 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0, help="Optional max number of cases")
     parser.add_argument("--dry-run", action="store_true", help="Run without writing to Supabase")
     parser.add_argument(
+        "--gate",
+        action="store_true",
+        help="Exit nonzero unless the complete holdout passes all baseline criteria",
+    )
+    parser.add_argument(
         "--output-report",
         default="",
         help="Optional output JSON report path",
@@ -1207,6 +1238,8 @@ def main() -> int:
     if summary["non_regression"] is not None:
         print(f"Holdout non-regression: {summary['non_regression']['status']}")
     print(f"Report: {report_path}")
+    if args.gate and (summary["non_regression"] or {}).get("status") != "passed":
+        return 1
     return 0
 
 
