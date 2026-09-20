@@ -54,9 +54,34 @@ from rag import (
 logger = logging.getLogger(__name__)
 # O logger do httpx inclui a URL completa, que pode conter query strings sensiveis.
 logging.getLogger("httpx").setLevel(logging.WARNING)
+# O PyPDF2 pode registrar repr de objetos e excecoes com conteudo do documento.
+# A ingestao reporta falhas do parser pelo boundary sanitizado de ingest_file.
+logging.getLogger("PyPDF2").setLevel(logging.CRITICAL + 1)
 _last_embed_call_at = 0.0
 _http_client: httpx.Client | None = None
 _REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
+
+
+def _source_id(value: object) -> str:
+    """Cria um identificador estavel sem expor a origem nos logs."""
+    encoded = str(value).encode("utf-8", errors="ignore")
+    return hashlib.sha256(encoded).hexdigest()[:12]
+
+
+def _log_ingest_error(
+    source: object,
+    stage: str,
+    exc: BaseException,
+    *,
+    level: int = logging.ERROR,
+) -> None:
+    logger.log(
+        level,
+        "INGEST_ERROR source_id=%s stage=%s error_type=%s",
+        _source_id(source),
+        stage,
+        type(exc).__name__,
+    )
 
 
 class WebFetchError(ValueError):
@@ -96,30 +121,14 @@ def read_pdf(filepath: str) -> str:
     """
     from PyPDF2 import PdfReader
 
-    logger.info("Processando PDF com PyPDF2: %s", Path(filepath).name)
-    logger.info(
-        "Dica: para melhor qualidade, converta o PDF para .md via DeepSeek "
-        "e coloque na pasta de documentos."
-    )
+    reader = PdfReader(filepath)
+    pages = []
+    for page in reader.pages:
+        text = page.extract_text()
+        if text and text.strip():
+            pages.append(text.strip())
 
-    try:
-        reader = PdfReader(filepath)
-        pages = []
-        for page in reader.pages:
-            text = page.extract_text()
-            if text and text.strip():
-                pages.append(text.strip())
-
-        full_text = "\n\n".join(pages)
-
-        if not full_text.strip():
-            logger.warning("PyPDF2 retornou vazio para %s", filepath)
-
-        return full_text
-
-    except Exception as e:
-        logger.error("Erro ao ler PDF: %s", e)
-        raise
+    return "\n\n".join(pages)
 
 
 def read_pdf_bytes(data: bytes) -> str:
@@ -317,7 +326,7 @@ def chunk_text(text: str) -> list[str]:
     chunks = _get_splitter().split_text(text)
 
     if chunks:
-        logger.info("Splitting gerou %d chunks. Exemplo do 1o chunk:\n%s...", len(chunks), chunks[0][:100])
+        logger.info("Splitting gerou %d chunks.", len(chunks))
 
     return chunks
 
@@ -392,11 +401,7 @@ def chunk_text_with_context(text: str, doc_title: str = "") -> list[str]:
         else:
             contextualized.append(chunk)
 
-    logger.info(
-        "Splitting com contexto gerou %d chunks. Exemplo do 1o chunk:\n%s...",
-        len(contextualized),
-        contextualized[0][:150],
-    )
+    logger.info("Splitting com contexto gerou %d chunks.", len(contextualized))
     return contextualized
 
 
@@ -703,7 +708,14 @@ def _retry_delay_seconds(exc: Exception, attempt: int) -> float:
     return min(backoff + jitter, config.EMBEDDING_RETRY_MAX_SECONDS)
 
 
-def _embed_batch_with_retry(contents: list[str], filename: str, first_chunk_index: int) -> list[list[float]]:
+def _embed_batch_with_retry(
+    contents: list[str],
+    filename: str,
+    first_chunk_index: int,
+    *,
+    source_id: str | None = None,
+) -> list[list[float]]:
+    log_source_id = source_id or _source_id(filename)
     for attempt in range(1, config.EMBEDDING_MAX_RETRIES + 1):
         try:
             _wait_for_embed_slot()
@@ -714,8 +726,9 @@ def _embed_batch_with_retry(contents: list[str], filename: str, first_chunk_inde
 
             delay = _retry_delay_seconds(exc, attempt)
             logger.warning(
-                "Limite de embeddings em %s (chunk %s, tentativa %s/%s). Aguardando %.1fs...",
-                filename,
+                "INGEST_RETRY source_id=%s stage=embedding chunk_index=%s "
+                "attempt=%s/%s delay_seconds=%.1f",
+                log_source_id,
                 first_chunk_index,
                 attempt,
                 config.EMBEDDING_MAX_RETRIES,
@@ -735,8 +748,13 @@ def _load_failed_report(report_path: Path) -> dict:
             data = json.load(f)
             if isinstance(data, dict) and isinstance(data.get("files"), dict):
                 return data
-    except Exception as e:
-        logger.warning("Erro ao carregar relatorio de falhas (%s): %s", report_path, e)
+    except Exception as exc:
+        _log_ingest_error(
+            report_path,
+            "load_failure_report",
+            exc,
+            level=logging.WARNING,
+        )
 
     return {"updated_at": None, "files": {}}
 
@@ -875,7 +893,7 @@ def _validate_web_destination(url: str) -> None:
 
 
 def _url_source_id(url: str) -> str:
-    return hashlib.sha256(url.encode("utf-8", errors="ignore")).hexdigest()[:12]
+    return _source_id(_url_to_filename(url))
 
 
 
@@ -1141,7 +1159,7 @@ def _read_zendesk_article_api(url: str) -> tuple[str, str, str | None] | None:
             title = title_from_body or _title_from_url(url)
         if text.strip():
             logger.info(
-                "Fonte web source_id=%s lida via API Zendesk.",
+                "INGEST_SUCCESS source_id=%s stage=read_zendesk",
                 _url_source_id(url),
             )
             return text, "html", title
@@ -1186,7 +1204,7 @@ def read_url(url: str) -> tuple[str, str, str | None]:
     max_chars = max(1000, config.WEB_MAX_TEXT_CHARS)
     if len(text) > max_chars:
         logger.warning(
-            "Conteudo web source_id=%s truncado para %s caracteres.",
+            "INGEST_WARNING source_id=%s stage=read_web reason=truncated max_chars=%s",
             _url_source_id(url),
             max_chars,
         )
@@ -1197,21 +1215,28 @@ def read_url(url: str) -> tuple[str, str, str | None]:
 
 def _load_urls_from_file(filepath: str) -> list[str]:
     path = Path(filepath)
-    if not path.exists():
-        logger.warning("Arquivo de URLs nao encontrado: %s", path)
+    try:
+        if not path.exists():
+            logger.warning(
+                "INGEST_WARNING source_id=%s stage=load_url_file reason=not_found",
+                _source_id(path),
+            )
+            return []
+        urls: list[str] = []
+        with path.open("r", encoding="utf-8", errors="ignore") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                candidates = re.findall(r"https?://[^\s)\]>\"']+", line)
+                if not candidates and _is_url(line):
+                    candidates = [line]
+                for url in candidates:
+                    if _is_url(url):
+                        urls.append(url)
+    except OSError as exc:
+        _log_ingest_error(path, "load_url_file", exc, level=logging.WARNING)
         return []
-    urls: list[str] = []
-    with path.open("r", encoding="utf-8", errors="ignore") as f:
-        for raw_line in f:
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            candidates = re.findall(r"https?://[^\s)\]>\"']+", line)
-            if not candidates and _is_url(line):
-                candidates = [line]
-            for url in candidates:
-                if _is_url(url):
-                    urls.append(url)
     return list(dict.fromkeys(urls))
 
 
@@ -1326,6 +1351,7 @@ def _contextualize_chunks_batch(
     chunks_with_indices: list[tuple[int, str]],
     full_document: str,
     filename: str,
+    source_id: str | None = None,
 ) -> list[tuple[int, str]]:
     """
     Contextual Retrieval em batch (Anthropic): envia varios chunks numa unica
@@ -1339,6 +1365,7 @@ def _contextualize_chunks_batch(
     if not config.CONTEXTUAL_RETRIEVAL_ENABLED or not chunks_with_indices:
         return chunks_with_indices
 
+    log_source_id = source_id or _source_id(filename)
     truncated_doc = full_document[:config.CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS]
 
     # Montar a lista de chunks numerados no prompt
@@ -1385,8 +1412,9 @@ def _contextualize_chunks_batch(
 
         if not contexts_map:
             logger.warning(
-                "Contextual Retrieval batch para %s: resposta sem contextos aproveitaveis. Usando chunks originais.",
-                filename,
+                "INGEST_FALLBACK source_id=%s stage=contextualize "
+                "reason=no_usable_context fallback=original_chunks",
+                log_source_id,
             )
             return chunks_with_indices
 
@@ -1402,32 +1430,37 @@ def _contextualize_chunks_batch(
         contextualized_count = sum(1 for local_idx in range(len(chunks_with_indices)) if contexts_map.get(local_idx))
         if contextualized_count < len(chunks_with_indices):
             logger.warning(
-                "Contextual Retrieval batch para %s: esperado=%d, recebido=%d, aplicado=%d (fallback parcial).",
-                filename,
+                "INGEST_FALLBACK source_id=%s stage=contextualize "
+                "expected=%d received=%d applied=%d fallback=partial",
+                log_source_id,
                 len(chunks_with_indices),
                 len(contexts_map),
                 contextualized_count,
             )
 
         logger.info(
-            "Contextual Retrieval: %d/%d chunks contextualizados para %s",
+            "INGEST_SUCCESS source_id=%s stage=contextualize applied=%d total=%d",
+            log_source_id,
             contextualized_count,
             len(chunks_with_indices),
-            filename,
         )
         return result
 
-    except json.JSONDecodeError as e:
+    except json.JSONDecodeError as exc:
         logger.warning(
-            "Contextual Retrieval batch para %s: JSON invalido: %s. Raw: %.200r. Usando chunks originais.",
-            filename, e, raw_text,
+            "INGEST_FALLBACK source_id=%s stage=contextualize error_type=%s "
+            "fallback=original_chunks",
+            log_source_id,
+            type(exc).__name__,
         )
         return chunks_with_indices
 
-    except Exception as e:
+    except Exception as exc:
         logger.warning(
-            "Contextual Retrieval batch para %s falhou: %s. Usando chunks originais.",
-            filename, e,
+            "INGEST_FALLBACK source_id=%s stage=contextualize error_type=%s "
+            "fallback=original_chunks",
+            log_source_id,
+            type(exc).__name__,
         )
         return chunks_with_indices
 
@@ -1511,9 +1544,10 @@ def _document_sections_supported() -> bool:
     except Exception as exc:
         _document_sections_available = False
         logger.warning(
-            "Camada completa de document_sections indisponivel (%s). "
-            "Gravando contexto analitico apenas em metadata JSONB.",
-            exc,
+            "INGEST_FALLBACK source_id=%s stage=check_document_sections "
+            "error_type=%s fallback=metadata_jsonb",
+            _source_id("document_sections"),
+            type(exc).__name__,
         )
     return _document_sections_available
 
@@ -1521,6 +1555,8 @@ def _document_sections_supported() -> bool:
 def _prepare_section_retrieval_data(
     title: str,
     sections: list[AnalyticalSection],
+    *,
+    source_id: str | None = None,
 ) -> list[tuple[AnalyticalSection, str, list[float]]]:
     persisted_sections = [section for section in sections if section.section_id]
     if persisted_sections:
@@ -1537,6 +1573,7 @@ def _prepare_section_retrieval_data(
             payloads,
             filename=f"{title}#sections",
             first_chunk_index=batch_start,
+            source_id=source_id,
         )
         if len(embeddings) != len(payloads):
             raise RuntimeError(
@@ -1578,6 +1615,7 @@ def _prepare_document_section_rows(
     *,
     content_hash: str,
     processing_hash: str,
+    source_id: str | None = None,
 ) -> list[dict]:
     if not _document_sections_supported():
         return []
@@ -1585,7 +1623,11 @@ def _prepare_document_section_rows(
     for section in sections:
         section.section_id = str(uuid4())
 
-    prepared = _prepare_section_retrieval_data(title, sections)
+    prepared = _prepare_section_retrieval_data(
+        title,
+        sections,
+        source_id=source_id,
+    )
     return [
         {
             "id": section.section_id,
@@ -1785,7 +1827,10 @@ def _replace_document_atomically(
 
         if existing:
             old_doc_id = existing[0]["id"]
-            logger.info("Substituindo documento anterior de forma atomica: %s", filename)
+            logger.info(
+                "INGEST_STAGE source_id=%s stage=atomic_replace",
+                _source_id(filename),
+            )
             supabase_delete("documents", "id", old_doc_id, connection=connection)
 
         supabase_insert("documents", document_row, connection=connection)
@@ -1816,7 +1861,9 @@ def _prepare_chunk_rows(
     chunk_items: list[tuple[int, str, str, AnalyticalSection]],
     content_hash: str = "",
     processing_hash: str = "",
+    source_id: str | None = None,
 ) -> tuple[list[dict], list[int]]:
+    log_source_id = source_id or _source_id(filename)
     if chunk_items:
         ensure_embedding_index_identity("corpus")
     rows: list[dict] = []
@@ -1844,6 +1891,7 @@ def _prepare_chunk_rows(
                 chunks_with_indices=ctx_pairs,
                 full_document=text,
                 filename=filename,
+                source_id=log_source_id,
             )
             by_index = {
                 chunk_index: (clean_storage, section)
@@ -1868,7 +1916,12 @@ def _prepare_chunk_rows(
         sections_for_batch = [item[3] for item in clean_batch]
 
         try:
-            embeddings = _embed_batch_with_retry(retrieval_contents, filename, indices[0])
+            embeddings = _embed_batch_with_retry(
+                retrieval_contents,
+                filename,
+                indices[0],
+                source_id=log_source_id,
+            )
             if len(embeddings) != len(clean_batch):
                 raise RuntimeError(
                     f"embeddings incompletos: esperado {len(clean_batch)}, recebido {len(embeddings)}"
@@ -1899,10 +1952,11 @@ def _prepare_chunk_rows(
             rows.extend(batch_rows)
         except Exception as batch_error:
             logger.error(
-                "Erro no lote de %s (chunk inicial %s): %s. Fallback chunk a chunk...",
-                filename,
+                "INGEST_FALLBACK source_id=%s stage=embedding_batch "
+                "error_type=%s first_chunk_index=%s fallback=individual_chunks",
+                log_source_id,
+                type(batch_error).__name__,
                 batch_start,
-                batch_error,
             )
             for chunk_index, storage_content, retrieval_content, section in clean_batch:
                 try:
@@ -1910,6 +1964,7 @@ def _prepare_chunk_rows(
                         [retrieval_content],
                         filename,
                         chunk_index,
+                        source_id=log_source_id,
                     )[0]
                     rows.append(
                         _build_chunk_row(
@@ -1930,7 +1985,13 @@ def _prepare_chunk_rows(
                     )
                 except Exception as chunk_error:
                     failed_chunks.append(chunk_index)
-                    logger.error("Erro no chunk %s de %s: %s", chunk_index, filename, chunk_error)
+                    logger.error(
+                        "INGEST_ERROR source_id=%s stage=embedding_chunk "
+                        "error_type=%s chunk_index=%s",
+                        log_source_id,
+                        type(chunk_error).__name__,
+                        chunk_index,
+                    )
 
     return rows, sorted(set(failed_chunks))
 
@@ -1945,8 +2006,12 @@ def _ingest_text_source(
     source_type: str,
     force: bool,
 ) -> dict:
+    source_id = _source_id(filename)
     if not text.strip():
-        logger.warning("Fonte vazia: %s", filename)
+        logger.warning(
+            "INGEST_WARNING source_id=%s stage=parse reason=empty_source",
+            source_id,
+        )
         return {
             "filename": filename,
             "chunks_count": 0,
@@ -1954,34 +2019,47 @@ def _ingest_text_source(
             "error": "fonte vazia",
         }
 
-    module = _infer_module(filename, title, source, doc_type)
-    sections = _split_markdown_sections(
-        text,
-        doc_title=title,
-        base_module=module,
-        doc_type=doc_type,
-    )
-    chunk_items: list[tuple[int, str, str, AnalyticalSection]] = []
-    for section in sections:
-        section_chunks = _get_splitter().split_text(section.content)
-        if not section_chunks and section.content.strip():
-            section_chunks = [section.content.strip()]
-        for raw_chunk in section_chunks:
-            storage_content = raw_chunk
-            retrieval_content = raw_chunk
-            if section.semantic_context:
-                retrieval_content = f"{section.semantic_context}\n\n{raw_chunk}"
-            chunk_items.append((len(chunk_items), storage_content, retrieval_content, section))
+    try:
+        module = _infer_module(filename, title, source, doc_type)
+        sections = _split_markdown_sections(
+            text,
+            doc_title=title,
+            base_module=module,
+            doc_type=doc_type,
+        )
+        chunk_items: list[tuple[int, str, str, AnalyticalSection]] = []
+        for section in sections:
+            section_chunks = _get_splitter().split_text(section.content)
+            if not section_chunks and section.content.strip():
+                section_chunks = [section.content.strip()]
+            for raw_chunk in section_chunks:
+                storage_content = raw_chunk
+                retrieval_content = raw_chunk
+                if section.semantic_context:
+                    retrieval_content = f"{section.semantic_context}\n\n{raw_chunk}"
+                chunk_items.append(
+                    (len(chunk_items), storage_content, retrieval_content, section)
+                )
+    except Exception as exc:
+        _log_ingest_error(filename, "parse", exc)
+        raise
 
     logger.info(
-        "%s chunks gerados para %s em %s secoes analiticas",
+        "INGEST_STAGE source_id=%s stage=parse chunks=%s sections=%s",
+        source_id,
         len(chunk_items),
-        filename,
         len(sections),
     )
-    logger.info("Modulo inferido para %s: %s", filename, module)
+    logger.info(
+        "INGEST_STAGE source_id=%s stage=classify module=%s",
+        source_id,
+        module,
+    )
     if not chunk_items:
-        logger.error("Nenhum chunk valido gerado para %s.", filename)
+        logger.error(
+            "INGEST_ERROR source_id=%s stage=parse reason=no_valid_chunks",
+            source_id,
+        )
         return {
             "filename": filename,
             "chunks_count": 0,
@@ -2000,27 +2078,35 @@ def _ingest_text_source(
         sections=sections,
         chunk_items=chunk_items,
     )
-    existing = supabase_select(
-        "documents",
-        select="id,processing_hash",
-        filters={"filename": f"eq.{filename}"},
-    )
+    try:
+        existing = supabase_select(
+            "documents",
+            select="id,processing_hash",
+            filters={"filename": f"eq.{filename}"},
+        )
+    except Exception as exc:
+        _log_ingest_error(filename, "lookup_document", exc)
+        raise
     if (
         existing
         and not force
         and existing[0].get("processing_hash") == processing_digest
     ):
-        supabase_update(
-            "documents",
-            {
-                "title": title,
-                "source": source,
-                "doc_type": doc_type,
-                "content_hash": content_digest,
-                "priority": doc_priority,
-            },
-            {"id": f"eq.{existing[0]['id']}"},
-        )
+        try:
+            supabase_update(
+                "documents",
+                {
+                    "title": title,
+                    "source": source,
+                    "doc_type": doc_type,
+                    "content_hash": content_digest,
+                    "priority": doc_priority,
+                },
+                {"id": f"eq.{existing[0]['id']}"},
+            )
+        except Exception as exc:
+            _log_ingest_error(filename, "update_document_metadata", exc)
+            raise
         _save_failed_report_entry(
             filename=filename,
             source=source,
@@ -2028,7 +2114,10 @@ def _ingest_text_source(
             failed_chunks=[],
             source_type=source_type,
         )
-        logger.info("Pulando %s: conteudo e preprocessamento nao mudaram.", filename)
+        logger.info(
+            "INGEST_SUCCESS source_id=%s stage=skip reason=unchanged",
+            source_id,
+        )
         return {
             "filename": filename,
             "chunks_count": 0,
@@ -2044,7 +2133,13 @@ def _ingest_text_source(
     section_rows: list[dict] = []
     chunk_rows: list[dict] = []
     failed_chunks: list[int] = []
-    reused_document = None if force else _find_reusable_document(processing_digest, filename)
+    try:
+        reused_document = (
+            None if force else _find_reusable_document(processing_digest, filename)
+        )
+    except Exception as exc:
+        _log_ingest_error(filename, "find_reusable_document", exc)
+        raise
 
     try:
         if reused_document:
@@ -2061,16 +2156,17 @@ def _ingest_text_source(
                 processing_hash=processing_digest,
             )
             logger.info(
-                "Reaproveitando embeddings de %s para a origem %s.",
-                reused_document.get("filename"),
-                filename,
+                "INGEST_STAGE source_id=%s stage=reuse_embeddings reused_source_id=%s",
+                source_id,
+                _source_id(reused_document.get("filename")),
             )
         else:
             if config.CONTEXTUAL_RETRIEVAL_ENABLED:
                 model_cfg = get_model_config()
                 logger.info(
-                    "Contextual Retrieval ATIVO para %s (%d chunks serao enriquecidos via %s/%s)",
-                    filename,
+                    "INGEST_STAGE source_id=%s stage=contextualize chunks=%d "
+                    "provider=%s model=%s",
+                    source_id,
                     len(chunk_items),
                     model_cfg.get("llm_provider", "gemini"),
                     model_cfg.get("contextual_model", config.CONTEXTUAL_RETRIEVAL_MODEL),
@@ -2081,6 +2177,7 @@ def _ingest_text_source(
                 sections,
                 content_hash=content_digest,
                 processing_hash=processing_digest,
+                source_id=source_id,
             )
             chunk_rows, failed_chunks = _prepare_chunk_rows(
                 doc_id=doc_id,
@@ -2094,12 +2191,14 @@ def _ingest_text_source(
                 content_hash=content_digest,
                 processing_hash=processing_digest,
                 chunk_items=chunk_items,
+                source_id=source_id,
             )
     except Exception as preparation_error:
         logger.error(
-            "Falha ao preparar reingestao de %s; versao anterior preservada: %s",
-            filename,
-            preparation_error,
+            "INGEST_ERROR source_id=%s stage=prepare error_type=%s "
+            "previous_version=preserved",
+            source_id,
+            type(preparation_error).__name__,
         )
         _save_failed_report_entry(
             filename=filename,
@@ -2120,8 +2219,9 @@ def _ingest_text_source(
     failed_chunks = sorted(set(failed_chunks) | set(missing_indices))
     if failed_chunks or len(chunk_rows) != len(chunk_items):
         logger.error(
-            "Preparacao incompleta de %s (%s/%s chunks); versao anterior preservada.",
-            filename,
+            "INGEST_ERROR source_id=%s stage=prepare reason=incomplete "
+            "prepared_chunks=%s total_chunks=%s previous_version=preserved",
+            source_id,
             len(chunk_rows),
             len(chunk_items),
         )
@@ -2160,9 +2260,10 @@ def _ingest_text_source(
         )
     except Exception as persistence_error:
         logger.error(
-            "Falha ao trocar %s; transacao revertida e versao anterior preservada: %s",
-            filename,
-            persistence_error,
+            "INGEST_ERROR source_id=%s stage=persist error_type=%s "
+            "transaction=rolled_back previous_version=preserved",
+            source_id,
+            type(persistence_error).__name__,
         )
         _save_failed_report_entry(
             filename=filename,
@@ -2180,8 +2281,8 @@ def _ingest_text_source(
 
     if not replaced:
         logger.info(
-            "Pulando %s: outro processo concluiu a ingestao enquanto esta fonte era preparada.",
-            filename,
+            "INGEST_SUCCESS source_id=%s stage=skip reason=concurrent_completion",
+            source_id,
         )
         return {
             "filename": filename,
@@ -2197,7 +2298,11 @@ def _ingest_text_source(
         failed_chunks=[],
         source_type=source_type,
     )
-    logger.info("%s indexado sem pendencias", filename)
+    logger.info(
+        "INGEST_SUCCESS source_id=%s stage=complete chunks=%s",
+        source_id,
+        len(chunk_rows),
+    )
 
     return {
         "filename": filename,
@@ -2221,9 +2326,13 @@ def ingest_file(
     ext = path.suffix.lower()
     docs_root_path = Path(docs_root) if docs_root else None
     document_filename = filename_override or _path_to_document_filename(path, docs_root_path)
+    source_id = _source_id(document_filename)
 
     if ext not in READERS:
-        logger.warning("Formato nao suportado: %s (%s)", ext, path.name)
+        logger.warning(
+            "INGEST_WARNING source_id=%s stage=read reason=unsupported_format",
+            source_id,
+        )
         return {
             "filename": document_filename,
             "chunks_count": 0,
@@ -2231,15 +2340,22 @@ def ingest_file(
             "error": "formato nao suportado",
         }
 
-    logger.info("Lendo arquivo: %s", path.name)
+    logger.info("INGEST_STAGE source_id=%s stage=read", source_id)
     try:
         text = READERS[ext](filepath)
-    except Exception as e:
-        logger.error("Erro lendo %s: %s", path.name, e)
-        return {"filename": document_filename, "error": str(e)}
+    except Exception as exc:
+        _log_ingest_error(document_filename, "read", exc)
+        return {
+            "filename": document_filename,
+            "error": "falha ao ler arquivo",
+            "error_type": type(exc).__name__,
+        }
 
     if not text.strip():
-        logger.warning("Arquivo vazio: %s", path.name)
+        logger.warning(
+            "INGEST_WARNING source_id=%s stage=read reason=empty_file",
+            source_id,
+        )
         return {
             "filename": document_filename,
             "chunks_count": 0,
@@ -2259,7 +2375,10 @@ def ingest_file(
 
 
 def ingest_url(url: str, force: bool = False) -> dict:
-    logger.info("Lendo fonte web source_id=%s", _url_source_id(url))
+    logger.info(
+        "INGEST_STAGE source_id=%s stage=read_web",
+        _url_source_id(url),
+    )
     text, doc_type, page_title = read_url(url)
 
     filename = _url_to_filename(url)
@@ -2287,7 +2406,10 @@ def _collect_local_files(
     if not docs_path.exists():
         if create_if_missing:
             docs_path.mkdir(parents=True, exist_ok=True)
-            logger.info("Diretorio criado: %s", docs_path)
+            logger.info(
+                "INGEST_STAGE source_id=%s stage=create_docs_directory",
+                _source_id(docs_path),
+            )
             logger.info("Coloque seus documentos nele e execute novamente")
         return docs_path, []
 
@@ -2344,17 +2466,18 @@ def ingest_directory(
 
     results = []
     for filepath in sorted(file_sources):
+        document_filename = _path_to_document_filename(filepath, docs_path)
         try:
             results.append(
                 ingest_file(
                     str(filepath),
                     force=force,
-                    filename_override=_path_to_document_filename(filepath, docs_path),
+                    filename_override=document_filename,
                     docs_root=str(docs_path),
                 )
             )
         except Exception as exc:
-            logger.error("Erro ao processar %s: %s", filepath.name, exc)
+            _log_ingest_error(document_filename, "ingest", exc)
 
     for url in url_sources:
         try:

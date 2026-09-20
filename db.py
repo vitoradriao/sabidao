@@ -185,8 +185,11 @@ def close_connection() -> None:
         return
     try:
         _pool.close()
-    except Exception:
-        logger.debug("Erro ao fechar pool do PostgreSQL.", exc_info=True)
+    except Exception as exc:
+        logger.debug(
+            "DB_CLEANUP_ERROR stage=close_pool error_type=%s",
+            type(exc).__name__,
+        )
     finally:
         _pool = None
 
@@ -212,8 +215,11 @@ def _acquire_connection(connection=None, *, autocommit: bool = True):
     finally:
         try:
             direct_connection.close()
-        except Exception:
-            logger.debug("Erro ao fechar conexao direta com PostgreSQL.", exc_info=True)
+        except Exception as exc:
+            logger.debug(
+                "DB_CLEANUP_ERROR stage=close_connection error_type=%s",
+                type(exc).__name__,
+            )
 
 
 @contextmanager
@@ -364,8 +370,11 @@ def _fetch_rows(
         except Exception:
             try:
                 conn.rollback()
-            except Exception:
-                logger.debug("Rollback falhou apos erro de query.", exc_info=True)
+            except Exception as exc:
+                logger.debug(
+                    "DB_CLEANUP_ERROR stage=rollback error_type=%s",
+                    type(exc).__name__,
+                )
             raise
 
 
