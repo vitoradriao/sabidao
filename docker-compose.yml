@@ -6,9 +6,9 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-bot_maxima}
       POSTGRES_USER: ${POSTGRES_USER:-bot_maxima}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bot_maxima}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./sql:/opt/bot-maxima/sql:ro

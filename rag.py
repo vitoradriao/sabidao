@@ -1109,8 +1109,11 @@ def _close_http_client():
     if _http_client is not None:
         try:
             _http_client.close()
-        except Exception:
-            logger.debug("Erro ao fechar http client no shutdown", exc_info=True)
+        except Exception as exc:
+            logger.debug(
+                "Erro ao fechar http client no shutdown (%s).",
+                type(exc).__name__,
+            )
         _http_client = None
 
 
@@ -1500,12 +1503,34 @@ def _summarize_chunks_for_trace(chunks: list[dict]) -> dict[str, Any]:
     }
 
 
+def _sanitize_trace_for_log(trace: dict[str, Any]) -> dict[str, Any]:
+    """Mantem metadados operacionais sem nomes de fontes ou conteudo consultado."""
+    safe_trace = {
+        key: value
+        for key, value in trace.items()
+        if key not in {
+            "retrieved_sources",
+            "citations",
+            "cited_files",
+            "grounding_errors",
+        }
+    }
+    safe_trace["retrieved_source_count"] = len(trace.get("retrieved_sources", []))
+    safe_trace["citation_count"] = len(trace.get("citations", []))
+    return safe_trace
+
+
 def _log_ask_trace(trace: dict[str, Any]) -> None:
     trace["model_usage"] = _summarize_model_calls(trace.get("model_calls", []))
+    safe_trace = _sanitize_trace_for_log(trace)
     try:
-        logger.info("ASK_TRACE %s", json.dumps(trace, ensure_ascii=False))
+        logger.info("ASK_TRACE %s", json.dumps(safe_trace, ensure_ascii=False))
     except Exception:
-        logger.info("ASK_TRACE %s", trace)
+        logger.info(
+            "ASK_TRACE request_id=%s response_state=%s",
+            trace.get("request_id"),
+            trace.get("response_state"),
+        )
 
 
 def _set_response_state(
@@ -1682,10 +1707,9 @@ def _openai_create_embeddings(contents: list[str], model: str) -> list[list[floa
     )
     if resp.status_code >= 400:
         logger.error(
-            "OpenAI EMBEDDINGS erro %s (model=%s): %s",
+            "OpenAI EMBEDDINGS erro %s (model=%s).",
             resp.status_code,
             model,
-            resp.text[:2000],
         )
     resp.raise_for_status()
     data = resp.json()
@@ -1827,7 +1851,7 @@ def _get_cached_query_embedding(query: str) -> list[float]:
     cached = _query_embedding_cache.get(cache_key)
     external_calls = _request_external_calls.get()
     if cached is not None:
-        logger.debug("Cache hit para query embedding: '%s'", query[:60])
+        logger.debug("Cache hit para query embedding query_len=%d", len(query))
         if external_calls is not None:
             external_calls.append(
                 {
@@ -2050,7 +2074,7 @@ def _load_full_context_docs() -> str:
     global _full_context_cache
     docs_dir = Path(config.DOCS_DIR)
     if not docs_dir.exists() or not docs_dir.is_dir():
-        logger.warning("FULL_CONTEXT: Diretorio de documentos nao encontrado: %s", docs_dir)
+        logger.warning("FULL_CONTEXT: diretorio de documentos nao encontrado.")
         return ""
 
     allowed_exts = {ext.strip().lower() for ext in config.FULL_CONTEXT_EXTENSIONS}
@@ -2060,7 +2084,7 @@ def _load_full_context_docs() -> str:
     )
 
     if not doc_files:
-        logger.warning("FULL_CONTEXT: Nenhum documento encontrado em %s", docs_dir)
+        logger.warning("FULL_CONTEXT: nenhum documento encontrado.")
         return ""
 
     current_mtime_max = max(f.stat().st_mtime for f in doc_files)
@@ -2077,7 +2101,10 @@ def _load_full_context_docs() -> str:
         try:
             content = doc_file.read_text(encoding="utf-8", errors="ignore").strip()
         except Exception as e:
-            logger.warning("FULL_CONTEXT: Erro ao ler %s: %s", doc_file.name, e)
+            logger.warning(
+                "FULL_CONTEXT: erro de leitura (%s).",
+                type(e).__name__,
+            )
             continue
 
         if not content:
@@ -2087,13 +2114,11 @@ def _load_full_context_docs() -> str:
             remaining = max_chars - total_chars
             if remaining > 1000:
                 content = content[:remaining]
-                logger.warning(
-                    "FULL_CONTEXT: Documento %s truncado para caber no limite.", doc_file.name
-                )
+                logger.warning("FULL_CONTEXT: documento truncado para caber no limite.")
             else:
                 logger.warning(
-                    "FULL_CONTEXT: Limite de %d chars atingido. %s ignorado.",
-                    max_chars, doc_file.name,
+                    "FULL_CONTEXT: limite de %d chars atingido; documento ignorado.",
+                    max_chars,
                 )
                 break
 
@@ -2274,7 +2299,7 @@ def search_relevant_sections(
                 "RPC hybrid_match_sections nao encontrada; seguindo com retrieval direto por chunks."
             )
             return []
-        logger.warning("Busca por secoes falhou: %s", e)
+        logger.warning("Busca por secoes falhou (%s).", type(e).__name__)
         return []
 
     if not result:
@@ -2288,9 +2313,9 @@ def search_relevant_sections(
         ranking_mode="retrieval",
     )
     logger.info(
-        "Busca por secoes: %d secoes candidatas para '%s'",
+        "Busca por secoes: %d secoes candidatas query_len=%d",
         len(processed),
-        query[:80],
+        len(query),
     )
     return processed
 
@@ -2352,20 +2377,21 @@ def search_similar_chunks(
             )
         if result:
             logger.info(
-                "Busca hibrida: %d chunks encontrados para '%s'",
+                "Busca hibrida: %d chunks encontrados query_len=%d",
                 len(result),
-                query[:80],
+                len(query),
             )
             return result
         logger.info(
-            "Busca hibrida sem chunks acima do piso minimo para '%s'",
-            query[:80],
+            "Busca hibrida sem chunks acima do piso minimo query_len=%d",
+            len(query),
         )
     except Exception as e:
         if isinstance(e, RequestDeadlineExceeded):
             raise
         logger.warning(
-            "Busca hibrida falhou (%s), usando busca vetorial pura.", e
+            "Busca hibrida falhou (%s), usando busca vetorial pura.",
+            type(e).__name__,
         )
 
     # Fallback: busca vetorial pura (match_chunks original)
@@ -2398,14 +2424,14 @@ def search_similar_chunks(
 
     if result:
         logger.info(
-            "Busca vetorial pura: %d chunks encontrados para '%s'",
+            "Busca vetorial pura: %d chunks encontrados query_len=%d",
             len(result),
-            query[:80],
+            len(query),
         )
     else:
         logger.warning(
-            "Nenhum chunk encontrado para '%s' (threshold=%.2f)",
-            query[:80],
+            "Nenhum chunk encontrado query_len=%d threshold=%.2f",
+            len(query),
             threshold,
         )
 
@@ -2483,7 +2509,7 @@ def _search_feedback_memory_chunks(
                 function_name,
             )
             return []
-        logger.warning("Erro ao buscar feedback chunks: %s", e)
+        logger.warning("Erro ao buscar feedback chunks (%s).", type(e).__name__)
         return []
 
     source_kind = "feedback_global" if scope_level == "global" else "feedback_scoped"
@@ -2677,8 +2703,8 @@ def retrieve_chunks_with_feedback(
                 raise
             challenger_error = type(exc).__name__
             logger.warning(
-                "Challenger global falhou; mantendo candidatos filtrados: %s",
-                exc,
+                "Challenger global falhou (%s); mantendo candidatos filtrados.",
+                type(exc).__name__,
             )
         finally:
             challenger_latency_ms = int(
@@ -3371,8 +3397,9 @@ def _apply_grounding_regeneration(
             source_display_map=source_display_map,
         )
         logger.info(
-            "Grounding inicial com erros nao-criticos; mantendo resposta sem regeneracao: %s",
-            " | ".join(errors),
+            "Grounding inicial com erros nao-criticos; mantendo resposta sem regeneracao "
+            "error_count=%d",
+            len(errors),
         )
         return normalized_answer, errors, cited_sources, 0
 
@@ -3425,8 +3452,8 @@ def _apply_grounding_regeneration(
         return _build_abstain_response(question), revised_errors, set(), regeneration_attempts
 
     logger.info(
-        "Grounding com erros nao-criticos; mantendo resposta sem abstencao: %s",
-        " | ".join(revised_errors),
+        "Grounding com erros nao-criticos; mantendo resposta sem abstencao error_count=%d",
+        len(revised_errors),
     )
     best_answer = (revised_answer or "").strip() or (answer or "").strip()
     best_answer, revised_citations = _enforce_sources_section_only(
@@ -3963,12 +3990,15 @@ def log_knowledge_gap(query: str, max_similarity: float, platform: str = "discor
         try:
             _fallback_log_knowledge_gap(query, max_similarity, platform)
             logger.info(
-                "Knowledge gap registrado via fallback: '%s' (sim=%.2f)",
-                query[:80],
+                "Knowledge gap registrado via fallback query_len=%d sim=%.2f",
+                len(query),
                 _safe_similarity(max_similarity),
             )
         except Exception as e:
-            logger.warning("Erro ao registrar knowledge gap via fallback: %s", e)
+            logger.warning(
+                "Erro ao registrar knowledge gap via fallback (%s).",
+                type(e).__name__,
+            )
         return
 
     try:
@@ -3981,7 +4011,11 @@ def log_knowledge_gap(query: str, max_similarity: float, platform: str = "discor
             },
         )
         _knowledge_gap_rpc_available = True
-        logger.info("Knowledge gap registrado: '%s' (sim=%.2f)", query[:80], max_similarity)
+        logger.info(
+            "Knowledge gap registrado query_len=%d sim=%.2f",
+            len(query),
+            max_similarity,
+        )
     except Exception as e:
         if _is_missing_rpc_function(e, "upsert_knowledge_gap"):
             if _knowledge_gap_rpc_available is not False:
@@ -3992,18 +4026,21 @@ def log_knowledge_gap(query: str, max_similarity: float, platform: str = "discor
             try:
                 _fallback_log_knowledge_gap(query, max_similarity, platform)
                 logger.info(
-                    "Knowledge gap registrado via fallback: '%s' (sim=%.2f)",
-                    query[:80],
+                    "Knowledge gap registrado via fallback query_len=%d sim=%.2f",
+                    len(query),
                     _safe_similarity(max_similarity),
                 )
             except Exception as fallback_error:
                 logger.warning(
-                    "Erro ao registrar knowledge gap via fallback: %s",
-                    fallback_error,
+                    "Erro ao registrar knowledge gap via fallback (%s).",
+                    type(fallback_error).__name__,
                 )
             return
         # Nao propagar erro: logging de gaps nao deve afetar a resposta ao usuario
-        logger.warning("Erro ao registrar knowledge gap: %s", e)
+        logger.warning(
+            "Erro ao registrar knowledge gap (%s).",
+            type(e).__name__,
+        )
 
 
 def get_top_knowledge_gaps(limit: int = 10) -> list[dict]:
@@ -4014,7 +4051,10 @@ def get_top_knowledge_gaps(limit: int = 10) -> list[dict]:
         try:
             return _fallback_get_top_knowledge_gaps(limit)
         except Exception as e:
-            logger.error("Erro ao buscar knowledge gaps via fallback: %s", e)
+            logger.error(
+                "Erro ao buscar knowledge gaps via fallback (%s).",
+                type(e).__name__,
+            )
             return []
 
     try:
@@ -4032,11 +4072,11 @@ def get_top_knowledge_gaps(limit: int = 10) -> list[dict]:
                 return _fallback_get_top_knowledge_gaps(limit)
             except Exception as fallback_error:
                 logger.error(
-                    "Erro ao buscar knowledge gaps via fallback: %s",
-                    fallback_error,
+                    "Erro ao buscar knowledge gaps via fallback (%s).",
+                    type(fallback_error).__name__,
                 )
                 return []
-        logger.error("Erro ao buscar knowledge gaps: %s", e)
+        logger.error("Erro ao buscar knowledge gaps (%s).", type(e).__name__)
         return []
 
 
@@ -4126,8 +4166,11 @@ def submit_feedback_item(
                 "payload": {"platform": platform, "query_id": query_id},
             },
         )
-    except Exception:
-        logger.warning("Nao foi possivel registrar evento SUBMITTED.", exc_info=True)
+    except Exception as exc:
+        logger.warning(
+            "Nao foi possivel registrar evento SUBMITTED (%s).",
+            type(exc).__name__,
+        )
     return feedback_id
 
 
@@ -4209,8 +4252,11 @@ def approve_feedback_item(feedback_id: str, reviewer: str | None = None, note: s
                 "note": note,
             },
         )
-    except Exception:
-        logger.warning("Falha ao registrar evento APPROVED.", exc_info=True)
+    except Exception as exc:
+        logger.warning(
+            "Falha ao registrar evento APPROVED (%s).",
+            type(exc).__name__,
+        )
 
 
 def reject_feedback_item(feedback_id: str, reviewer: str | None = None, note: str | None = None) -> None:
@@ -4245,8 +4291,11 @@ def reject_feedback_item(feedback_id: str, reviewer: str | None = None, note: st
                 "note": note,
             },
         )
-    except Exception:
-        logger.warning("Falha ao registrar evento REJECTED.", exc_info=True)
+    except Exception as exc:
+        logger.warning(
+            "Falha ao registrar evento REJECTED (%s).",
+            type(exc).__name__,
+        )
 
 
 def _feedback_chunk_content(item: dict) -> str:
@@ -4341,8 +4390,11 @@ def publish_feedback_item(
                 "payload": {"feedback_chunk_id": chunk_id},
             },
         )
-    except Exception:
-        logger.warning("Falha ao registrar evento PUBLISHED.", exc_info=True)
+    except Exception as exc:
+        logger.warning(
+            "Falha ao registrar evento PUBLISHED (%s).",
+            type(exc).__name__,
+        )
     return chunk_id
 
 
@@ -4366,7 +4418,10 @@ def log_documentation_update_task(
         return
     except Exception as e:
         if not _is_missing_rpc_function(e, "create_documentation_update_task"):
-            logger.warning("Erro ao registrar documentation_update_task via RPC: %s", e)
+            logger.warning(
+                "Erro ao registrar documentation_update_task via RPC (%s).",
+                type(e).__name__,
+            )
             return
         logger.warning(
             "RPC create_documentation_update_task indisponivel; usando fallback por tabela."
@@ -4386,6 +4441,6 @@ def log_documentation_update_task(
         )
     except Exception as fallback_error:
         logger.warning(
-            "Erro ao registrar documentation_update_task via fallback: %s",
-            fallback_error,
+            "Erro ao registrar documentation_update_task via fallback (%s).",
+            type(fallback_error).__name__,
         )

@@ -14,7 +14,9 @@ test -f .env || cp .env.example .env
 
 No Windows, `setup_maquina.bat` também cria esse arquivo sem substituir uma configuração existente.
 
-Preencha `DISCORD_TOKEN`, as credenciais do provedor de IA e a conexão do banco. Dentro do Compose, `DATABASE_URL` deve apontar para `postgres`. Se alterar `POSTGRES_DB`, `POSTGRES_USER` ou `POSTGRES_PASSWORD`, ajuste a conexão do bot para os mesmos valores.
+Preencha `DISCORD_TOKEN`, as credenciais do provedor de IA e a conexão do banco. O Compose exige `POSTGRES_PASSWORD`; o valor ilustrativo de `.env.example` serve somente para desenvolvimento local e deve ser substituído por uma senha exclusiva em cada implantação. Dentro do Compose, `DATABASE_URL` deve apontar para `postgres`. Se alterar `POSTGRES_DB`, `POSTGRES_USER` ou `POSTGRES_PASSWORD`, ajuste a conexão do bot para os mesmos valores.
+
+Por padrão, a porta do PostgreSQL é publicada somente em `127.0.0.1:5432`. Isso permite o acesso legítimo por ferramentas executadas no host sem expor o banco na rede. Personalize a porta local com `POSTGRES_PORT`; mantenha `POSTGRES_BIND_ADDRESS=127.0.0.1`. Os serviços do Compose acessam o banco pela rede interna em `postgres:5432` e não dependem dessa publicação.
 
 Os serviços de IA não são iniciados pelo Compose. Se utilizar um provedor local, configure um endereço acessível pelos contêineres: `127.0.0.1` dentro de um contêiner aponta para ele próprio.
 
@@ -66,6 +68,8 @@ git pull
 docker compose build
 docker compose up -d discord_bot
 ```
+
+Antes de subir uma implantação, injete secrets pelo mecanismo protegido do ambiente ou por um `.env` com acesso restrito. Nunca reutilize os valores de exemplo nem publique o PostgreSQL em `0.0.0.0` sem um requisito de rede explícito e controles externos de firewall e autenticação.
 
 Aplique as migrações necessárias conforme as instruções da versão.
 
