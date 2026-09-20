@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 from uuid import uuid4
 
 import httpx
@@ -52,8 +52,19 @@ from rag import (
 )
 
 logger = logging.getLogger(__name__)
+# O logger do httpx inclui a URL completa, que pode conter query strings sensiveis.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 _last_embed_call_at = 0.0
 _http_client: httpx.Client | None = None
+_REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
+
+
+class WebFetchError(ValueError):
+    """Erro seguro de coleta web, sem incluir a URL ou o corpo remoto."""
+
+    def __init__(self, message: str, *, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def supabase_delete(table: str, column: str, value: str, *, connection=None) -> None:
@@ -783,30 +794,88 @@ def _is_url(value: str) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
-# Redes privadas/reservadas bloqueadas para prevenir SSRF
-_BLOCKED_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("169.254.0.0/16"),  # link-local / cloud metadata
-    ipaddress.ip_network("0.0.0.0/8"),
-    ipaddress.ip_network("::1/128"),
-    ipaddress.ip_network("fc00::/7"),
-]
+def _normalized_url_hostname(url: str) -> tuple[str, int]:
+    try:
+        parsed = urlparse(url)
+        port = parsed.port
+    except (TypeError, ValueError):
+        raise WebFetchError("URL invalida para coleta web.") from None
 
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        raise WebFetchError("URL invalida para coleta web.")
+    if parsed.username is not None or parsed.password is not None:
+        raise WebFetchError("URL com credenciais embutidas nao e permitida.")
 
-def _is_private_url(url: str) -> bool:
-    """Verifica se URL resolve para IP privado/reservado (protecao SSRF)."""
-    parsed = urlparse(url)
     hostname = parsed.hostname
     if not hostname:
-        return True
+        raise WebFetchError("URL sem host valido.")
     try:
-        addr = ipaddress.ip_address(socket.gethostbyname(hostname))
-        return any(addr in net for net in _BLOCKED_NETWORKS)
-    except (socket.gaierror, ValueError):
-        return False
+        normalized_host = hostname.encode("idna").decode("ascii").lower().rstrip(".")
+    except UnicodeError:
+        raise WebFetchError("URL sem host valido.") from None
+    if not normalized_host:
+        raise WebFetchError("URL sem host valido.")
+
+    return normalized_host, port or (443 if parsed.scheme.lower() == "https" else 80)
+
+
+def _host_is_allowed(hostname: str) -> bool:
+    allowed_hosts = config.WEB_ALLOWED_HOSTS
+    if not allowed_hosts:
+        return True
+    for allowed in allowed_hosts:
+        if allowed.startswith("*."):
+            suffix = allowed[2:]
+            if suffix and hostname.endswith(f".{suffix}"):
+                return True
+        elif hostname == allowed:
+            return True
+    return False
+
+
+def _validate_web_destination(url: str) -> None:
+    """Valida politica e todos os enderecos IPv4/IPv6 antes de cada request."""
+    hostname, port = _normalized_url_hostname(url)
+    if not _host_is_allowed(hostname):
+        raise WebFetchError("Destino nao autorizado pela allowlist de coleta web.")
+
+    try:
+        resolved = socket.getaddrinfo(
+            hostname,
+            port,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
+        )
+    except OSError:
+        raise WebFetchError("Nao foi possivel resolver o destino da coleta web.") from None
+
+    addresses = {entry[4][0].split("%", 1)[0] for entry in resolved if entry[4]}
+    if not addresses:
+        raise WebFetchError("Nao foi possivel resolver o destino da coleta web.")
+    for raw_address in addresses:
+        try:
+            address = ipaddress.ip_address(raw_address)
+        except ValueError:
+            raise WebFetchError("A resolucao retornou um endereco invalido.") from None
+        comparable_address = (
+            address.ipv4_mapped or address
+            if isinstance(address, ipaddress.IPv6Address)
+            else address
+        )
+        if (
+            not comparable_address.is_global
+            or comparable_address.is_private
+            or comparable_address.is_loopback
+            or comparable_address.is_link_local
+            or comparable_address.is_multicast
+            or comparable_address.is_reserved
+            or comparable_address.is_unspecified
+        ):
+            raise WebFetchError("Destino de rede bloqueado pela politica de coleta web.")
+
+
+def _url_source_id(url: str) -> str:
+    return hashlib.sha256(url.encode("utf-8", errors="ignore")).hexdigest()[:12]
 
 
 
@@ -882,7 +951,7 @@ def _get_http_client() -> httpx.Client:
     if _http_client is None:
         _http_client = httpx.Client(
             timeout=config.WEB_FETCH_TIMEOUT_SECONDS,
-            follow_redirects=True,
+            follow_redirects=False,
             trust_env=False,
             headers={
                 "User-Agent": config.WEB_USER_AGENT,
@@ -892,6 +961,79 @@ def _get_http_client() -> httpx.Client:
             },
         )
     return _http_client
+
+
+def _download_web_content(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> tuple[bytes, str, str, str]:
+    """Baixa uma fonte com redirects manuais e limite incremental de bytes."""
+    current_url = url
+    max_redirects = max(0, int(config.WEB_MAX_REDIRECTS))
+    max_bytes = max(1, int(config.WEB_MAX_DOWNLOAD_BYTES))
+    timeout_seconds = max(0.1, float(config.WEB_FETCH_TIMEOUT_SECONDS))
+    deadline = time.monotonic() + timeout_seconds
+
+    for redirect_count in range(max_redirects + 1):
+        _validate_web_destination(current_url)
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            raise WebFetchError("Tempo limite da coleta web excedido.")
+        try:
+            with _get_http_client().stream(
+                "GET",
+                current_url,
+                headers=headers,
+                timeout=remaining_seconds,
+            ) as response:
+                status_code = response.status_code
+                if 300 <= status_code < 400:
+                    location = response.headers.get("Location")
+                    if status_code not in _REDIRECT_STATUS_CODES or not location:
+                        raise WebFetchError("Redirecionamento HTTP invalido.")
+                    if redirect_count >= max_redirects:
+                        raise WebFetchError("Limite de redirecionamentos excedido.")
+                    current_url = urljoin(str(response.url), location)
+                    continue
+
+                if status_code >= 400:
+                    raise WebFetchError(
+                        f"Falha HTTP na coleta web (status {status_code}).",
+                        status_code=status_code,
+                    )
+
+                content_length = response.headers.get("Content-Length")
+                if content_length:
+                    try:
+                        declared_bytes = int(content_length)
+                    except ValueError:
+                        declared_bytes = None
+                    if declared_bytes is not None and declared_bytes > max_bytes:
+                        raise WebFetchError("Resposta excede o limite de download.")
+
+                chunks: list[bytes] = []
+                downloaded_bytes = 0
+                chunk_size = min(64 * 1024, max_bytes + 1)
+                for chunk in response.iter_bytes(chunk_size=chunk_size):
+                    if time.monotonic() >= deadline:
+                        raise WebFetchError("Tempo limite da coleta web excedido.")
+                    downloaded_bytes += len(chunk)
+                    if downloaded_bytes > max_bytes:
+                        raise WebFetchError("Resposta excede o limite de download.")
+                    chunks.append(chunk)
+
+                content_type = response.headers.get("Content-Type") or ""
+                encoding = response.encoding or "utf-8"
+                return b"".join(chunks), content_type, current_url, encoding
+        except WebFetchError:
+            raise
+        except httpx.HTTPError as exc:
+            raise WebFetchError(
+                f"Falha de rede na coleta web ({type(exc).__name__})."
+            ) from None
+
+    raise WebFetchError("Limite de redirecionamentos excedido.")
 
 
 def _content_type_to_doc_type(content_type: str) -> str:
@@ -982,10 +1124,12 @@ def _read_zendesk_article_api(url: str) -> tuple[str, str, str | None] | None:
     ]
     for api_url in api_urls:
         try:
-            response = _get_http_client().get(api_url, headers={"Accept": "application/json"})
-            response.raise_for_status()
-            payload = response.json()
-        except Exception:
+            data, _content_type, _final_url, encoding = _download_web_content(
+                api_url,
+                headers={"Accept": "application/json"},
+            )
+            payload = json.loads(data.decode(encoding, errors="replace"))
+        except (WebFetchError, UnicodeError, json.JSONDecodeError):
             continue
         article = payload.get("article") if isinstance(payload, dict) else None
         if not isinstance(article, dict):
@@ -996,50 +1140,56 @@ def _read_zendesk_article_api(url: str) -> tuple[str, str, str | None] | None:
         if not title:
             title = title_from_body or _title_from_url(url)
         if text.strip():
-            logger.info("URL %s lida via API Zendesk (%s)", url, api_url)
+            logger.info(
+                "Fonte web source_id=%s lida via API Zendesk.",
+                _url_source_id(url),
+            )
             return text, "html", title
     return None
 
 
 def read_url(url: str) -> tuple[str, str, str | None]:
     if not _is_url(url):
-        raise ValueError(f"URL invalida: {url}")
-    if _is_private_url(url):
-        raise ValueError(f"URL bloqueada por seguranca (IP privado/reservado): {url}")
+        raise WebFetchError("URL invalida para coleta web.")
     try:
-        response = _get_http_client().get(url)
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        status_code = exc.response.status_code if exc.response is not None else None
-        if status_code in {401, 403}:
+        data, content_type_header, final_url, encoding = _download_web_content(url)
+    except WebFetchError as exc:
+        if exc.status_code in {401, 403}:
             fallback = _read_zendesk_article_api(url)
             if fallback is not None:
                 return fallback
         raise
-    content_type = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-    lower_url = url.lower()
+    content_type = content_type_header.split(";")[0].strip().lower()
+    lower_url = final_url.lower()
     page_title: str | None = None
-    
-    # Detecção se é PDF (URL ou Content-Type)
-    if content_type == "application/pdf" or lower_url.endswith(".pdf"):
-        text = read_pdf_bytes(response.content)
-        doc_type = "pdf"
-    else:
-        doc_type = _content_type_to_doc_type(content_type)
-        if doc_type == "html":
-            text, page_title = _html_to_text(response.text)
+
+    try:
+        # Detecção se é PDF (URL ou Content-Type)
+        if content_type == "application/pdf" or lower_url.endswith(".pdf"):
+            text = read_pdf_bytes(data)
+            doc_type = "pdf"
         else:
-            try:
-                text = response.text
-            except Exception:
-                text = response.content.decode("utf-8", errors="ignore")
+            doc_type = _content_type_to_doc_type(content_type)
+            decoded_text = data.decode(encoding, errors="replace")
+            if doc_type == "html":
+                text, page_title = _html_to_text(decoded_text)
+            else:
+                text = decoded_text
+    except Exception as exc:
+        raise WebFetchError(
+            f"Nao foi possivel processar a fonte web ({type(exc).__name__})."
+        ) from None
 
     if not text.strip():
-        raise ValueError(f"Conteudo vazio na URL: {url}")
+        raise WebFetchError("A fonte web retornou conteudo vazio.")
 
     max_chars = max(1000, config.WEB_MAX_TEXT_CHARS)
     if len(text) > max_chars:
-        logger.warning("Conteudo de %s truncado para %s caracteres", url, max_chars)
+        logger.warning(
+            "Conteudo web source_id=%s truncado para %s caracteres.",
+            _url_source_id(url),
+            max_chars,
+        )
         text = text[:max_chars]
 
     return text, doc_type, page_title
@@ -2109,7 +2259,7 @@ def ingest_file(
 
 
 def ingest_url(url: str, force: bool = False) -> dict:
-    logger.info("Lendo URL: %s", url)
+    logger.info("Lendo fonte web source_id=%s", _url_source_id(url))
     text, doc_type, page_title = read_url(url)
 
     filename = _url_to_filename(url)
@@ -2210,7 +2360,11 @@ def ingest_directory(
         try:
             results.append(ingest_url(url, force=force))
         except Exception as exc:
-            logger.error("Erro URL %s: %s", url, exc)
+            logger.error(
+                "WEB_FETCH_ERROR source_id=%s stage=ingest error_type=%s",
+                _url_source_id(url),
+                type(exc).__name__,
+            )
 
     return results
 

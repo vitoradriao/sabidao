@@ -271,6 +271,13 @@ CONTEXTUAL_RETRIEVAL_BATCH_SIZE = _env_int("CONTEXTUAL_RETRIEVAL_BATCH_SIZE", 50
 # Ingestao web (URLs)
 WEB_FETCH_TIMEOUT_SECONDS = _env_float("WEB_FETCH_TIMEOUT_SECONDS", 20.0)
 WEB_USER_AGENT = os.getenv("WEB_USER_AGENT", "BotMaximaRAG/1.0")
+WEB_MAX_REDIRECTS = _env_int("WEB_MAX_REDIRECTS", 5)
+WEB_MAX_DOWNLOAD_BYTES = _env_int("WEB_MAX_DOWNLOAD_BYTES", 10 * 1024 * 1024)
+WEB_ALLOWED_HOSTS = tuple(
+    host.strip().lower().rstrip(".")
+    for host in os.getenv("WEB_ALLOWED_HOSTS", "").split(",")
+    if host.strip().rstrip(".")
+)
 WEB_MAX_TEXT_CHARS = _env_int("WEB_MAX_TEXT_CHARS", 400000)
 URLS_FILE_DEFAULT = os.getenv("URLS_FILE_DEFAULT", "./documentos/urls.txt")
 URL_REVIEW_OUTPUT_DIR = os.getenv("URL_REVIEW_OUTPUT_DIR", "./documentos/_pendentes_url")
