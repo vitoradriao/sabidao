@@ -1,3 +1,5 @@
+import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -13,6 +15,78 @@ BASELINE_DATASET = ROOT_DIR / "evaluation" / "datasets" / "maxpedido_eval_datase
 
 
 class TestOfflineEvaluator(unittest.TestCase):
+    def test_baseline_requires_every_criterion_and_full_coverage(self):
+        config = json.loads((ROOT_DIR / "evaluation/baseline_config.json").read_text(encoding="utf-8"))
+        holdout = {
+            "sample_size": 10,
+            "outcomes": {"population": {"answerable": 6, "ambiguous": 2, "no_evidence": 2}},
+        }
+        for rule in config["non_regression"]:
+            target = holdout
+            parts = rule["path"].split(".")
+            for part in parts[:-1]:
+                target = target.setdefault(part, {})
+            target[parts[-1]] = rule["value"]
+
+        def evaluate(summary, expected=10):
+            return run_offline_eval._evaluate_non_regression(
+                summary, config, expected_holdout_cases=expected
+            )
+
+        self.assertEqual(evaluate(holdout)["status"], "passed")
+        for rules in ([], [None]):
+            with self.subTest(rules=rules):
+                result = run_offline_eval._evaluate_non_regression(
+                    holdout, {"non_regression": rules}, expected_holdout_cases=10
+                )
+                self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(evaluate(holdout, expected=11)["status"], "incomplete")
+        self.assertEqual(evaluate(None)["status"], "incomplete")
+        partial = {"outcomes": {"unsupported_answers": {"rate": 0}}}
+        result = evaluate(partial)
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(len(result["missing_checks"]), 6)
+
+        holdout["outcomes"]["population"]["ambiguous"] = 0
+        result = evaluate(holdout)
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(result["coverage"]["missing_populations"], ["ambiguous"])
+        holdout["outcomes"]["population"]["ambiguous"] = 2
+        holdout["outcomes"]["necessary_clarifications"] = run_offline_eval._rate_summary(0, 0)
+        self.assertEqual(evaluate(holdout)["status"], "incomplete")
+        holdout["outcomes"]["unsupported_answers"]["rate"] = 1
+        result = evaluate(holdout)
+        self.assertEqual(result["status"], "failed")
+        self.assertFalse(result["complete"])
+        self.assertTrue(result["critical_failures"])
+        self.assertTrue(result["missing_checks"])
+        holdout["outcomes"]["unsupported_answers"]["rate"] = 0
+        holdout["outcomes"]["necessary_clarifications"]["rate"] = 0
+        result = evaluate(holdout)
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["critical_failures"], [])
+
+    def test_cli_gate_preserves_report_and_exploratory_exit(self):
+        summary = self._run_synthetic_fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "report.json"
+            for status, gated, expected_exit in (
+                ("passed", True, 0), ("failed", True, 1),
+                ("incomplete", True, 1), (None, True, 1),
+                ("failed", False, 0), ("incomplete", False, 0),
+            ):
+                with self.subTest(status=status, gated=gated):
+                    summary["non_regression"] = {"status": status} if status else None
+                    argv = ["run_offline_eval", "--dry-run", "--output-report", str(report)]
+                    if gated:
+                        argv.append("--gate")
+                    with patch("sys.argv", argv), patch("builtins.print"), patch.object(
+                        run_offline_eval, "run_evaluation", return_value=summary
+                    ):
+                        self.assertEqual(run_offline_eval.main(), expected_exit)
+                    saved = json.loads(report.read_text(encoding="utf-8"))
+                    self.assertEqual(saved["non_regression"], summary["non_regression"])
+
     def test_wrong_answer_fails_factual_metric_even_with_valid_citation(self):
         summary = self._run_synthetic_fixture()
         results = {result["case_id"]: result for result in summary["results"]}
@@ -259,6 +333,22 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIn("git_commit", summary["runtime"])
         self.assertIn("model_config", summary["runtime"])
         self.assertIn("embedding_index_identity", summary["runtime"])
+
+        for split, limit, status in (
+            ("holdout", 1, "incomplete"),
+            ("development", None, "incomplete"),
+            ("holdout", None, "passed"),
+            ("all", 3, "passed"),
+        ):
+            with self.subTest(split=split, limit=limit):
+                partial = run_offline_eval.run_evaluation(
+                    dataset=dataset + [{**dataset[0], "id": "dev", "split": "development"}],
+                    dataset_name="decisions", dry_run=True, limit=limit, split=split,
+                    answer_provider=lambda question, _scope: responses[question],
+                    baseline_config=baseline_config,
+                )
+                self.assertEqual(partial["non_regression"]["status"], status)
+                self.assertEqual(partial["non_regression"]["coverage"]["expected_holdout_cases"], 3)
 
     def test_runner_passes_follow_up_history_to_rag(self):
         history = [{"role": "user", "content": "contexto anterior"}]
