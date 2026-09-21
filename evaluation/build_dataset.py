@@ -77,6 +77,10 @@ def _normalize_case(case: dict[str, Any], idx: int, default_source: str) -> dict
     if isinstance(reference_evidence, list):
         normalized["reference_evidence"] = reference_evidence
 
+    ranking_judgments = case.get("ranking_judgments")
+    if isinstance(ranking_judgments, dict):
+        normalized["ranking_judgments"] = ranking_judgments
+
     forbidden_facts = case.get("forbidden_facts")
     if isinstance(forbidden_facts, list):
         normalized["forbidden_facts"] = forbidden_facts

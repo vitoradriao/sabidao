@@ -16,10 +16,20 @@
         "contains": ["valor S"]
       }
     ],
+    "ranking_judgments": {
+      "schema_version": 1,
+      "universe_id": "fixture-universe-v1",
+      "corpus_fingerprint": "fixture-corpus-v1",
+      "qrels": [
+        {"candidate_id": "parametros-1", "relevance": 3},
+        {"candidate_id": "parametros-2", "relevance": 0}
+      ]
+    },
     "fixture_response": {
       "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
       "chunks": [
         {
+          "candidate_id": "parametros-1",
           "filename": "parametros.md",
           "content": "Use o valor S para habilitar o recurso.",
           "similarity": 0.8

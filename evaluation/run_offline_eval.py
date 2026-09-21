@@ -26,7 +26,8 @@ import rag
 from bot_common import normalize_text
 
 
-EVALUATOR_SCHEMA_VERSION = 5
+EVALUATOR_SCHEMA_VERSION = 6
+METRIC_DEFINITIONS_VERSION = 2
 METRIC_DEFINITIONS = {
     "behavior_match": (
         "Compara se a resposta ou abstencao ocorreu conforme expected_behavior."
@@ -39,10 +40,16 @@ METRIC_DEFINITIONS = {
         "Verifica se ao menos uma evidencia de referencia foi recuperada pela fonte e, "
         "quando informados, pelos termos esperados."
     ),
-    "recall_at_10": "Fracao das evidencias de referencia encontradas ate a posicao 10.",
-    "recall_at_20": "Fracao das evidencias de referencia encontradas ate a posicao 20.",
+    "recall_at_10": "Fracao das referencias distintas encontradas ate a posicao 10.",
+    "recall_at_20": "Fracao das referencias distintas encontradas ate a posicao 20.",
+    "evidence_discounted_coverage_at_10": (
+        "Cobertura descontada das referencias distintas ate a posicao 10: para cada "
+        "referencia encontrada, soma 1/log2(primeiro_rank+1), dividida pelo total "
+        "de referencias. Nao e nDCG."
+    ),
     "ndcg_at_10": (
-        "Ganho cumulativo normalizado das evidencias distintas encontradas ate a posicao 10."
+        "nDCG convencional ate a posicao 10, calculado somente com qrels explicitos "
+        "e estaveis por candidate_id no universo julgado declarado."
     ),
     "citation_validity": (
         "Verifica citacao de uma fonte de referencia sem erros de grounding; abstencoes e "
@@ -69,7 +76,14 @@ _ABSENCE_CLAIM_RE = re.compile(
 _OCCURRENCE_METRICS = frozenset(
     {"false_abstention", "false_absence_claim", "unsupported_claims"}
 )
-_CONTINUOUS_METRICS = frozenset({"recall_at_10", "recall_at_20", "ndcg_at_10"})
+_CONTINUOUS_METRICS = frozenset(
+    {
+        "recall_at_10",
+        "recall_at_20",
+        "evidence_discounted_coverage_at_10",
+        "ndcg_at_10",
+    }
+)
 
 _CLARIFICATION_RE = re.compile(
     r"\b(?:pode|consegue|preciso|informe|confirme|especifique|qual|quais|onde|quando)\b"
@@ -310,6 +324,203 @@ def _source_matches(actual: Any, expected: Any) -> bool:
     return actual_value == expected_value or Path(actual_value).name == Path(expected_value).name
 
 
+def _metric_detail(
+    *,
+    retrieved_depth: int,
+    reference_count: int,
+    matched_evidence: dict[str, int],
+    unavailable_reason: str | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    detail = {
+        "definition_version": METRIC_DEFINITIONS_VERSION,
+        "retrieved_depth": retrieved_depth,
+        "reference_count": reference_count,
+        "matched_evidence": matched_evidence,
+        **extra,
+    }
+    if unavailable_reason:
+        detail["unavailable_reason"] = unavailable_reason
+    return detail
+
+
+def _ranking_judgments(
+    ranking_judgments: Any,
+) -> tuple[dict[str, int] | None, dict[str, Any]]:
+    """Validate and normalize optional qrels without exposing their raw contents."""
+    if ranking_judgments is None:
+        return None, {
+            "definition_version": METRIC_DEFINITIONS_VERSION,
+            "judged_universe_id": None,
+            "corpus_fingerprint": None,
+            "qrels_sha256": None,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels",
+        }
+
+    if not isinstance(ranking_judgments, dict):
+        raise ValueError("ranking_judgments must be an object")
+
+    qrels = ranking_judgments.get("qrels")
+    if qrels is None:
+        return None, {
+            "definition_version": METRIC_DEFINITIONS_VERSION,
+            "judged_universe_id": ranking_judgments.get("universe_id"),
+            "corpus_fingerprint": ranking_judgments.get("corpus_fingerprint"),
+            "qrels_sha256": None,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels",
+        }
+
+    if ranking_judgments.get("schema_version") != 1:
+        raise ValueError("ranking_judgments.schema_version must be 1")
+
+    universe_id = ranking_judgments.get("universe_id")
+    corpus_fingerprint = ranking_judgments.get("corpus_fingerprint")
+    if not isinstance(universe_id, str) or not universe_id.strip():
+        raise ValueError("ranking_judgments.universe_id must be a non-empty string")
+    if not isinstance(corpus_fingerprint, str) or not corpus_fingerprint.strip():
+        raise ValueError(
+            "ranking_judgments.corpus_fingerprint must be a non-empty string"
+        )
+    if not isinstance(qrels, list):
+        raise ValueError("ranking_judgments.qrels must be a list")
+
+    normalized_qrels: dict[str, int] = {}
+    for index, item in enumerate(qrels, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"ranking_judgments.qrels[{index}] must be an object")
+        candidate_id = item.get("candidate_id")
+        relevance = item.get("relevance")
+        if not isinstance(candidate_id, str) or not candidate_id.strip():
+            raise ValueError(
+                f"ranking_judgments.qrels[{index}].candidate_id must be a non-empty string"
+            )
+        if isinstance(relevance, bool) or not isinstance(relevance, int) or not 0 <= relevance <= 3:
+            raise ValueError(
+                f"ranking_judgments.qrels[{index}].relevance must be an integer from 0 to 3"
+            )
+        candidate_id = candidate_id.strip()
+        if candidate_id in normalized_qrels:
+            raise ValueError(f"Duplicate qrel candidate_id: {candidate_id}")
+        normalized_qrels[candidate_id] = relevance
+
+    canonical_qrels = [
+        {"candidate_id": candidate_id, "relevance": normalized_qrels[candidate_id]}
+        for candidate_id in sorted(normalized_qrels)
+    ]
+    return normalized_qrels, {
+        "definition_version": METRIC_DEFINITIONS_VERSION,
+        "judged_universe_id": universe_id.strip(),
+        "corpus_fingerprint": corpus_fingerprint.strip(),
+        "qrels_sha256": _canonical_sha256(canonical_qrels),
+        "judged_count": len(normalized_qrels),
+    }
+
+
+def _ranking_candidate_ids(chunks: list[dict], *, validate: bool) -> list[str | None]:
+    candidate_ids: list[str | None] = []
+    seen: set[str] = set()
+    for rank, chunk in enumerate(chunks or [], start=1):
+        raw_candidate_id = chunk.get("candidate_id")
+        if raw_candidate_id is None:
+            candidate_ids.append(None)
+            continue
+        if not isinstance(raw_candidate_id, str) or not raw_candidate_id.strip():
+            raise ValueError(f"Ranking candidate at rank {rank} has an invalid candidate_id")
+        candidate_id = raw_candidate_id.strip()
+        if validate and candidate_id in seen:
+            raise ValueError(f"Duplicate ranking candidate_id: {candidate_id}")
+        seen.add(candidate_id)
+        candidate_ids.append(candidate_id)
+    return candidate_ids
+
+
+def _ndcg_at_10(
+    chunks: list[dict],
+    ranking_judgments: Any,
+    *,
+    reference_count: int,
+    matched_evidence: dict[str, int],
+) -> tuple[float | None, dict[str, Any]]:
+    qrels, judgment_details = _ranking_judgments(ranking_judgments)
+    retrieved_depth = len(chunks or [])
+    if qrels is None:
+        return None, _metric_detail(
+            retrieved_depth=retrieved_depth,
+            reference_count=reference_count,
+            matched_evidence=matched_evidence,
+            judged_universe_id=judgment_details.get("judged_universe_id"),
+            corpus_fingerprint=judgment_details.get("corpus_fingerprint"),
+            qrels_sha256=judgment_details.get("qrels_sha256"),
+            judged_count=judgment_details.get("judged_count", 0),
+            unavailable_reason=judgment_details["unavailable_reason"],
+        )
+
+    candidate_ids = _ranking_candidate_ids(chunks or [], validate=True)
+    top_candidate_ids = candidate_ids[:10]
+    missing_ids = [candidate_id for candidate_id in candidate_ids if candidate_id is None]
+    if missing_ids:
+        reason = "candidate_id_missing"
+        return None, _metric_detail(
+            retrieved_depth=retrieved_depth,
+            reference_count=reference_count,
+            matched_evidence=matched_evidence,
+            judged_universe_id=judgment_details["judged_universe_id"],
+            corpus_fingerprint=judgment_details["corpus_fingerprint"],
+            qrels_sha256=judgment_details["qrels_sha256"],
+            judged_count=judgment_details["judged_count"],
+            unavailable_reason=reason,
+        )
+
+    unjudged_ids = [candidate_id for candidate_id in candidate_ids if candidate_id not in qrels]
+    if unjudged_ids:
+        return None, _metric_detail(
+            retrieved_depth=retrieved_depth,
+            reference_count=reference_count,
+            matched_evidence=matched_evidence,
+            judged_universe_id=judgment_details["judged_universe_id"],
+            corpus_fingerprint=judgment_details["corpus_fingerprint"],
+            qrels_sha256=judgment_details["qrels_sha256"],
+            judged_count=judgment_details["judged_count"],
+            unavailable_reason="candidate_not_judged",
+            unjudged_candidate_count=len(unjudged_ids),
+        )
+
+    ideal_relevances = sorted(qrels.values(), reverse=True)[:10]
+    idcg = sum(
+        (2**relevance - 1) / math.log2(rank + 1)
+        for rank, relevance in enumerate(ideal_relevances, start=1)
+    )
+    base_detail = {
+        "judged_universe_id": judgment_details["judged_universe_id"],
+        "corpus_fingerprint": judgment_details["corpus_fingerprint"],
+        "qrels_sha256": judgment_details["qrels_sha256"],
+        "judged_count": judgment_details["judged_count"],
+        "idcg_at_10": round(idcg, 4),
+    }
+    if idcg == 0:
+        return None, _metric_detail(
+            retrieved_depth=retrieved_depth,
+            reference_count=reference_count,
+            matched_evidence=matched_evidence,
+            unavailable_reason="idcg_zero",
+            **base_detail,
+        )
+
+    dcg = sum(
+        (2 ** qrels[candidate_id] - 1) / math.log2(rank + 1)
+        for rank, candidate_id in enumerate(top_candidate_ids, start=1)
+    )
+    ndcg = round(dcg / idcg, 4)
+    return ndcg, _metric_detail(
+        retrieved_depth=retrieved_depth,
+        reference_count=reference_count,
+        matched_evidence=matched_evidence,
+        **base_detail,
+    )
+
+
 def _retrieval_relevance(
     chunks: list[dict],
     reference_evidence: Any,
@@ -345,16 +556,56 @@ def _retrieval_relevance(
 def _retrieval_metrics(
     chunks: list[dict],
     reference_evidence: Any,
+    ranking_judgments: Any = None,
 ) -> tuple[dict[str, float | None], dict[str, Any]]:
     specs = _evidence_specs(reference_evidence)
+    retrieved_depth = len(chunks or [])
     if not specs:
-        values = {"recall_at_10": None, "recall_at_20": None, "ndcg_at_10": None}
-        return values, {"reason": "missing_reference_evidence", "matched_evidence": {}}
+        values = {
+            "recall_at_10": None,
+            "recall_at_20": None,
+            "evidence_discounted_coverage_at_10": None,
+            "ndcg_at_10": None,
+        }
+        empty_matches: dict[str, int] = {}
+        unavailable = "missing_reference_evidence"
+        ndcg, ndcg_details = _ndcg_at_10(
+            chunks,
+            ranking_judgments,
+            reference_count=0,
+            matched_evidence=empty_matches,
+        )
+        values["ndcg_at_10"] = ndcg
+        return values, {
+            "definition_version": METRIC_DEFINITIONS_VERSION,
+            "reason": unavailable,
+            "unavailable_reason": unavailable,
+            "retrieved_depth": retrieved_depth,
+            "reference_count": 0,
+            "matched_evidence": empty_matches,
+            "recall_at_10": _metric_detail(
+                retrieved_depth=retrieved_depth,
+                reference_count=0,
+                matched_evidence=empty_matches,
+                unavailable_reason=unavailable,
+            ),
+            "recall_at_20": _metric_detail(
+                retrieved_depth=retrieved_depth,
+                reference_count=0,
+                matched_evidence=empty_matches,
+                unavailable_reason=unavailable,
+            ),
+            "evidence_discounted_coverage_at_10": _metric_detail(
+                retrieved_depth=retrieved_depth,
+                reference_count=0,
+                matched_evidence=empty_matches,
+                unavailable_reason=unavailable,
+            ),
+            "ndcg_at_10": ndcg_details,
+        }
 
     matched_evidence: dict[int, int] = {}
-    gains: list[int] = []
     for rank, chunk in enumerate(chunks or [], start=1):
-        rank_gain = 0
         normalized_content = normalize_text(str(chunk.get("content") or ""))
         for evidence_index, spec in enumerate(specs, start=1):
             if evidence_index in matched_evidence:
@@ -369,30 +620,48 @@ def _retrieval_metrics(
             )
             if source_matches and terms_match:
                 matched_evidence[evidence_index] = rank
-                rank_gain += 1
-        gains.append(rank_gain)
 
     def recall_at(k: int) -> float:
         found = sum(1 for rank in matched_evidence.values() if rank <= k)
         return round(found / len(specs), 4)
 
-    dcg = sum(gain / math.log2(rank + 1) for rank, gain in enumerate(gains[:10], start=1))
-    ideal_count = min(len(specs), 10)
-    idcg = sum(1 / math.log2(rank + 1) for rank in range(1, ideal_count + 1))
-    ndcg = round(dcg / idcg, 4) if idcg else None
+    discounted_sum = sum(
+        1 / math.log2(rank + 1)
+        for rank in matched_evidence.values()
+        if rank <= 10
+    )
+    evidence_discounted_coverage = round(discounted_sum / len(specs), 4)
+    base_details = {
+        "definition_version": METRIC_DEFINITIONS_VERSION,
+        "retrieved_depth": retrieved_depth,
+        "reference_count": len(specs),
+        "matched_evidence": {
+            str(evidence_index): rank
+            for evidence_index, rank in sorted(matched_evidence.items())
+        },
+    }
+    ndcg, ndcg_details = _ndcg_at_10(
+        chunks,
+        ranking_judgments,
+        reference_count=len(specs),
+        matched_evidence=base_details["matched_evidence"],
+    )
     return (
         {
             "recall_at_10": recall_at(10),
             "recall_at_20": recall_at(20),
+            "evidence_discounted_coverage_at_10": evidence_discounted_coverage,
             "ndcg_at_10": ndcg,
         },
         {
-            "reference_count": len(specs),
-            "retrieved_depth": len(chunks or []),
-            "matched_evidence": {
-                str(evidence_index): rank
-                for evidence_index, rank in sorted(matched_evidence.items())
-            },
+            **base_details,
+            "recall_at_10": _metric_detail(**base_details),
+            "recall_at_20": _metric_detail(**base_details),
+            "evidence_discounted_coverage_at_10": _metric_detail(
+                **base_details,
+                coverage_weight_sum=round(discounted_sum, 4),
+            ),
+            "ndcg_at_10": ndcg_details,
         },
     )
 
@@ -506,6 +775,7 @@ def _evaluate_response(
     retrieval_metrics, ranked_retrieval_details = _retrieval_metrics(
         chunks,
         case.get("reference_evidence"),
+        case.get("ranking_judgments"),
     )
     citation_validity, citation_details = _citation_validity(
         abstained,
@@ -554,9 +824,12 @@ def _evaluate_response(
         "metric_details": {
             "factual_correctness": factual_details,
             "retrieval_relevance": retrieval_details,
-            "recall_at_10": ranked_retrieval_details,
-            "recall_at_20": ranked_retrieval_details,
-            "ndcg_at_10": ranked_retrieval_details,
+            "recall_at_10": ranked_retrieval_details["recall_at_10"],
+            "recall_at_20": ranked_retrieval_details["recall_at_20"],
+            "evidence_discounted_coverage_at_10": ranked_retrieval_details[
+                "evidence_discounted_coverage_at_10"
+            ],
+            "ndcg_at_10": ranked_retrieval_details["ndcg_at_10"],
             "citation_validity": citation_details,
             "false_abstention": {"value": false_abstention},
             "false_absence_claim": {"value": false_absence_claim},
@@ -778,6 +1051,9 @@ def _runtime_metadata(
     ).encode("utf-8")
     experiment_identity = _experiment_identity(baseline_config)
     return {
+        "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
+        "metric_definitions_version": METRIC_DEFINITIONS_VERSION,
+        "metric_definitions_sha256": _canonical_sha256(METRIC_DEFINITIONS),
         "git_commit": _git_commit(),
         "dataset_sha256": hashlib.sha256(canonical_dataset).hexdigest(),
         "model_config": rag.get_model_config(),
@@ -842,12 +1118,18 @@ def _compare_runtime_identities(
 
     current_values = {
         **_flatten_identity(current),
+        "evaluator_schema_version": current_runtime.get("evaluator_schema_version"),
+        "metric_definitions_version": current_runtime.get("metric_definitions_version"),
+        "metric_definitions_sha256": current_runtime.get("metric_definitions_sha256"),
         "git_commit": current_runtime.get("git_commit"),
         "dataset_sha256": current_runtime.get("dataset_sha256"),
         **_flatten_identity(current_runtime.get("selection"), "selection"),
     }
     reference_values = {
         **_flatten_identity(reference),
+        "evaluator_schema_version": reference_runtime.get("evaluator_schema_version"),
+        "metric_definitions_version": reference_runtime.get("metric_definitions_version"),
+        "metric_definitions_sha256": reference_runtime.get("metric_definitions_sha256"),
         "git_commit": reference_runtime.get("git_commit"),
         "dataset_sha256": reference_runtime.get("dataset_sha256"),
         **_flatten_identity(reference_runtime.get("selection"), "selection"),
@@ -1373,6 +1655,8 @@ def run_evaluation(
         "run_id": run_id,
         "dataset_name": dataset_name,
         "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
+        "metric_definitions_version": METRIC_DEFINITIONS_VERSION,
+        "metric_definitions_sha256": _canonical_sha256(METRIC_DEFINITIONS),
         "started_at": started_at,
         "total_cases": total,
         "sample": {
