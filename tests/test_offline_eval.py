@@ -15,6 +15,13 @@ BASELINE_DATASET = ROOT_DIR / "evaluation" / "datasets" / "maxpedido_eval_datase
 
 
 class TestOfflineEvaluator(unittest.TestCase):
+    def test_git_commit_accepts_explicit_runtime_identity(self):
+        with patch.dict(
+            run_offline_eval.os.environ,
+            {"BENCHMARK_GIT_COMMIT": "commit-congelado"},
+        ):
+            self.assertEqual(run_offline_eval._git_commit(), "commit-congelado")
+
     @staticmethod
     def _verified_database_identity(
         *,
