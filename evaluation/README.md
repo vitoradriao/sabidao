@@ -48,7 +48,12 @@ Os valores de `answerability` são:
 
 `expected_facts` lista fatos obrigatórios, `forbidden_facts` lista afirmações que
 constituem falha crítica e `reference_evidence` identifica fonte e termos esperados no
-retrieval.
+retrieval. Para avaliar a ordenação com nDCG convencional, um caso também pode declarar
+`ranking_judgments` com `schema_version: 1`, `universe_id`, `corpus_fingerprint` e
+`qrels` (`candidate_id` + relevância inteira de 0 a 3). Os `candidate_id` dos chunks
+retornados precisam ser únicos e estar julgados; o nDCG usa somente os dez primeiros.
+O hash canônico
+dos qrels é registrado no detalhe, sem copiar o conteúdo bruto para o relatório.
 
 ## Preparar o dataset
 
@@ -185,8 +190,9 @@ canônico e não depende da ordem de retorno dos registros. Estados `configured`
 | --- | --- |
 | `factual_correctness` | Presença de todos os fatos obrigatórios predefinidos. |
 | `unsupported_claims` | Proxy de fatos proibidos e erros do validador de grounding. |
-| `recall_at_10` / `recall_at_20` | Fração das evidências esperadas encontrada até cada corte. |
-| `ndcg_at_10` | Qualidade da posição das evidências distintas nos dez primeiros resultados. |
+| `recall_at_10` / `recall_at_20` | Fração das referências distintas encontrada até cada corte. |
+| `evidence_discounted_coverage_at_10` | Cobertura descontada das referências até o corte 10; não é nDCG e permite várias referências no mesmo chunk. |
+| `ndcg_at_10` | nDCG convencional em um universo julgado explícito por `candidate_id`; é `null` com qrels ausentes, candidato não julgado ou IDCG zero. |
 | `citation_validity` | Citação de fonte de referência sem erro de grounding. |
 | `behavior_match` | Correspondência entre responder, esclarecer ou abster-se e o esperado. |
 | `false_abstention` / `false_absence_claim` | Abstenção indevida e alegação de ausência em pergunta respondível. |
@@ -202,6 +208,26 @@ no holdout, os critérios predefinidos em `baseline_config.json`.
 
 Scores de similaridade, fusão ou reranking são sinais de ordenação e não devem ser
 interpretados como probabilidade de a resposta estar correta.
+
+### Definições e compatibilidade de métricas
+
+O relatório registra `evaluator_schema_version`, `metric_definitions_version` e o hash
+das definições. Relatórios com versões diferentes não são comparados silenciosamente:
+é necessário reavaliar ou declarar explicitamente a diferença na comparação. Recall
+continua contando cada referência no máximo uma vez. A cobertura descontada usa:
+
+```text
+sum(1 / log2(primeiro_rank + 1) para cada referência encontrada até 10)
+-----------------------------------------------------------------------
+                         total de referências
+```
+
+O nDCG usa `gain = 2^relevance - 1`, o mesmo universo julgado para DCG e IDCG e, no
+máximo, os dez primeiros resultados. Um pool julgado não representa qualidade global
+do corpus: a métrica é nDCG dentro do universo identificado por `universe_id`.
+Quando a anotação não permite um cálculo válido, o valor permanece `null` e o detalhe
+expõe `unavailable_reason`; ausência de anotação nunca é convertida em irrelevância ou
+em zero.
 
 Chamadas de embedding e acertos de cache aparecem em `external_calls`. Quando o
 provider não expõe uso ou preço suficiente, o custo conhecido continua visível, mas

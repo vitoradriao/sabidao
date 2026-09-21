@@ -165,6 +165,32 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(comparison["status"], "incomplete")
         self.assertFalse(comparison["compatible"])
 
+    def test_runtime_comparison_rejects_metric_definition_version_changes(self):
+        identity = {"schema_version": 1, "database": {"status": "verified"}}
+        current = {
+            "experiment_identity": identity,
+            "evaluator_schema_version": 6,
+            "metric_definitions_version": 2,
+            "metric_definitions_sha256": "new-definitions",
+        }
+        reference = {
+            "experiment_identity": identity,
+            "evaluator_schema_version": 5,
+            "metric_definitions_version": 1,
+            "metric_definitions_sha256": "old-definitions",
+        }
+
+        comparison = run_offline_eval._compare_runtime_identities(current, reference)
+
+        self.assertEqual(comparison["status"], "incompatible")
+        self.assertFalse(comparison["compatible"])
+        self.assertTrue(
+            any(
+                difference["path"] == "metric_definitions_version"
+                for difference in comparison["differences"]
+            )
+        )
+
     def test_baseline_requires_every_criterion_and_full_coverage(self):
         config = json.loads((ROOT_DIR / "evaluation/baseline_config.json").read_text(encoding="utf-8"))
         holdout = {
@@ -289,6 +315,9 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIsNotNone(summary["p50_latency_ms"])
         self.assertIsNotNone(summary["p95_latency_ms"])
         self.assertIn("factual_correctness", summary["metric_definitions"])
+        self.assertIn("evidence_discounted_coverage_at_10", summary["metric_definitions"])
+        self.assertEqual(summary["metric_definitions_version"], 2)
+        self.assertEqual(summary["evaluator_schema_version"], 6)
         self.assertEqual(summary["score_evaluated"], 4)
 
     def test_false_absence_claim_is_measured_only_for_expected_answers(self):
@@ -373,6 +402,7 @@ class TestOfflineEvaluator(unittest.TestCase):
             "provenance",
             "review",
             "conversation_history",
+            "ranking_judgments",
         ):
             self.assertEqual(normalized[field], fixture_case[field])
 
@@ -389,27 +419,176 @@ class TestOfflineEvaluator(unittest.TestCase):
             {"answerable", "ambiguous", "no_evidence"},
         )
 
-    def test_ranked_retrieval_metrics_measure_two_cutoffs_and_ndcg(self):
+    def test_retrieval_metrics_separate_recall_discounted_coverage_and_ndcg(self):
         evidence = [
             {"source": "a.md", "contains": ["alfa"]},
-            {"source": "b.md", "contains": ["beta"]},
+            {"source": "a.md", "contains": ["beta"]},
         ]
         chunks = [
-            {"filename": "a.md", "content": "alfa"},
+            {"filename": "a.md", "content": "alfa beta"},
             *[
                 {"filename": f"noise-{index}.md", "content": "ruido"}
                 for index in range(1, 15)
             ],
-            {"filename": "b.md", "content": "beta"},
         ]
 
         metrics, details = run_offline_eval._retrieval_metrics(chunks, evidence)
 
-        self.assertEqual(metrics["recall_at_10"], 0.5)
+        self.assertEqual(metrics["recall_at_10"], 1.0)
         self.assertEqual(metrics["recall_at_20"], 1.0)
-        self.assertGreater(metrics["ndcg_at_10"], 0.0)
-        self.assertLess(metrics["ndcg_at_10"], 1.0)
-        self.assertEqual(details["retrieved_depth"], 16)
+        self.assertEqual(metrics["evidence_discounted_coverage_at_10"], 1.0)
+        self.assertIsNone(metrics["ndcg_at_10"])
+        self.assertEqual(details["ndcg_at_10"]["unavailable_reason"], "missing_qrels")
+        self.assertEqual(details["retrieved_depth"], 15)
+
+    def test_ndcg_uses_explicit_qrels_and_judged_pool(self):
+        evidence = [{"source": "a.md", "contains": ["alfa"]}]
+        judgments = {
+            "schema_version": 1,
+            "universe_id": "pool-v1",
+            "corpus_fingerprint": "corpus-v1",
+            "qrels": [
+                {"candidate_id": "c1", "relevance": 3},
+                {"candidate_id": "c2", "relevance": 2},
+                {"candidate_id": "c3", "relevance": 1},
+            ],
+        }
+        chunks = [
+            {"candidate_id": "c2", "filename": "noise.md", "content": "ruido"},
+            {"candidate_id": "c1", "filename": "a.md", "content": "alfa"},
+        ]
+
+        metrics, details = run_offline_eval._retrieval_metrics(
+            chunks,
+            evidence,
+            judgments,
+        )
+
+        self.assertEqual(metrics["ndcg_at_10"], 0.7896)
+        self.assertEqual(details["ndcg_at_10"]["judged_universe_id"], "pool-v1")
+        self.assertEqual(details["ndcg_at_10"]["judged_count"], 3)
+        self.assertEqual(details["ndcg_at_10"]["definition_version"], 2)
+        self.assertEqual(metrics["evidence_discounted_coverage_at_10"], 0.6309)
+
+        ideal_metrics, _ = run_offline_eval._retrieval_metrics(
+            [
+                {"candidate_id": "c1", "filename": "a.md", "content": "alfa"},
+                {"candidate_id": "c2", "filename": "noise.md", "content": "ruido"},
+                {"candidate_id": "c3", "filename": "noise.md", "content": "ruido"},
+            ],
+            evidence,
+            judgments,
+        )
+        self.assertEqual(ideal_metrics["ndcg_at_10"], 1.0)
+
+        large_pool = {
+            **judgments,
+            "universe_id": "pool-v2",
+            "qrels": [
+                {"candidate_id": f"c{index}", "relevance": 1}
+                for index in range(1, 12)
+            ],
+        }
+        large_pool_metrics, _ = run_offline_eval._retrieval_metrics(
+            [
+                {"candidate_id": f"c{index}", "filename": "noise.md", "content": "ruido"}
+                for index in range(1, 11)
+            ],
+            evidence,
+            large_pool,
+        )
+        self.assertEqual(large_pool_metrics["ndcg_at_10"], 1.0)
+
+    def test_ndcg_returns_null_for_missing_or_zero_information(self):
+        chunks = [{"candidate_id": "c1", "filename": "a.md", "content": "alfa"}]
+        evidence = [{"source": "a.md", "contains": ["alfa"]}]
+
+        for judgments, reason in (
+            (None, "missing_qrels"),
+            (
+                {
+                    "schema_version": 1,
+                    "universe_id": "pool-zero",
+                    "corpus_fingerprint": "corpus-v1",
+                    "qrels": [{"candidate_id": "c1", "relevance": 0}],
+                },
+                "idcg_zero",
+            ),
+        ):
+            with self.subTest(reason=reason):
+                metrics, details = run_offline_eval._retrieval_metrics(
+                    chunks,
+                    evidence,
+                    judgments,
+                )
+                self.assertIsNone(metrics["ndcg_at_10"])
+                self.assertEqual(details["ndcg_at_10"]["unavailable_reason"], reason)
+
+        empty_metrics, empty_details = run_offline_eval._retrieval_metrics(
+            [],
+            evidence,
+            {
+                "schema_version": 1,
+                "universe_id": "pool-positive",
+                "corpus_fingerprint": "corpus-v1",
+                "qrels": [{"candidate_id": "c1", "relevance": 2}],
+            },
+        )
+        self.assertEqual(empty_metrics["ndcg_at_10"], 0.0)
+        self.assertNotIn("unavailable_reason", empty_details["ndcg_at_10"])
+
+    def test_ndcg_rejects_unjudged_or_duplicate_ranking_candidates(self):
+        evidence = [{"source": "a.md", "contains": ["alfa"]}]
+        judgments = {
+            "schema_version": 1,
+            "universe_id": "pool-v1",
+            "corpus_fingerprint": "corpus-v1",
+            "qrels": [{"candidate_id": "c1", "relevance": 2}],
+        }
+
+        unjudged_metrics, unjudged_details = run_offline_eval._retrieval_metrics(
+            [{"candidate_id": "unknown", "filename": "a.md", "content": "alfa"}],
+            evidence,
+            judgments,
+        )
+        self.assertIsNone(unjudged_metrics["ndcg_at_10"])
+        self.assertEqual(
+            unjudged_details["ndcg_at_10"]["unavailable_reason"],
+            "candidate_not_judged",
+        )
+
+        with self.assertRaisesRegex(ValueError, "Duplicate ranking candidate_id"):
+            run_offline_eval._retrieval_metrics(
+                [
+                    {"candidate_id": "c1", "filename": "a.md", "content": "alfa"},
+                    {"candidate_id": "c1", "filename": "a.md", "content": "alfa"},
+                ],
+                evidence,
+                judgments,
+            )
+
+    def test_ranking_judgments_validate_qrels_contract(self):
+        base = {
+            "schema_version": 1,
+            "universe_id": "pool-v1",
+            "corpus_fingerprint": "corpus-v1",
+        }
+        for qrels, message in (
+            ([{"candidate_id": "c1", "relevance": 4}], "from 0 to 3"),
+            (
+                [
+                    {"candidate_id": "c1", "relevance": 1},
+                    {"candidate_id": "c1", "relevance": 0},
+                ],
+                "Duplicate",
+            ),
+        ):
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                run_offline_eval._retrieval_metrics(
+                    [{"candidate_id": "c1", "filename": "a.md", "content": "alfa"}],
+                    [{"source": "a.md", "contains": ["alfa"]}],
+                    {**base, "qrels": qrels},
+                )
 
     def test_report_separates_decision_outcomes_and_evaluates_holdout_gates(self):
         dataset = [
