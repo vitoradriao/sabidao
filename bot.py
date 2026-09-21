@@ -49,6 +49,15 @@ _GENERIC_ERROR_MESSAGE = (
     "Nao foi possivel concluir a operacao. Tente novamente mais tarde. "
     "Referencia: `{request_id}`."
 )
+_CONVERSATION_BUSY_MESSAGE = (
+    "Esta conversa ja tem uma pergunta em processamento. "
+    "Aguarde a resposta antes de enviar outra."
+)
+_ASK_TIMEOUT_MESSAGE = (
+    "A consulta excedeu o tempo limite. O trabalho ja aceito pode terminar "
+    "em segundo plano; tente novamente mais tarde com uma pergunta mais curta "
+    "ou especifica."
+)
 
 
 def _record_operational_error(stage: str, error: BaseException) -> str:
@@ -365,8 +374,33 @@ async def extract_images(message: discord.Message) -> list[dict]:
 
 # ── Handler de perguntas (compartilhado) ─────────────────
 
+def _ask_before_deadline(
+    *,
+    question: str,
+    history: list[dict],
+    images: list[dict] | None,
+    conversation_scope: dict[str, str],
+    deadline: float,
+):
+    """Evita iniciar o pipeline se o prazo acabou antes de a thread executar."""
+    if time.monotonic() >= deadline:
+        raise rag.RequestDeadlineExceeded("Deadline esgotado antes de iniciar o RAG.")
+    return rag.ask(
+        question,
+        history,
+        images,
+        None,
+        "discord",
+        conversation_scope,
+        deadline=deadline,
+    )
+
+
 async def handle_question(target, user_id: int, question: str, images: list[dict] = None):
     """Logica compartilhada entre comando e mencao."""
+    arrived_at = time.monotonic()
+    deadline = arrived_at + config.ASK_TIMEOUT_SECONDS
+
     # Validacao de tamanho
     if len(question) > config.MAX_QUESTION_LENGTH:
         await target.reply(
@@ -375,21 +409,27 @@ async def handle_question(target, user_id: int, question: str, images: list[dict
         )
         return
 
-    # Cooldown
-    remaining = _conv.check_cooldown(user_id)
-    if remaining is not None:
-        await target.reply(f"Aguarde {remaining:.0f}s antes de perguntar novamente.")
-        return
-
     conversation_key = _discord_conversation_key(target)
     conversation_scope = _discord_conversation_scope(target)
-    async with _conv.serialized(conversation_key):
+    async with _conv.try_serialized(conversation_key) as admitted:
+        if not admitted:
+            await target.reply(_CONVERSATION_BUSY_MESSAGE)
+            return
+
+        # So consome o cooldown depois que a conversa aceita a pergunta.
+        remaining = _conv.check_cooldown(user_id)
+        if remaining is not None:
+            await target.reply(f"Aguarde {remaining:.0f}s antes de perguntar novamente.")
+            return
+
         await _handle_serialized_question(
             target,
             conversation_key,
             conversation_scope,
             question,
             images,
+            arrived_at=arrived_at,
+            deadline=deadline,
         )
 
 
@@ -399,24 +439,31 @@ async def _handle_serialized_question(
     conversation_scope: dict[str, str],
     question: str,
     images: list[dict] | None,
+    *,
+    arrived_at: float,
+    deadline: float,
 ) -> None:
     logger.info("QUERY len=%d images=%d", len(question), len(images or []))
+
+    if time.monotonic() >= deadline:
+        await target.reply(_ASK_TIMEOUT_MESSAGE)
+        return
 
     channel = target.channel if hasattr(target, "channel") else target
     async with channel.typing():
         history = _conv.get_history_snapshot(conversation_key)
 
-        t_start = time.monotonic()
-        deadline = t_start + config.ASK_TIMEOUT_SECONDS
+        if time.monotonic() >= deadline:
+            await target.reply(_ASK_TIMEOUT_MESSAGE)
+            return
+
         worker = _rag_tasks.try_start(
             lambda: asyncio.to_thread(
-                rag.ask,
-                question,
-                list(history),
-                images,
-                None,
-                "discord",
-                conversation_scope,
+                _ask_before_deadline,
+                question=question,
+                history=list(history),
+                images=images,
+                conversation_scope=conversation_scope,
                 deadline=deadline,
             )
         )
@@ -433,16 +480,12 @@ async def _handle_serialized_question(
                 timeout=max(0.001, deadline - time.monotonic()),
             )
         except (asyncio.TimeoutError, rag.RequestDeadlineExceeded):
-            await target.reply(
-                "A consulta excedeu o tempo limite. O trabalho ja aceito pode terminar "
-                "em segundo plano; tente novamente mais tarde com uma pergunta mais curta "
-                "ou especifica."
-            )
+            await target.reply(_ASK_TIMEOUT_MESSAGE)
             return
         except Exception as e:
             await target.reply(_operational_error_message("rag", e))
             return
-        elapsed = time.monotonic() - t_start
+        elapsed = time.monotonic() - arrived_at
 
         if isinstance(answer, str):
             answer_text = answer

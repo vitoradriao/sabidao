@@ -107,10 +107,12 @@ imediatamente com uma mensagem de ocupação, sem formar fila local. Cada vaga s
 mensagem de timeout.
 
 `ASK_TIMEOUT_SECONDS` também define o orçamento total propagado pelas etapas do
-RAG. Uma etapa ou tentativa nova não começa depois do deadline, e os timeouts
-das chamadas aos providers são reduzidos ao tempo restante. O encerramento da
-espera no Discord não cancela uma requisição que o provider já tenha aceitado e
-não garante interrupção de cobrança ou processamento remoto.
+RAG. O prazo começa na chegada da pergunta ao bot, antes da admissão por
+conversa, e inclui qualquer tempo gasto até o início do worker. Uma etapa ou
+tentativa nova não começa depois do deadline, e os timeouts das chamadas aos
+providers são reduzidos ao tempo restante. O encerramento da espera no Discord
+não cancela uma requisição que o provider já tenha aceitado e não garante
+interrupção de cobrança ou processamento remoto.
 
 Falhas transitórias de transporte e HTTP 408, 429 ou 5xx elegíveis usam no
 máximo `RAG_PROVIDER_MAX_RETRIES` novas tentativas, com espera exponencial a
@@ -124,6 +126,9 @@ O histórico é serializado por conversa. Em servidores, a chave combina
 servidor, canal e thread; em mensagens diretas, usa o canal de DM separado. Uma
 thread não compartilha histórico nem correções locais com o canal pai. O limite
 LRU remove o histórico e o lock juntos somente quando a conversa está inativa.
+Perguntas não formam fila por conversa: enquanto uma pergunta ocupa a chave, as
+seguintes recebem uma resposta de ocupação imediata. Conversas diferentes
+continuam independentes e podem progredir até `ASK_MAX_CONCURRENCY`.
 
 Correções enviadas pelo Discord usam a conversa atual por padrão. A recuperação
 combina apenas correções com esse escopo exato e correções explicitamente

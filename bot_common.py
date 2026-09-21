@@ -80,6 +80,26 @@ class ConversationManager:
                 self._states.move_to_end(conversation_key)
             self._evict_inactive()
 
+    @asynccontextmanager
+    async def try_serialized(self, conversation_key: Any):
+        """Reserva a conversa sem fila; informa ``False`` quando ela esta ocupada."""
+        state = self._get_or_create_state(conversation_key)
+        if state.users > 0 or state.lock.locked():
+            yield False
+            return
+
+        state.users += 1
+        self._evict_inactive()
+        try:
+            async with state.lock:
+                self._states.move_to_end(conversation_key)
+                yield True
+        finally:
+            state.users -= 1
+            if conversation_key in self._states:
+                self._states.move_to_end(conversation_key)
+            self._evict_inactive()
+
     def get_history_snapshot(self, conversation_key: Any) -> list[dict]:
         """Copia o historico atual; a lista interna nunca escapa do gerenciador."""
         state = self._get_or_create_state(conversation_key)
