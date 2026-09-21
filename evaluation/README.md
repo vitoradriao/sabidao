@@ -25,6 +25,7 @@ declaração de validação operacional.
 | `datasets/evaluator_synthetic_fixture.json` | Fixture sem banco ou API para testar o avaliador. |
 | `build_dataset.py` | Normaliza os casos e acrescenta, opcionalmente, lacunas do banco. |
 | `run_offline_eval.py` | Executa o RAG, calcula métricas e produz o relatório. |
+| `run_contextual_ingest_benchmark.py` | Mede tempo, chunks e uso de providers na ingestão das variantes da issue #16. |
 
 ## Proveniência e revisão
 
@@ -229,3 +230,33 @@ python -m unittest tests.test_offline_eval
 Compare soluções apenas com dataset, política e holdout congelados. Mudanças no
 provider, modelo, índice ou configuração devem aparecer no relatório e impedir uma
 comparação silenciosa entre execuções incompatíveis.
+
+## Benchmark de contextualização da ingestão
+
+O runner da issue #16 deve ser executado uma vez em cada banco isolado. Ele força
+somente a variante informada, registra um fingerprint sanitizado do corpus e exige
+uma confirmação explícita de que `DATABASE_URL` não aponta para produção. O segundo
+comando compara commit, corpus e configuração invariável com o primeiro relatório e
+recusa o mesmo alvo de host, porta e banco. A variante `llm` exige o relatório
+`deterministic` como referência:
+
+```sh
+python evaluation/run_contextual_ingest_benchmark.py CORPUS_AUTORIZADO \
+  --variant deterministic --database-label issue16-a \
+  --confirm-isolated-database \
+  --output-report evaluation/reports/issue16-ingest-a.json
+
+python evaluation/run_contextual_ingest_benchmark.py CORPUS_AUTORIZADO \
+  --variant llm --database-label issue16-b \
+  --confirm-isolated-database \
+  --reference-report evaluation/reports/issue16-ingest-a.json \
+  --output-report evaluation/reports/issue16-ingest-b.json
+```
+
+Esses comandos chamam embeddings e, na variante `llm`, o modelo de
+contextualização. A confirmação do banco não substitui a autorização prévia de
+orçamento, corpus, providers, credenciais e casos. O relatório não publica nomes,
+caminhos, URLs nem conteúdo do corpus. Quando o cliente de embeddings não expõe
+tokens ou preço, os campos correspondentes permanecem desconhecidos e
+`cost_complete` fica falso. O comando ainda salva o relatório quando a ingestão fica
+incompleta, mas termina com código 1 e marca `ingestion.complete` como falso.
