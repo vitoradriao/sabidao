@@ -34,6 +34,8 @@ from langchain_text_splitters import MarkdownTextSplitter
 
 import config
 from bot_common import normalize_text
+from canonical_docs import validate_canonical_text
+from markdown_parser import parse_markdown, split_markdown_sections
 from db import (
     db_advisory_xact_lock,
     db_delete,
@@ -127,8 +129,9 @@ def supabase_update(table: str, data: dict, filters: dict, *, connection=None) -
 # --- NOVAS FUNÇÕES DE LEITURA ---
 
 def read_txt(filepath: str) -> str:
-    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-        return f.read()
+    raw = Path(filepath).read_bytes()
+    is_canonical = raw.startswith(b"---") or raw.startswith(b"\xef\xbb\xbf---")
+    return raw.decode("utf-8", errors="strict" if is_canonical else "ignore")
 
 def read_pdf(filepath: str) -> str:
     """
@@ -377,12 +380,10 @@ def _extract_heading_hierarchy(text: str) -> list[tuple[int, str, int]]:
     """Extrai headings Markdown com suas posicoes no texto.
     Retorna: [(nivel, texto_heading, posicao_char), ...]
     """
-    headings = []
-    for match in re.finditer(r'^(#{1,4})\s+(.+)$', text, re.MULTILINE):
-        level = len(match.group(1))
-        heading_text = match.group(2).strip()
-        headings.append((level, heading_text, match.start()))
-    return headings
+    return [
+        (heading.level, heading.title, heading.start)
+        for heading in parse_markdown(text).headings
+    ]
 
 
 def _get_heading_context_for_position(
@@ -594,8 +595,8 @@ def _split_markdown_sections(
             )
         ]
 
-    matches = list(re.finditer(r"^(#{1,4})\s+(.+)$", text, re.MULTILINE))
-    if not matches:
+    parsed_sections = split_markdown_sections(text)
+    if not parsed_sections or all(heading is None for heading, _content in parsed_sections):
         entities = _extract_analytical_entities(text)
         answer_mode = _infer_answer_mode(text, doc_title)
         return [
@@ -620,42 +621,36 @@ def _split_markdown_sections(
     sections: list[AnalyticalSection] = []
     active_headings: dict[int, str] = {}
 
-    preamble = text[: matches[0].start()].strip()
-    if preamble:
-        entities = _extract_analytical_entities(preamble)
-        answer_mode = _infer_answer_mode(preamble, doc_title)
-        sections.append(
-            AnalyticalSection(
-                section_index=len(sections),
-                title=doc_title,
-                heading_path=doc_title,
-                content=preamble,
-                module=base_module,
-                answer_mode=answer_mode,
-                entities=entities,
-                semantic_context=_build_semantic_context(
-                    doc_title=doc_title,
+    for parsed_heading, content in parsed_sections:
+        if parsed_heading is None:
+            entities = _extract_analytical_entities(content)
+            answer_mode = _infer_answer_mode(content, doc_title)
+            sections.append(
+                AnalyticalSection(
+                    section_index=len(sections),
+                    title=doc_title,
                     heading_path=doc_title,
+                    content=content,
                     module=base_module,
                     answer_mode=answer_mode,
                     entities=entities,
-                ),
+                    semantic_context=_build_semantic_context(
+                        doc_title=doc_title,
+                        heading_path=doc_title,
+                        module=base_module,
+                        answer_mode=answer_mode,
+                        entities=entities,
+                    ),
+                )
             )
-        )
+            continue
 
-    for idx, match in enumerate(matches):
-        level = len(match.group(1))
-        heading = match.group(2).strip().strip("#").strip()
+        level = parsed_heading.level
+        heading = parsed_heading.title
         active_headings[level] = heading
         for deeper in list(active_headings):
             if deeper > level:
                 del active_headings[deeper]
-
-        start = match.start()
-        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
-        content = text[start:end].strip()
-        if not content:
-            continue
 
         heading_path = " > ".join(active_headings[lvl] for lvl in sorted(active_headings))
         entities = _extract_analytical_entities(content)
@@ -2094,6 +2089,9 @@ def _ingest_text_source(
         }
 
     try:
+        first_line = text.lstrip("\ufeff").splitlines()[:1]
+        if doc_type.lower() == "md" and first_line == ["---"]:
+            validate_canonical_text(text)
         module = _infer_module(filename, title, source, doc_type)
         sections = _split_markdown_sections(
             text,
