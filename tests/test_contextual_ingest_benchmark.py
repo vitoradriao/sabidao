@@ -189,8 +189,9 @@ class TestContextualIngestBenchmark(unittest.TestCase):
                 recursive=False,
                 reference_report=None,
             )
+            self.assertTrue(config.CONTEXTUAL_RETRIEVAL_ENABLED)
 
-        self.assertTrue(config.CONTEXTUAL_RETRIEVAL_ENABLED)
+        self.assertFalse(config.CONTEXTUAL_RETRIEVAL_ENABLED)
         self.assertTrue(report["ingestion"]["complete"])
 
     def test_invariant_fingerprint_includes_contextual_prompt_contract(self):

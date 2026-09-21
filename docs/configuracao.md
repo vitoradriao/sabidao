@@ -94,6 +94,7 @@ intencionalmente alguns deles:
 | `ASK_MAX_CONCURRENCY` | 4 | 4 | limitar o trabalho simultâneo aceito pelo processo |
 | `ASK_MAX_TOKENS` | 8192 | 16384 | permitir o limite operacional configurado |
 | `MAX_HISTORY_PAIRS` | 20 | 12 | limitar o crescimento do contexto por conversa |
+| `CONTEXTUAL_RETRIEVAL_ENABLED` | false | false | manter o contexto determinístico escolhido no benchmark da issue #16 |
 | `CONTEXTUAL_RETRIEVAL_MAX_TOKENS` | 150 | 250 | enriquecer chunks com mais contexto no perfil atual |
 | `CONTEXTUAL_RETRIEVAL_BATCH_SIZE` | 50 | 20 | reduzir a pressão por lote sobre o provider |
 
@@ -102,10 +103,18 @@ mostra providers e modelos ativos, mas não mostra chaves.
 
 ## Contextualização da ingestão
 
-Com `CONTEXTUAL_RETRIEVAL_ENABLED=true`, a ingestão gera uma frase curta para
-situar cada trecho antes de criar seu embedding. O conteúdo original continua
-armazenado em `document_chunks.content` e é o único apresentado como evidência;
-o texto gerado pelo modelo não vira citação do documento.
+O padrão é `CONTEXTUAL_RETRIEVAL_ENABLED=false`. Assim, a ingestão usa somente o
+contexto determinístico de título e hierarquia de headings acrescentado durante
+o chunking, sem chamada de modelo para contextualizar os trechos. Essa decisão
+segue o benchmark da issue #16, no qual a variante por LLM piorou Recall@10,
+Recall@20 e nDCG@10, aumentou falsas alegações de ausência e tornou a ingestão
+213,4% mais lenta.
+
+Definir `CONTEXTUAL_RETRIEVAL_ENABLED=true` habilita explicitamente o modo
+experimental por LLM. Nesse modo, a ingestão gera uma frase curta para situar
+cada trecho antes de criar seu embedding. O conteúdo original continua armazenado
+em `document_chunks.content` e é o único apresentado como evidência; o texto
+gerado pelo modelo não vira citação do documento.
 
 O texto exato enviado ao embedding é persistido separadamente em
 `document_chunks.retrieval_text` e também alimenta o índice full-text usado pela
@@ -131,10 +140,11 @@ divididos nos lotes de embeddings.
 As mudanças de contrato não iniciam ingestão, embeddings ou chamadas externas
 automaticamente. A migração `sql/add_section_retrieval_1536.sql` preenche
 `retrieval_text` com o conteúdo original existente, sem inferência. Na próxima
-execução explícita de `ingest.py` ou `!ingerir`, documentos sob a identidade
-anterior serão detectados como alterados e o texto de retrieval exato será
-gravado. Planeje essa reingestão, custo e janela operacional antes de executar;
-a versão válida do índice é preservada se a preparação falhar.
+execução explícita de `ingest.py` ou `!ingerir`, documentos sob uma identidade de
+processamento diferente serão detectados como alterados e o texto de retrieval
+exato será gravado. Desativar a contextualização não executa essa reingestão
+automaticamente. Planeje a janela operacional antes de executá-la; a versão
+válida do índice é preservada se a preparação falhar.
 
 ## Concorrência, deadline e retries
 

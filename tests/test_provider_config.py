@@ -29,6 +29,25 @@ def _run_isolated_config(script: str, env: dict[str, str]) -> subprocess.Complet
 
 
 class TestEnvironmentPrecedence(unittest.TestCase):
+    def test_contextual_retrieval_is_opt_in(self):
+        env = os.environ.copy()
+        env.pop("CONTEXTUAL_RETRIEVAL_ENABLED", None)
+
+        default_result = _run_isolated_config(
+            "import config; assert config.CONTEXTUAL_RETRIEVAL_ENABLED is False",
+            env,
+        )
+
+        self.assertEqual(default_result.returncode, 0, default_result.stderr)
+
+        env["CONTEXTUAL_RETRIEVAL_ENABLED"] = "true"
+        enabled_result = _run_isolated_config(
+            "import config; assert config.CONTEXTUAL_RETRIEVAL_ENABLED is True",
+            env,
+        )
+
+        self.assertEqual(enabled_result.returncode, 0, enabled_result.stderr)
+
     def test_openai_key_from_process_environment_is_recognized(self):
         fake_key = "credencial-ficticia-apenas-no-processo"
         env = os.environ.copy()

@@ -12,6 +12,10 @@ custo. Os ganhos observados em comportamento e esclarecimento não compensam a p
 do retrieval. O resultado vale para esta amostra pequena e ainda não revisada por
 especialista.
 
+A decisão foi aplicada ao produto com `CONTEXTUAL_RETRIEVAL_ENABLED=false` no
+default interno e no `.env.example`. O mecanismo por LLM permanece disponível
+somente por ativação explícita para permitir novos experimentos controlados.
+
 ## Identidade do experimento
 
 - commit: `c1a5e721ab41183f2ebcabbae8f1a061602064f0`;
