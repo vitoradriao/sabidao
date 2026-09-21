@@ -31,8 +31,10 @@ Geração de texto e embeddings têm configuração independente:
 Os providers aceitos são `gemini` e `openai`. Os endpoints são usados somente
 por providers compatíveis com OpenAI. Mesmo quando os dois serviços usam a
 mesma chave, defina as duas variáveis de credencial de forma explícita. Alterar
-o provider, endpoint ou modelo de geração não modifica a configuração dos
-embeddings e não migra os vetores já armazenados.
+o modelo primário de resposta não modifica a configuração dos embeddings nem
+migra os vetores já armazenados. Quando a contextualização da ingestão está
+ativa, porém, o provider de geração e o modelo contextual efetivamente resolvido
+participam do texto enviado ao embedding e da identidade de processamento.
 
 `GENERATION_MODEL_POLICY` controla explicitamente o modelo usado na resposta:
 
@@ -97,6 +99,33 @@ intencionalmente alguns deles:
 
 Para conferir a configuração sem expor credenciais, use `!status`: o resumo
 mostra providers e modelos ativos, mas não mostra chaves.
+
+## Contextualização da ingestão
+
+Com `CONTEXTUAL_RETRIEVAL_ENABLED=true`, a ingestão gera uma frase curta para
+situar cada trecho antes de criar seu embedding. O conteúdo original continua
+armazenado em `document_chunks.content` e é o único apresentado como evidência;
+o texto gerado pelo modelo não vira citação do documento.
+
+A identidade de processamento registra, sem credenciais, o provider e o modelo
+contextual efetivamente resolvidos, a versão e o hash do contrato de prompt, além
+de `CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS`,
+`CONTEXTUAL_RETRIEVAL_MAX_TOKENS` e `CONTEXTUAL_RETRIEVAL_BATCH_SIZE`. Alterar
+qualquer um desses componentes invalida o `processing_hash`; alterar somente o
+modelo primário de resposta não invalida a ingestão quando o modelo contextual
+permanece igual.
+
+`CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS` limita a parte do documento reenviada em
+cada chamada, e `CONTEXTUAL_RETRIEVAL_MAX_TOKENS` é encaminhado ao provider como
+limite de saída. O lote contextual é aplicado sobre todos os trechos preparados,
+independentemente de `EMBEDDING_BATCH_SIZE`; em seguida, os textos resultantes são
+divididos nos lotes de embeddings.
+
+Esta mudança de contrato não inicia ingestão, reindexação ou chamadas externas
+automaticamente. Na próxima execução explícita de `ingest.py` ou `!ingerir`, os
+documentos contextualizados sob a identidade antiga serão detectados como
+alterados. Planeje essa reingestão, custo e janela operacional antes de executar;
+a versão válida do índice é preservada se a preparação falhar.
 
 ## Concorrência, deadline e retries
 
