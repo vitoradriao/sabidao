@@ -13,11 +13,25 @@ from evaluation import run_contextual_ingest_benchmark as benchmark
 
 class TestContextualIngestBenchmark(unittest.TestCase):
     def test_database_identity_hashes_url_without_exposing_it(self):
-        with patch.dict(os.environ, {"DATABASE_URL": "postgresql://secret@db/test"}):
-            identity = benchmark._database_identity("variant-a")
+        with patch.dict(
+            os.environ,
+            {"DATABASE_URL": "postgresql://user:secret@DB:5432/test"},
+        ):
+            first = benchmark._database_identity("variant-a")
+        with patch.dict(
+            os.environ,
+            {"DATABASE_URL": "postgresql://other:new-secret@db/test"},
+        ):
+            rotated_credentials = benchmark._database_identity("variant-a")
 
-        self.assertEqual(identity["operator_label"], "variant-a")
-        self.assertNotIn("secret", json.dumps(identity))
+        self.assertEqual(first, rotated_credentials)
+        self.assertEqual(first["operator_label"], "variant-a")
+        self.assertNotIn("secret", json.dumps(first))
+
+    def test_database_identity_rejects_incomplete_target(self):
+        with patch.dict(os.environ, {"DATABASE_URL": "postgresql://db"}):
+            with self.assertRaisesRegex(ValueError, "host e banco"):
+                benchmark._database_identity("variant-a")
 
     def test_corpus_identity_is_stable_and_does_not_expose_paths(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -107,15 +121,73 @@ class TestContextualIngestBenchmark(unittest.TestCase):
 
     def test_reference_requires_distinct_database(self):
         current = {
+            "schema_version": benchmark.REPORT_SCHEMA_VERSION,
+            "report_type": "contextual_ingest_benchmark",
+            "variant": "llm",
             "git_commit": "abc",
-            "database": {"url_sha256": "same"},
+            "database": {"target_sha256": "same"},
             "corpus": {"fingerprint_sha256": "corpus"},
             "configuration": {"invariants_fingerprint_sha256": "config"},
         }
         reference = json.loads(json.dumps(current))
+        reference["variant"] = "deterministic"
 
         with self.assertRaisesRegex(ValueError, "bancos isolados diferentes"):
             benchmark._validate_reference(current, reference)
+
+    def test_reference_requires_expected_variant_pair(self):
+        current = {
+            "schema_version": benchmark.REPORT_SCHEMA_VERSION,
+            "report_type": "contextual_ingest_benchmark",
+            "variant": "llm",
+        }
+        reference = {
+            "schema_version": benchmark.REPORT_SCHEMA_VERSION,
+            "report_type": "contextual_ingest_benchmark",
+            "variant": "llm",
+        }
+
+        with self.assertRaisesRegex(ValueError, "referencia deterministic"):
+            benchmark._validate_reference(current, reference)
+
+    def test_result_summary_marks_missing_document_as_incomplete(self):
+        summary = benchmark._result_summary(
+            [{"chunks_count": 2, "failed_chunks": 0}],
+            expected_documents=2,
+        )
+
+        self.assertEqual(summary["status"], "incomplete")
+        self.assertFalse(summary["complete"])
+        self.assertEqual(summary["documents_expected"], 2)
+
+    def test_run_benchmark_restores_contextualization_setting(self):
+        with patch.object(config, "CONTEXTUAL_RETRIEVAL_ENABLED", True), patch.object(
+            benchmark,
+            "_database_identity",
+            return_value={"operator_label": "a", "target_sha256": "db"},
+        ), patch.object(
+            benchmark,
+            "_corpus_identity",
+            return_value={"file_count": 1, "fingerprint_sha256": "corpus"},
+        ), patch.object(
+            benchmark,
+            "_effective_config",
+            return_value={"invariants_fingerprint_sha256": "config"},
+        ), patch.object(
+            ingest,
+            "ingest_directory",
+            return_value=[{"chunks_count": 1, "failed_chunks": 0}],
+        ):
+            report = benchmark.run_benchmark(
+                directory=Path("corpus"),
+                variant="deterministic",
+                database_label="a",
+                recursive=False,
+                reference_report=None,
+            )
+
+        self.assertTrue(config.CONTEXTUAL_RETRIEVAL_ENABLED)
+        self.assertTrue(report["ingestion"]["complete"])
 
     def test_invariant_fingerprint_includes_contextual_prompt_contract(self):
         with patch.object(config, "CONTEXTUAL_RETRIEVAL_ENABLED", False):

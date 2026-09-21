@@ -237,7 +237,8 @@ O runner da issue #16 deve ser executado uma vez em cada banco isolado. Ele for�
 somente a variante informada, registra um fingerprint sanitizado do corpus e exige
 uma confirmação explícita de que `DATABASE_URL` não aponta para produção. O segundo
 comando compara commit, corpus e configuração invariável com o primeiro relatório e
-recusa reutilizar o mesmo banco:
+recusa o mesmo alvo de host, porta e banco. A variante `llm` exige o relatório
+`deterministic` como referência:
 
 ```sh
 python evaluation/run_contextual_ingest_benchmark.py CORPUS_AUTORIZADO \
@@ -257,4 +258,5 @@ contextualização. A confirmação do banco não substitui a autorização pré
 orçamento, corpus, providers, credenciais e casos. O relatório não publica nomes,
 caminhos, URLs nem conteúdo do corpus. Quando o cliente de embeddings não expõe
 tokens ou preço, os campos correspondentes permanecem desconhecidos e
-`cost_complete` fica falso.
+`cost_complete` fica falso. O comando ainda salva o relatório quando a ingestão fica
+incompleta, mas termina com código 1 e marca `ingestion.complete` como falso.

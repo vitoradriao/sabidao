@@ -19,6 +19,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import unquote, urlparse
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -104,9 +105,22 @@ def _database_identity(label: str) -> dict[str, str]:
     raw_url = str(os.getenv("DATABASE_URL") or "").strip()
     if not raw_url:
         raise ValueError("DATABASE_URL nao configurada")
+    parsed = urlparse(raw_url)
+    database = unquote(parsed.path.lstrip("/"))
+    if (
+        parsed.scheme not in {"postgres", "postgresql"}
+        or not parsed.hostname
+        or not database
+    ):
+        raise ValueError("DATABASE_URL deve identificar host e banco PostgreSQL")
+    target = {
+        "host": parsed.hostname.lower(),
+        "port": parsed.port or 5432,
+        "database": database,
+    }
     return {
         "operator_label": label,
-        "url_sha256": hashlib.sha256(raw_url.encode("utf-8")).hexdigest(),
+        "target_sha256": _canonical_sha256(target),
     }
 
 
@@ -129,6 +143,7 @@ def _effective_config(variant: str) -> dict[str, Any]:
         "contextual_max_tokens": config.CONTEXTUAL_RETRIEVAL_MAX_TOKENS,
         "chunk_size": config.CHUNK_SIZE,
         "chunk_overlap": config.CHUNK_OVERLAP,
+        "analytical_context_enabled": config.ANALYTICAL_CONTEXT_ENABLED,
         "embedding_batch_size": config.EMBEDDING_BATCH_SIZE,
         "embedding_index": rag.get_embedding_index_identity(),
         "models": model_config,
@@ -291,20 +306,38 @@ def _capture_telemetry(telemetry: _Telemetry) -> Iterator[None]:
         ingest._contextualize_chunks_batch = original_contextualize
 
 
-def _result_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
+def _result_summary(
+    results: list[dict[str, Any]],
+    *,
+    expected_documents: int,
+) -> dict[str, Any]:
     error_types: Counter[str] = Counter()
     for result in results:
         if result.get("error"):
             error_types[str(result.get("error_type") or "ingestion_error")] += 1
+    documents_succeeded = sum(
+        1 for result in results if not result.get("error") and not result.get("skipped")
+    )
+    documents_skipped = sum(1 for result in results if result.get("skipped"))
+    documents_failed = sum(1 for result in results if result.get("error"))
+    failed_chunks = sum(int(result.get("failed_chunks") or 0) for result in results)
+    complete = bool(
+        documents_succeeded == expected_documents
+        and len(results) == expected_documents
+        and documents_skipped == 0
+        and documents_failed == 0
+        and failed_chunks == 0
+    )
     return {
+        "status": "complete" if complete else "incomplete",
+        "complete": complete,
+        "documents_expected": expected_documents,
         "documents_returned": len(results),
-        "documents_succeeded": sum(
-            1 for result in results if not result.get("error") and not result.get("skipped")
-        ),
-        "documents_skipped": sum(1 for result in results if result.get("skipped")),
-        "documents_failed": sum(1 for result in results if result.get("error")),
+        "documents_succeeded": documents_succeeded,
+        "documents_skipped": documents_skipped,
+        "documents_failed": documents_failed,
         "chunks_processed": sum(int(result.get("chunks_count") or 0) for result in results),
-        "failed_chunks": sum(int(result.get("failed_chunks") or 0) for result in results),
+        "failed_chunks": failed_chunks,
         "error_types": dict(sorted(error_types.items())),
     }
 
@@ -315,6 +348,12 @@ def _load_reference(path: Path) -> dict[str, Any]:
 
 
 def _validate_reference(current: dict[str, Any], reference: dict[str, Any]) -> None:
+    if reference.get("schema_version") != REPORT_SCHEMA_VERSION:
+        raise ValueError("Relatorio de referencia usa schema incompativel")
+    if reference.get("report_type") != "contextual_ingest_benchmark":
+        raise ValueError("Arquivo de referencia nao e um benchmark contextual")
+    if current.get("variant") != "llm" or reference.get("variant") != "deterministic":
+        raise ValueError("A comparacao exige referencia deterministic e variante llm")
     checks = (
         ("git_commit", current["git_commit"], reference.get("git_commit")),
         (
@@ -335,8 +374,10 @@ def _validate_reference(current: dict[str, Any], reference: dict[str, Any]) -> N
         raise ValueError(
             "Relatorio de referencia incompativel: " + ", ".join(mismatches)
         )
-    reference_database = (reference.get("database") or {}).get("url_sha256")
-    if current["database"]["url_sha256"] == reference_database:
+    reference_database = (reference.get("database") or {}).get("target_sha256")
+    if not reference_database:
+        raise ValueError("Relatorio de referencia nao identifica o banco")
+    if current["database"]["target_sha256"] == reference_database:
         raise ValueError("As variantes devem usar bancos isolados diferentes")
 
 
@@ -348,45 +389,61 @@ def run_benchmark(
     recursive: bool | None,
     reference_report: Path | None,
 ) -> dict[str, Any]:
-    config.CONTEXTUAL_RETRIEVAL_ENABLED = variant == "llm"
-    identity = {
-        "schema_version": REPORT_SCHEMA_VERSION,
-        "report_type": "contextual_ingest_benchmark",
-        "variant": variant,
-        "git_commit": _git_commit(),
-        "database": _database_identity(database_label),
-        "corpus": _corpus_identity(directory, recursive=recursive),
-        "configuration": _effective_config(variant),
-    }
-    if reference_report is not None:
-        _validate_reference(identity, _load_reference(reference_report))
+    if variant not in {"deterministic", "llm"}:
+        raise ValueError("Variante de benchmark invalida")
+    if variant == "llm" and reference_report is None:
+        raise ValueError("A variante llm exige --reference-report deterministic")
+    if variant == "deterministic" and reference_report is not None:
+        raise ValueError("A variante deterministic nao aceita --reference-report")
 
-    telemetry = _Telemetry()
-    started_at = datetime.now(timezone.utc)
-    started_clock = time.perf_counter()
-    with _capture_telemetry(telemetry):
-        results = ingest.ingest_directory(
-            directory=str(directory),
-            force=True,
-            recursive=recursive,
+    contextualization_enabled = variant == "llm"
+    previous_contextualization = config.CONTEXTUAL_RETRIEVAL_ENABLED
+    config.CONTEXTUAL_RETRIEVAL_ENABLED = contextualization_enabled
+    try:
+        identity = {
+            "schema_version": REPORT_SCHEMA_VERSION,
+            "report_type": "contextual_ingest_benchmark",
+            "variant": variant,
+            "git_commit": _git_commit(),
+            "database": _database_identity(database_label),
+            "corpus": _corpus_identity(directory, recursive=recursive),
+            "configuration": _effective_config(variant),
+        }
+        if reference_report is not None:
+            _validate_reference(identity, _load_reference(reference_report))
+
+        telemetry = _Telemetry()
+        started_at = datetime.now(timezone.utc)
+        started_clock = time.perf_counter()
+        with _capture_telemetry(telemetry):
+            results = ingest.ingest_directory(
+                directory=str(directory),
+                force=True,
+                recursive=recursive,
+            )
+        finished_at = datetime.now(timezone.utc)
+        ingestion = _result_summary(
+            results,
+            expected_documents=identity["corpus"]["file_count"],
         )
-    finished_at = datetime.now(timezone.utc)
 
-    return {
-        **identity,
-        "started_at": started_at.isoformat(),
-        "finished_at": finished_at.isoformat(),
-        "duration_ms": int((time.perf_counter() - started_clock) * 1000),
-        "ingestion": _result_summary(results),
-        "provider_usage": telemetry.summary(
-            contextualization_enabled=config.CONTEXTUAL_RETRIEVAL_ENABLED
-        ),
-        "limitations": [
-            "O relatorio nao inclui nomes, caminhos, URLs nem conteudo do corpus.",
-            "Tokens e custo de embeddings permanecem desconhecidos quando o cliente nao expoe uso.",
-            "O custo e estimado pela tabela versionada do repositorio, nao por uma fatura do provider.",
-        ],
-    }
+        return {
+            **identity,
+            "started_at": started_at.isoformat(),
+            "finished_at": finished_at.isoformat(),
+            "duration_ms": int((time.perf_counter() - started_clock) * 1000),
+            "ingestion": ingestion,
+            "provider_usage": telemetry.summary(
+                contextualization_enabled=contextualization_enabled
+            ),
+            "limitations": [
+                "O relatorio nao inclui nomes, caminhos, URLs nem conteudo do corpus.",
+                "Tokens e custo de embeddings permanecem desconhecidos quando o cliente nao expoe uso.",
+                "O custo e estimado pela tabela versionada do repositorio, nao por uma fatura do provider.",
+            ],
+        }
+    finally:
+        config.CONTEXTUAL_RETRIEVAL_ENABLED = previous_contextualization
 
 
 def _parse_args() -> argparse.Namespace:
@@ -419,6 +476,13 @@ def main() -> int:
         raise SystemExit(
             "Recusado: use --confirm-isolated-database somente apos verificar DATABASE_URL."
         )
+    if (
+        args.reference_report is not None
+        and args.output_report.resolve() == args.reference_report.resolve()
+    ):
+        raise SystemExit(
+            "Recusado: o relatorio de saida nao pode sobrescrever a referencia."
+        )
 
     config.validate_ai_config()
     validate_database_config()
@@ -434,7 +498,7 @@ def main() -> int:
         json.dump(report, handle, ensure_ascii=False, indent=2)
         handle.write("\n")
     print(f"Relatorio sanitizado salvo em {args.output_report}")
-    return 0
+    return 0 if report["ingestion"]["complete"] else 1
 
 
 if __name__ == "__main__":
