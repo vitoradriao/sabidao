@@ -6,6 +6,17 @@ Este diretório mantém um baseline reproduzível para medir recuperação, deci
 responder, esclarecimento, abstenção, correção factual, latência e custo. O baseline
 inicial tem 30 casos: 20 de desenvolvimento e 10 de holdout.
 
+## Estado da validação
+
+Os testes automatizados exercitam o cálculo de métricas e os contratos do
+avaliador. O runner, o dataset e a política descritos aqui formam a
+infraestrutura de avaliação entregue na issue #18; eles não comprovam, por si
+sós, a qualidade do sistema em operação. Os 30 casos ainda aguardam revisão
+humana e não há baseline operacional aprovado. Esse trabalho continua na
+[issue #53](https://github.com/vitoradriao/sabidao/issues/53), que exige ambiente,
+snapshot, orçamento e resultados sanitizados identificados antes de qualquer
+declaração de validação operacional.
+
 | Arquivo | Finalidade |
 | --- | --- |
 | `baseline_config.json` | Política congelada e critérios de não regressão definidos antes do holdout. |
