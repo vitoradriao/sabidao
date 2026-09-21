@@ -1,8 +1,10 @@
 # Contrato documental canônico v1
 
 Este diretório especifica o formato editorial que documentos canônicos do
-Sabidão devem seguir. A versão `1.0.0` é uma especificação: ela ainda não muda
-a ingestão, o banco, a busca nem os arquivos em `documentos/`.
+Sabidão devem seguir. A versão `1.0.0` define a especificação usada pelo linter
+offline. A ingestão rejeita um documento que se declare canônico e viole o
+contrato antes de banco ou IA, mas ainda não projeta seus metadados no banco nem
+migra os arquivos em `documentos/`.
 
 Os artefatos normativos são:
 
@@ -157,7 +159,30 @@ As fixtures são validadas sem banco, LLM, embeddings ou acesso à rede:
 py -m unittest tests.test_canonical_document_contract
 ```
 
-Esse teste é uma verificação do contrato e não é o parser de ingestão previsto
-na próxima etapa da issue #32. Ele confere o front matter e o corpo das fixtures,
+Esse teste é uma verificação do contrato e não é a projeção canônica prevista na
+issue #67. Ele confere o front matter e o corpo das fixtures,
 incluindo H1, chaves H2–H6, correspondência de IDs entre documento e manifesto e
 referências de sucessão. Nenhum arquivo em `documentos/` é lido ou alterado.
+
+## Linter, manifesto e inventário
+
+O manifesto transitório fica em `contracts/canonical-docs/manifest.yaml`. Ele
+registra as 27 fontes imediatas como `legacy` e mantém a seleção publicada,
+inclusive os sete documentos de Logística enquanto a decisão editorial estiver
+pendente. `bootstrap/00-DOCUMENTO-PRINCIPAL.md` permanece separado como fallback
+de regras de negócio e não integra esse corpus.
+
+Os comandos são estritamente offline e não importam configuração de runtime,
+banco ou clientes de IA:
+
+```powershell
+py canonical_docs.py lint
+py canonical_docs.py inventory
+py canonical_docs.py inventory --json
+```
+
+Cada diagnóstico informa arquivo, linha ou campo quando aplicável, regra e
+severidade. O linter retorna código diferente de zero para erros; anomalias dos
+documentos legados são avisos versionados e não mudam sua elegibilidade. O
+inventário também lista arquivos encontrados sob `docbkp`, `backup`, `backups`
+ou `bkp` como backups excluídos.

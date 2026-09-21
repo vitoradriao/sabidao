@@ -1,0 +1,225 @@
+schema_version: 1.0.0
+manifest_id: 30000000-0000-4000-8000-000000000001
+revision: 1
+batches:
+  - batch_id: legado-publicado
+    description: Corpus legado publicado; elegibilidade preservada até migração explícita.
+  - batch_id: logistica-decisao-pendente
+    description: Documentos de Logística seguem elegíveis; vigência editorial aguarda decisão do mantenedor.
+entries:
+  - path: documentos/00-DOCUMENTO-PRINCIPAL.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/01-LAYOUT-INTEGRACAO.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/02-CONHECIMENTOS-GERAIS.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/04-PARAMETROS-E-CONFIGURACAO.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/05-PEDIDOS-E-VENDAS.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/05-SQL-BANCO-E-INTEGRACAO.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/06-CAMPANHAS-E-DESCONTOS.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/07-GRUPOS-TABELAS-CARGA-TOTAL.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/08-SCRIPTS-UTILITARIOS.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/10-TIPOS-DE-VENDA.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/14-ROTINAS-X-TABELAS-WINTHOR.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/15-FLUXO-PEDIDOS-GERA.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/16-SUPORTE-EXTRATOR.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/18-SUPORTE-CONTROLE-MXSUSUARIOS-FERIAS.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/19-MS-RASTRO.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/21-MS-HUB-GERA-MAXPEDIDO.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/22-MS-SUPORTE-WINTHOR-INTEGRACOES.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/23-CAMPANHA-PROGRESSIVA.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: legado-publicado
+    exclusion: null
+    successors: []
+  - path: documentos/24-LOGISTICA-PARAMETROS-MAXMOTORISTA-MAXROTEIRIZADOR.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: logistica-decisao-pendente
+    exclusion: null
+    successors: []
+  - path: documentos/25-LOGISTICA-DIAGNOSTICO-E-PLAYBOOKS.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: logistica-decisao-pendente
+    exclusion: null
+    successors: []
+  - path: documentos/26-LOGISTICA-MAPA-FUNCIONALIDADE-TABELAS.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: logistica-decisao-pendente
+    exclusion: null
+    successors: []
+  - path: documentos/27-LOGISTICA-DICIONARIO-TABELAS-CAMPOS.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: logistica-decisao-pendente
+    exclusion: null
+    successors: []
+  - path: documentos/28-LOGISTICA-TRIGGERS-E-VIEWS.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: logistica-decisao-pendente
+    exclusion: null
+    successors: []
+  - path: documentos/29-LOGISTICA-LAYOUT-INTEGRACAO-ERP.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: logistica-decisao-pendente
+    exclusion: null
+    successors: []
+  - path: documentos/30-LOGISTICA-APLICATIVO-MAXMOTORISTA.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: include
+    batch_id: logistica-decisao-pendente
+    exclusion: null
+    successors: []
