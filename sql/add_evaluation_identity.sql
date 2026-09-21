@@ -52,6 +52,7 @@ section_manifest AS (
                 COALESCE(s.semantic_context, '<null>'),
                 s.entities::TEXT,
                 ENCODE(DIGEST(COALESCE(s.retrieval_text, ''), 'sha256'), 'hex'),
+                ENCODE(DIGEST(COALESCE(s.embedding::TEXT, ''), 'sha256'), 'hex'),
                 s.metadata::TEXT
             ),
             'sha256'
@@ -79,7 +80,8 @@ chunk_manifest AS (
                 COALESCE(c.heading_path, '<null>'),
                 COALESCE(c.semantic_context, '<null>'),
                 c.entities::TEXT,
-                COALESCE(c.answer_mode, '<null>')
+                COALESCE(c.answer_mode, '<null>'),
+                ENCODE(DIGEST(COALESCE(c.embedding::TEXT, ''), 'sha256'), 'hex')
             ),
             'sha256'
         ),
@@ -97,7 +99,8 @@ eligible_feedback AS (
                 CONCAT_WS(
                     E'\x1f',
                     fc.scope::TEXT,
-                    ENCODE(DIGEST(fc.content, 'sha256'), 'hex')
+                    ENCODE(DIGEST(fc.content, 'sha256'), 'hex'),
+                    ENCODE(DIGEST(COALESCE(fc.embedding::TEXT, ''), 'sha256'), 'hex')
                 ),
                 'sha256'
             ),

@@ -77,6 +77,9 @@ class TestOfflineEvaluator(unittest.TestCase):
             feedback_changed = run_offline_eval._experiment_identity({"policy": "v1"})
 
         self.assertEqual(baseline["fingerprint_sha256"], repeated["fingerprint_sha256"])
+        self.assertIn("CONTEXTUAL_RETRIEVAL_ENABLED", baseline["rag_config"])
+        self.assertIn("routing_policy", baseline["prompts_and_policies"])
+        self.assertIn("response_policy", baseline["prompts_and_policies"])
         for changed in (
             challenger_changed,
             prompt_changed,

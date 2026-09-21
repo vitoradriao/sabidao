@@ -93,10 +93,12 @@ _CONFIG_FIELDS = (
     "SIMILARITY_THRESHOLD",
     "SIMILARITY_FLOOR_FACTOR",
     "RAG_ENABLE_QUERY_REFORMULATION",
+    "REFORMULATION_MODEL",
     "RAG_MIN_STRONG_SIMILARITY",
     "RAG_MIN_RETRIEVED_CHUNKS",
     "RAG_OPERATIONAL_SIMILARITY_MARGIN",
     "RAG_ENABLE_RERANKING",
+    "RERANKER_MODEL",
     "RERANKER_MIN_TRIGGER_SIM",
     "RERANKER_MAX_TRIGGER_SIM",
     "RERANKER_MAX_CANDIDATES",
@@ -110,8 +112,17 @@ _CONFIG_FIELDS = (
     "BUSINESS_RULES_MAX_CHARS",
     "FULL_CONTEXT_ENABLED",
     "FULL_CONTEXT_MAX_CHARS",
+    "FULL_CONTEXT_EXTENSIONS",
+    "CONTEXTUAL_RETRIEVAL_ENABLED",
+    "CONTEXTUAL_RETRIEVAL_MODEL",
+    "CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS",
+    "CONTEXTUAL_RETRIEVAL_MAX_TOKENS",
+    "CONTEXTUAL_RETRIEVAL_BATCH_SIZE",
     "ASK_MAX_TOKENS",
     "OPENAI_MAX_OUTPUT_TOKENS",
+    "GENERATION_MODEL_POLICY",
+    "RAG_PROVIDER_MAX_RETRIES",
+    "RAG_RETRY_BASE_SECONDS",
 )
 
 AnswerProvider = Callable[[str, dict[str, Any]], tuple[str, list[dict], dict[str, Any]]]
@@ -687,6 +698,23 @@ def _prompt_and_policy_identity(
         "system_prompt": _text_identity(config.SYSTEM_PROMPT),
         "no_answer_policy": _text_identity(config.NO_ANSWER_PHRASE),
         "clarification_policy": _text_identity(config.ABSTAIN_CLARIFYING_QUESTION),
+        "routing_policy": {
+            "sha256": _canonical_sha256(
+                {
+                    "intent_priority": rag.INTENT_PRIORITY,
+                    "intent_keywords": rag.INTENT_KEYWORDS,
+                    "module_hints": rag.QUERY_MODULE_HINTS,
+                    "default_modules": rag.INTENT_DEFAULT_MODULES,
+                    "doc_types": rag.INTENT_DOC_TYPES,
+                }
+            )
+        },
+        "response_policy": {
+            "sha256": _canonical_sha256(rag.INTENT_RESPONSE_INSTRUCTIONS),
+        },
+        "query_preprocessing_policy": {
+            "sha256": _canonical_sha256(rag.QUERY_ABBREVIATIONS),
+        },
         "business_rules": {
             "enabled": bool(config.RAG_ENABLE_BUSINESS_RULES),
             **_text_identity(business_rules),
