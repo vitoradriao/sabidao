@@ -15,6 +15,146 @@ BASELINE_DATASET = ROOT_DIR / "evaluation" / "datasets" / "maxpedido_eval_datase
 
 
 class TestOfflineEvaluator(unittest.TestCase):
+    @staticmethod
+    def _verified_database_identity(
+        *,
+        corpus_sha256: str = "corpus-a",
+        feedback_sha256: str = "feedback-a",
+    ):
+        configured = run_offline_eval.rag.get_embedding_index_identity()
+        return {
+            "status": "verified",
+            "reason": None,
+            "schema_version": 1,
+            "corpus": {
+                "sha256": corpus_sha256,
+                "document_count": 2,
+                "section_count": 3,
+                "chunk_count": 4,
+            },
+            "feedback": {
+                "sha256": feedback_sha256,
+                "item_count": 1,
+                "chunk_count": 1,
+            },
+            "persisted_vector_identities": [
+                {"index_scope": scope, **configured}
+                for scope in ("feedback", "corpus", "sections")
+            ],
+        }
+
+    def test_experiment_identity_tracks_challenger_prompt_corpus_and_feedback(self):
+        database = self._verified_database_identity()
+        with patch.object(run_offline_eval, "_database_identity", return_value=database):
+            baseline = run_offline_eval._experiment_identity({"policy": "v1"})
+            repeated = run_offline_eval._experiment_identity({"policy": "v1"})
+
+            with patch.object(
+                run_offline_eval.config,
+                "RAG_GLOBAL_CHALLENGER_COUNT",
+                run_offline_eval.config.RAG_GLOBAL_CHALLENGER_COUNT + 1,
+            ):
+                challenger_changed = run_offline_eval._experiment_identity({"policy": "v1"})
+
+            with patch.object(
+                run_offline_eval.config,
+                "SYSTEM_PROMPT",
+                run_offline_eval.config.SYSTEM_PROMPT + "\nregra nova",
+            ):
+                prompt_changed = run_offline_eval._experiment_identity({"policy": "v1"})
+
+        with patch.object(
+            run_offline_eval,
+            "_database_identity",
+            return_value=self._verified_database_identity(corpus_sha256="corpus-b"),
+        ):
+            corpus_changed = run_offline_eval._experiment_identity({"policy": "v1"})
+        with patch.object(
+            run_offline_eval,
+            "_database_identity",
+            return_value=self._verified_database_identity(feedback_sha256="feedback-b"),
+        ):
+            feedback_changed = run_offline_eval._experiment_identity({"policy": "v1"})
+
+        self.assertEqual(baseline["fingerprint_sha256"], repeated["fingerprint_sha256"])
+        for changed in (
+            challenger_changed,
+            prompt_changed,
+            corpus_changed,
+            feedback_changed,
+        ):
+            self.assertNotEqual(
+                baseline["fingerprint_sha256"],
+                changed["fingerprint_sha256"],
+            )
+
+    def test_database_identity_normalizes_persisted_vector_order(self):
+        configured = run_offline_eval.rag.get_embedding_index_identity()
+        row = {
+            "schema_version": 1,
+            "corpus_sha256": "corpus",
+            "corpus_document_count": 1,
+            "corpus_section_count": 2,
+            "corpus_chunk_count": 3,
+            "feedback_sha256": "feedback",
+            "feedback_item_count": 1,
+            "feedback_chunk_count": 1,
+            "vector_index_identities": [
+                {"index_scope": scope, **configured}
+                for scope in ("sections", "feedback", "corpus")
+            ],
+        }
+        with (
+            patch.dict("os.environ", {"DATABASE_URL": "postgresql://fixture"}),
+            patch.object(run_offline_eval.rag, "supabase_rpc", return_value=[row]),
+        ):
+            identity = run_offline_eval._database_identity()
+
+        self.assertEqual(
+            [item["index_scope"] for item in identity["persisted_vector_identities"]],
+            ["corpus", "feedback", "sections"],
+        )
+        self.assertNotIn("content", json.dumps(identity))
+
+    def test_runtime_comparison_requires_declared_differences(self):
+        database = self._verified_database_identity()
+        with patch.object(run_offline_eval, "_database_identity", return_value=database):
+            reference_identity = run_offline_eval._experiment_identity({"policy": "v1"})
+            with patch.object(
+                run_offline_eval.config,
+                "RAG_GLOBAL_CHALLENGER_COUNT",
+                run_offline_eval.config.RAG_GLOBAL_CHALLENGER_COUNT + 1,
+            ):
+                current_identity = run_offline_eval._experiment_identity({"policy": "v1"})
+
+        reference = {"experiment_identity": reference_identity}
+        current = {"experiment_identity": current_identity}
+        incompatible = run_offline_eval._compare_runtime_identities(current, reference)
+        declared = run_offline_eval._compare_runtime_identities(
+            current,
+            reference,
+            experimental_variables=["rag_config.RAG_GLOBAL_CHALLENGER_COUNT"],
+        )
+
+        self.assertEqual(incompatible["status"], "incompatible")
+        self.assertFalse(incompatible["compatible"])
+        self.assertEqual(declared["status"], "compatible_with_declared_changes")
+        self.assertTrue(declared["compatible"])
+        self.assertEqual(len(declared["differences"]), 1)
+
+    def test_runtime_comparison_does_not_accept_unknown_database_identity(self):
+        unknown = {
+            "experiment_identity": {
+                "database": {"status": "unknown"},
+                "fingerprint_sha256": "same",
+            }
+        }
+
+        comparison = run_offline_eval._compare_runtime_identities(unknown, unknown)
+
+        self.assertEqual(comparison["status"], "incomplete")
+        self.assertFalse(comparison["compatible"])
+
     def test_baseline_requires_every_criterion_and_full_coverage(self):
         config = json.loads((ROOT_DIR / "evaluation/baseline_config.json").read_text(encoding="utf-8"))
         holdout = {

@@ -44,6 +44,7 @@ antes de mudar qualquer um desses valores.
 | `add_section_retrieval_3072.sql` | Referência histórica/experimental não suportada no runtime atual. |
 | `add_embedding_index_identity.sql` | Registra e valida a identidade vetorial de corpus, seções e feedback. |
 | `add_ingest_identity.sql` | Adiciona hashes de conteúdo e preprocessamento para ingestão incremental. |
+| `add_evaluation_identity.sql` | Calcula no banco fingerprints sanitizados do corpus, feedback elegível e identidades vetoriais para avaliações. |
 
 ### Contrato da busca híbrida
 
@@ -91,5 +92,6 @@ Em um volume novo, `docker/postgres/init/00-bootstrap.sh` aplica:
 8. `add_section_retrieval_1536.sql`
 9. `add_embedding_index_identity.sql`
 10. `add_ingest_identity.sql`
+11. `add_evaluation_identity.sql`
 
 A inicialização não é repetida em volumes existentes. Para atualizá-los, revise as migrações aplicáveis em um ambiente de testes antes da implantação.

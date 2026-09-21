@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import subprocess
 import time
@@ -25,7 +26,7 @@ import rag
 from bot_common import normalize_text
 
 
-EVALUATOR_SCHEMA_VERSION = 4
+EVALUATOR_SCHEMA_VERSION = 5
 METRIC_DEFINITIONS = {
     "behavior_match": (
         "Compara se a resposta ou abstencao ocorreu conforme expected_behavior."
@@ -75,18 +76,42 @@ _CLARIFICATION_RE = re.compile(
 )
 
 _CONFIG_FIELDS = (
+    "RAG_ENABLE_INTENT_ROUTING",
+    "RAG_FILTER_BY_DOC_TYPE",
+    "RAG_FILTER_BY_MODULE",
+    "RAG_ENABLE_GLOBAL_CHALLENGER",
+    "RAG_GLOBAL_CHALLENGER_COUNT",
+    "RAG_GLOBAL_CHALLENGER_FETCH_LIMIT",
+    "ANALYTICAL_CONTEXT_ENABLED",
+    "SECTION_RETRIEVAL_ENABLED",
+    "SECTION_MATCH_COUNT",
+    "SECTION_FETCH_LIMIT",
     "MAX_CONTEXT_CHUNKS",
     "CHUNK_FETCH_LIMIT",
+    "MAX_CHUNKS_PER_SECTION",
+    "MAX_CHUNKS_PER_DOCUMENT",
     "SIMILARITY_THRESHOLD",
     "SIMILARITY_FLOOR_FACTOR",
+    "RAG_ENABLE_QUERY_REFORMULATION",
     "RAG_MIN_STRONG_SIMILARITY",
+    "RAG_MIN_RETRIEVED_CHUNKS",
     "RAG_OPERATIONAL_SIMILARITY_MARGIN",
     "RAG_ENABLE_RERANKING",
     "RERANKER_MIN_TRIGGER_SIM",
     "RERANKER_MAX_TRIGGER_SIM",
     "RERANKER_MAX_CANDIDATES",
+    "RAG_STRICT_ABSTAIN",
     "RAG_ENABLE_GROUNDING_VALIDATION",
+    "RAG_REQUIRE_SOURCES_SECTION",
+    "RAG_MAX_REGEN_ATTEMPTS",
+    "RAG_FEEDBACK_TOP_K",
+    "RAG_FEEDBACK_MIN_SIMILARITY",
+    "RAG_ENABLE_BUSINESS_RULES",
+    "BUSINESS_RULES_MAX_CHARS",
     "FULL_CONTEXT_ENABLED",
+    "FULL_CONTEXT_MAX_CHARS",
+    "ASK_MAX_TOKENS",
+    "OPENAI_MAX_OUTPUT_TOKENS",
 )
 
 AnswerProvider = Callable[[str, dict[str, Any]], tuple[str, list[dict], dict[str, Any]]]
@@ -545,6 +570,168 @@ def _git_commit() -> str | None:
     return commit if completed.returncode == 0 and commit else None
 
 
+def _canonical_sha256(value: Any) -> str:
+    canonical = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _text_identity(text: str) -> dict[str, Any]:
+    encoded = (text or "").encode("utf-8")
+    return {
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+        "chars": len(text or ""),
+    }
+
+
+def _database_identity() -> dict[str, Any]:
+    if not os.getenv("DATABASE_URL"):
+        return {
+            "status": "unknown",
+            "reason": "database_not_configured",
+            "schema_version": None,
+            "corpus": None,
+            "feedback": None,
+            "persisted_vector_identities": None,
+        }
+
+    try:
+        rows = rag.supabase_rpc("get_evaluation_data_identity", {})
+    except Exception as exc:
+        return {
+            "status": "unknown",
+            "reason": "identity_query_unavailable",
+            "error_type": type(exc).__name__,
+            "schema_version": None,
+            "corpus": None,
+            "feedback": None,
+            "persisted_vector_identities": None,
+        }
+
+    if not rows or not isinstance(rows[0], dict):
+        return {
+            "status": "unknown",
+            "reason": "identity_query_returned_no_rows",
+            "schema_version": None,
+            "corpus": None,
+            "feedback": None,
+            "persisted_vector_identities": None,
+        }
+
+    row = rows[0]
+    persisted_identities = row.get("vector_index_identities")
+    if not isinstance(persisted_identities, list):
+        persisted_identities = []
+    persisted_identities = sorted(
+        (identity for identity in persisted_identities if isinstance(identity, dict)),
+        key=lambda identity: str(identity.get("index_scope") or ""),
+    )
+    return {
+        "status": "verified",
+        "reason": None,
+        "schema_version": row.get("schema_version"),
+        "corpus": {
+            "sha256": row.get("corpus_sha256"),
+            "document_count": row.get("corpus_document_count"),
+            "section_count": row.get("corpus_section_count"),
+            "chunk_count": row.get("corpus_chunk_count"),
+        },
+        "feedback": {
+            "sha256": row.get("feedback_sha256"),
+            "item_count": row.get("feedback_item_count"),
+            "chunk_count": row.get("feedback_chunk_count"),
+        },
+        "persisted_vector_identities": persisted_identities,
+    }
+
+
+def _vector_identity_metadata(database_identity: dict[str, Any]) -> dict[str, Any]:
+    configured = rag.get_embedding_index_identity()
+    persisted_rows = database_identity.get("persisted_vector_identities")
+    persisted_by_scope = {
+        str(row.get("index_scope")): {
+            field: row.get(field)
+            for field in ("provider", "model", "dimensions", "preprocessing_version")
+        }
+        for row in (persisted_rows or [])
+        if isinstance(row, dict) and row.get("index_scope")
+    }
+
+    scopes: dict[str, Any] = {}
+    for scope in ("corpus", "sections", "feedback"):
+        persisted = persisted_by_scope.get(scope)
+        if persisted is None:
+            status = "unknown"
+        elif persisted == configured:
+            status = "verified"
+        else:
+            status = "mismatch"
+        scopes[scope] = {
+            "status": status,
+            "configured": configured,
+            "persisted": persisted,
+        }
+    return scopes
+
+
+def _prompt_and_policy_identity(
+    baseline_config: dict[str, Any] | None,
+) -> dict[str, Any]:
+    business_rules = rag._load_business_rules_context()
+    full_context = rag._load_full_context_docs() if config.FULL_CONTEXT_ENABLED else ""
+    return {
+        "system_prompt": _text_identity(config.SYSTEM_PROMPT),
+        "no_answer_policy": _text_identity(config.NO_ANSWER_PHRASE),
+        "clarification_policy": _text_identity(config.ABSTAIN_CLARIFYING_QUESTION),
+        "business_rules": {
+            "enabled": bool(config.RAG_ENABLE_BUSINESS_RULES),
+            **_text_identity(business_rules),
+        },
+        "full_context": {
+            "enabled": bool(config.FULL_CONTEXT_ENABLED),
+            **_text_identity(full_context),
+        },
+        "baseline_policy_sha256": (
+            _canonical_sha256(baseline_config)
+            if baseline_config is not None
+            else None
+        ),
+    }
+
+
+def _experiment_identity(
+    baseline_config: dict[str, Any] | None,
+) -> dict[str, Any]:
+    database_identity = _database_identity()
+    identity = {
+        "schema_version": 1,
+        "model_config": rag.get_model_config(),
+        "rag_config": {
+            field: getattr(config, field)
+            for field in _CONFIG_FIELDS
+            if hasattr(config, field)
+        },
+        "prompts_and_policies": _prompt_and_policy_identity(baseline_config),
+        "database": database_identity,
+        "vector_indexes": _vector_identity_metadata(database_identity),
+        "cache": {
+            "query_embedding": {
+                "scope": "process_local",
+                "max_entries": rag._query_embedding_cache._maxsize,
+                "ttl_seconds": rag._query_embedding_cache._ttl,
+                "identity_aware": True,
+            },
+            "business_rules": "process_local_by_path_and_mtime",
+            "full_context": "process_local_by_max_mtime",
+        },
+    }
+    return {**identity, "fingerprint_sha256": _canonical_sha256(identity)}
+
+
 def _runtime_metadata(
     dataset: list[dict[str, Any]],
     baseline_config: dict[str, Any] | None,
@@ -555,6 +742,7 @@ def _runtime_metadata(
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
+    experiment_identity = _experiment_identity(baseline_config)
     return {
         "git_commit": _git_commit(),
         "dataset_sha256": hashlib.sha256(canonical_dataset).hexdigest(),
@@ -566,6 +754,123 @@ def _runtime_metadata(
             if hasattr(config, field)
         },
         "baseline_config": baseline_config,
+        "experiment_identity": experiment_identity,
+    }
+
+
+def _flatten_identity(value: Any, prefix: str = "") -> dict[str, Any]:
+    if isinstance(value, dict):
+        flattened: dict[str, Any] = {}
+        for key in sorted(value):
+            if key == "fingerprint_sha256":
+                continue
+            child_prefix = f"{prefix}.{key}" if prefix else str(key)
+            flattened.update(_flatten_identity(value[key], child_prefix))
+        return flattened
+    if isinstance(value, list):
+        return {prefix: value}
+    return {prefix: value}
+
+
+def _declared_difference(path: str, declared_variables: set[str]) -> bool:
+    return any(
+        path == variable or path.startswith(f"{variable}.")
+        for variable in declared_variables
+    )
+
+
+def _has_identity_status(value: Any, statuses: set[str]) -> bool:
+    if isinstance(value, dict):
+        if value.get("status") in statuses:
+            return True
+        return any(_has_identity_status(item, statuses) for item in value.values())
+    if isinstance(value, list):
+        return any(_has_identity_status(item, statuses) for item in value)
+    return False
+
+
+def _compare_runtime_identities(
+    current_runtime: dict[str, Any],
+    reference_runtime: dict[str, Any],
+    *,
+    experimental_variables: list[str] | None = None,
+) -> dict[str, Any]:
+    current = current_runtime.get("experiment_identity")
+    reference = reference_runtime.get("experiment_identity")
+    if not isinstance(current, dict) or not isinstance(reference, dict):
+        return {
+            "status": "incomplete",
+            "compatible": False,
+            "declared_experimental_variables": sorted(experimental_variables or []),
+            "differences": [],
+            "reason": "experiment_identity_missing",
+        }
+
+    current_values = {
+        **_flatten_identity(current),
+        "git_commit": current_runtime.get("git_commit"),
+        "dataset_sha256": current_runtime.get("dataset_sha256"),
+        **_flatten_identity(current_runtime.get("selection"), "selection"),
+    }
+    reference_values = {
+        **_flatten_identity(reference),
+        "git_commit": reference_runtime.get("git_commit"),
+        "dataset_sha256": reference_runtime.get("dataset_sha256"),
+        **_flatten_identity(reference_runtime.get("selection"), "selection"),
+    }
+    declared = {
+        str(value).strip()
+        for value in (experimental_variables or [])
+        if str(value).strip()
+    }
+    differences = []
+    for path in sorted(set(current_values) | set(reference_values)):
+        current_value = current_values.get(path)
+        reference_value = reference_values.get(path)
+        if current_value == reference_value:
+            continue
+        differences.append(
+            {
+                "path": path,
+                "reference": reference_value,
+                "current": current_value,
+                "declared_experimental_variable": _declared_difference(path, declared),
+            }
+        )
+
+    undeclared = [
+        difference
+        for difference in differences
+        if not difference["declared_experimental_variable"]
+    ]
+    unknown = _has_identity_status(current, {"unknown"}) or _has_identity_status(
+        reference,
+        {"unknown"},
+    )
+    mismatch = _has_identity_status(current, {"mismatch"}) or _has_identity_status(
+        reference,
+        {"mismatch"},
+    )
+    if undeclared or mismatch:
+        status = "incompatible"
+    elif unknown:
+        status = "incomplete"
+    elif differences:
+        status = "compatible_with_declared_changes"
+    else:
+        status = "compatible"
+    return {
+        "status": status,
+        "compatible": status in {"compatible", "compatible_with_declared_changes"},
+        "declared_experimental_variables": sorted(declared),
+        "differences": differences,
+        "reason": (
+            "vector_identity_mismatch"
+            if mismatch
+            else "unknown_identity"
+            if status == "incomplete" and unknown
+            else None
+        ),
     }
 
 
@@ -860,6 +1165,8 @@ def run_evaluation(
     answer_provider: AnswerProvider | None = None,
     baseline_config: dict[str, Any] | None = None,
     split: str = "all",
+    reference_runtime: dict[str, Any] | None = None,
+    experimental_variables: list[str] | None = None,
 ) -> dict[str, Any]:
     selected = [
         case
@@ -880,6 +1187,15 @@ def run_evaluation(
             for index, case in enumerate(selected, start=1)
         ],
     }
+    runtime_comparison = (
+        _compare_runtime_identities(
+            runtime_metadata,
+            reference_runtime,
+            experimental_variables=experimental_variables,
+        )
+        if reference_runtime is not None
+        else None
+    )
     run_id = "DRY_RUN"
     if not dry_run:
         run_id = _insert_run(
@@ -888,6 +1204,7 @@ def run_evaluation(
             metadata={
                 "started_at": started_at,
                 "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
+                "runtime_comparison": runtime_comparison,
                 **runtime_metadata,
             },
         )
@@ -1057,6 +1374,7 @@ def run_evaluation(
             ),
         },
         "runtime": runtime_metadata,
+        "runtime_comparison": runtime_comparison,
         "avg_score": avg_score,
         "score_evaluated": len(scores),
         "score_not_evaluated": total - len(scores),
@@ -1185,11 +1503,35 @@ def main() -> int:
         default="",
         help="Optional output JSON report path",
     )
+    parser.add_argument(
+        "--compare-report",
+        default="",
+        help=(
+            "Relatorio JSON de referencia. Diferencas nao declaradas ou identidades "
+            "desconhecidas produzem saida nao zero depois de salvar o novo relatorio."
+        ),
+    )
+    parser.add_argument(
+        "--experimental-variable",
+        action="append",
+        default=[],
+        help=(
+            "Caminho em experiment_identity cuja mudanca e deliberada; pode ser repetido. "
+            "Exemplo: rag_config.RAG_GLOBAL_CHALLENGER_COUNT."
+        ),
+    )
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset)
     dataset = _load_dataset(dataset_path)
     baseline_config = _load_json_object(Path(args.baseline_config))
+    reference_runtime = None
+    if args.compare_report:
+        reference_report = _load_json_object(Path(args.compare_report))
+        candidate_runtime = reference_report.get("runtime")
+        if not isinstance(candidate_runtime, dict):
+            raise ValueError("Reference report has no runtime object")
+        reference_runtime = candidate_runtime
 
     summary = run_evaluation(
         dataset=dataset,
@@ -1198,6 +1540,8 @@ def main() -> int:
         limit=args.limit,
         baseline_config=baseline_config,
         split=args.split,
+        reference_runtime=reference_runtime,
+        experimental_variables=args.experimental_variable,
     )
 
     report_path = Path(args.output_report) if args.output_report else None
@@ -1237,7 +1581,11 @@ def main() -> int:
     )
     if summary["non_regression"] is not None:
         print(f"Holdout non-regression: {summary['non_regression']['status']}")
+    if summary["runtime_comparison"] is not None:
+        print(f"Runtime comparison: {summary['runtime_comparison']['status']}")
     print(f"Report: {report_path}")
+    if summary["runtime_comparison"] is not None and not summary["runtime_comparison"]["compatible"]:
+        return 1
     if args.gate and (summary["non_regression"] or {}).get("status") != "passed":
         return 1
     return 0
