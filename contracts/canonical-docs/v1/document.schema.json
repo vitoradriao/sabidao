@@ -1,0 +1,645 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitoradriao/sabidao/contracts/canonical-docs/v1/document.schema.json",
+  "title": "Documento canônico Sabidão v1",
+  "description": "Contrato do front matter editorial de um documento Markdown canônico.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "document_id",
+    "revision",
+    "title",
+    "language",
+    "doc_type",
+    "semantic_type",
+    "products",
+    "taxonomy",
+    "aliases",
+    "sources",
+    "applicability",
+    "review",
+    "sections"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "document_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "title": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(?:-[A-Z]{2})?$"
+    },
+    "doc_type": {
+      "const": "md",
+      "description": "Formato físico preservado para compatibilidade; não é o tipo semântico."
+    },
+    "semantic_type": {
+      "enum": [
+        "guide",
+        "procedure",
+        "catalog",
+        "data_dictionary",
+        "troubleshooting",
+        "sql_reference"
+      ]
+    },
+    "products": {
+      "$ref": "#/$defs/codeList"
+    },
+    "taxonomy": {
+      "$ref": "#/$defs/classification"
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      },
+      "uniqueItems": true
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "applicability": {
+      "$ref": "#/$defs/applicability"
+    },
+    "review": {
+      "$ref": "#/$defs/review"
+    },
+    "sections": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/stableKey"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/section"
+      }
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "nullableNonEmptyString": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stableKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 80
+    },
+    "registryCode": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "codeList": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/registryCode"
+      },
+      "uniqueItems": true
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "taxonomy_version",
+        "primary_module",
+        "secondary_modules",
+        "answer_mode"
+      ],
+      "properties": {
+        "taxonomy_version": {
+          "$ref": "#/$defs/registryCode"
+        },
+        "primary_module": {
+          "$ref": "#/$defs/registryCode"
+        },
+        "secondary_modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/registryCode"
+          },
+          "uniqueItems": true
+        },
+        "answer_mode": {
+          "$ref": "#/$defs/registryCode"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "kind",
+        "locator",
+        "source_version",
+        "sha256",
+        "notes"
+      ],
+      "properties": {
+        "source_id": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "kind": {
+          "enum": [
+            "repository",
+            "url",
+            "file",
+            "unknown"
+          ]
+        },
+        "locator": {
+          "$ref": "#/$defs/nullableNonEmptyString"
+        },
+        "source_version": {
+          "$ref": "#/$defs/nullableNonEmptyString"
+        },
+        "sha256": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "$ref": "#/$defs/nullableNonEmptyString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "unknown"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "locator": {
+                "type": "null"
+              },
+              "source_version": {
+                "type": "null"
+              },
+              "sha256": {
+                "type": "null"
+              },
+              "notes": {
+                "$ref": "#/$defs/nonEmptyString"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "applicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "product_versions",
+        "erp_systems",
+        "valid_from",
+        "valid_until",
+        "notes"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        },
+        "product_versions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "product",
+              "expression"
+            ],
+            "properties": {
+              "product": {
+                "$ref": "#/$defs/registryCode"
+              },
+              "expression": {
+                "$ref": "#/$defs/nonEmptyString"
+              }
+            }
+          },
+          "uniqueItems": true
+        },
+        "erp_systems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/registryCode"
+          },
+          "uniqueItems": true
+        },
+        "valid_from": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "valid_until": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "$ref": "#/$defs/nullableNonEmptyString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unknown"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "product_versions": {
+                "maxItems": 0
+              },
+              "erp_systems": {
+                "maxItems": 0
+              },
+              "valid_from": {
+                "type": "null"
+              },
+              "valid_until": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "anyOf": [
+              {
+                "properties": {
+                  "product_versions": {
+                    "minItems": 1
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "erp_systems": {
+                    "minItems": 1
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "valid_from": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "valid_until": {
+                    "type": "string",
+                    "format": "date"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reviewer",
+        "reviewed_at",
+        "notes"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pending",
+            "reviewed"
+          ]
+        },
+        "reviewer": {
+          "$ref": "#/$defs/nullableNonEmptyString"
+        },
+        "reviewed_at": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "$ref": "#/$defs/nullableNonEmptyString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pending"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reviewer": {
+                "type": "null"
+              },
+              "reviewed_at": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "reviewer": {
+                "$ref": "#/$defs/nonEmptyString"
+              },
+              "reviewed_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "sourceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "locator"
+      ],
+      "properties": {
+        "source_id": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "locator": {
+          "$ref": "#/$defs/sourceLocator"
+        }
+      }
+    },
+    "sourceLocator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "start",
+            "end"
+          ],
+          "properties": {
+            "kind": {
+              "const": "line_range"
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "start",
+            "end"
+          ],
+          "properties": {
+            "kind": {
+              "const": "page_range"
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "value"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "table",
+                "figure",
+                "url_fragment"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "properties": {
+            "kind": {
+              "const": "unknown"
+            },
+            "reason": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          }
+        }
+      ]
+    },
+    "classificationOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "products": {
+          "$ref": "#/$defs/codeList"
+        },
+        "primary_module": {
+          "$ref": "#/$defs/registryCode"
+        },
+        "secondary_modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/registryCode"
+          },
+          "uniqueItems": true
+        },
+        "answer_mode": {
+          "$ref": "#/$defs/registryCode"
+        }
+      },
+      "minProperties": 1
+    },
+    "entities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tables": {
+          "$ref": "#/$defs/stringList"
+        },
+        "fields": {
+          "$ref": "#/$defs/stringList"
+        },
+        "parameters": {
+          "$ref": "#/$defs/stringList"
+        },
+        "routines": {
+          "$ref": "#/$defs/stringList"
+        },
+        "endpoints": {
+          "$ref": "#/$defs/stringList"
+        },
+        "statuses": {
+          "$ref": "#/$defs/stringList"
+        },
+        "error_terms": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    },
+    "stringList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      },
+      "uniqueItems": true
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "heading_level",
+        "source_refs",
+        "classification_override",
+        "summary",
+        "entities"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "heading_level": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 6
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/sourceReference"
+          }
+        },
+        "classification_override": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/classificationOverride"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summary": {
+          "$ref": "#/$defs/nullableNonEmptyString"
+        },
+        "entities": {
+          "$ref": "#/$defs/entities"
+        }
+      }
+    }
+  }
+}

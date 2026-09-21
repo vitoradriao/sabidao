@@ -1,0 +1,77 @@
+schema_version: 1.0.0
+manifest_id: 20000000-0000-4000-8000-000000000001
+revision: 1
+batches:
+  - batch_id: piloto
+    description: Primeiro lote de documentos canônicos sintéticos.
+  - batch_id: legado-controlado
+    description: Entradas legadas e decisões explícitas de exclusão.
+entries:
+  - path: contracts/canonical-docs/v1/fixtures/valid/procedure.md
+    document_id: 10000000-0000-4000-8000-000000000001
+    format: canonical
+    state: active
+    ingestion: include
+    batch_id: piloto
+    exclusion: null
+    successors: []
+  - path: contracts/canonical-docs/v1/fixtures/valid/catalog.md
+    document_id: 10000000-0000-4000-8000-000000000002
+    format: canonical
+    state: active
+    ingestion: include
+    batch_id: piloto
+    exclusion: null
+    successors: []
+  - path: contracts/canonical-docs/v1/fixtures/valid/data-dictionary.md
+    document_id: 10000000-0000-4000-8000-000000000003
+    format: canonical
+    state: active
+    ingestion: include
+    batch_id: piloto
+    exclusion: null
+    successors: []
+  - path: contracts/canonical-docs/v1/fixtures/valid/troubleshooting.md
+    document_id: 10000000-0000-4000-8000-000000000004
+    format: canonical
+    state: active
+    ingestion: include
+    batch_id: piloto
+    exclusion: null
+    successors: []
+  - path: contracts/canonical-docs/v1/fixtures/valid/sql-reference.md
+    document_id: 10000000-0000-4000-8000-000000000005
+    format: canonical
+    state: active
+    ingestion: include
+    batch_id: piloto
+    exclusion: null
+    successors: []
+  - path: documentos-sinteticos/legado-substituido.md
+    document_id: null
+    format: legacy
+    state: superseded
+    ingestion: exclude
+    batch_id: legado-controlado
+    exclusion:
+      reason: Conteúdo dividido em documentos canônicos durante o piloto.
+      decided_by: mantenedor
+      decided_at: "2026-09-21T13:00:00Z"
+      revisit_after: null
+    successors:
+      - document_id: 10000000-0000-4000-8000-000000000001
+        section_keys: [habilitar-conta-corrente]
+      - document_id: 10000000-0000-4000-8000-000000000002
+        section_keys: []
+  - path: documentos-sinteticos/logistica-em-decisao.md
+    document_id: null
+    format: legacy
+    state: active
+    ingestion: exclude
+    batch_id: legado-controlado
+    exclusion:
+      reason: Vigência editorial ainda não decidida pelo mantenedor.
+      decided_by: mantenedor
+      decided_at: "2026-09-21T13:00:00Z"
+      revisit_after: "2026-10-21"
+    successors: []
