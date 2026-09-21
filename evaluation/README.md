@@ -52,6 +52,11 @@ Os valores de `answerability` são:
 constituem falha crítica e `reference_evidence` identifica fonte e termos esperados no
 retrieval.
 
+Antes do holdout da issue #53, as evidências foram calibradas no conjunto de
+desenvolvimento para os arquivos canônicos efetivamente indexados. Termos que estavam
+agrupados em uma fonte unificada antiga passaram a apontar separadamente para suas
+fontes atuais; essa calibração foi congelada antes da execução final do holdout.
+
 ## Preparar o dataset
 
 Execute na raiz do repositório, com o ambiente Python ativo:

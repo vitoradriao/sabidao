@@ -396,6 +396,13 @@ class TestOfflineEvaluator(unittest.TestCase):
                 for case in dataset
             )
         )
+        self.assertTrue(
+            all(
+                evidence.get("source") != "MAXIMA_RAG_UNIFICADO.md"
+                for case in dataset
+                for evidence in case.get("reference_evidence", [])
+            )
+        )
         self.assertEqual(
             {case["answerability"] for case in dataset},
             {"answerable", "ambiguous", "no_evidence"},

@@ -17,9 +17,8 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "Pedido e gravado",
           "MXSINTEGRACAOPEDIDO"
         ]
       }
@@ -62,7 +61,7 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
           "Server grava",
           "status 0"
@@ -107,10 +106,11 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "ERP realiza GET",
-          "endpoint de pedidos"
+          "ERP",
+          "GET",
+          "StatusPedidos"
         ]
       }
     ],
@@ -153,9 +153,9 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "PUT de retorno",
+          "PUT",
           "status 4",
           "status 5"
         ]
@@ -200,10 +200,10 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "05-SQL-BANCO-E-INTEGRACAO.md",
         "contains": [
           "SELECT * FROM MXSINTEGRACAOPEDIDO",
-          "ORDER BY DTINCLUSAO DESC"
+          "ORDER BY 3 DESC"
         ]
       }
     ],
@@ -247,10 +247,14 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "05-PEDIDOS-E-VENDAS.md",
         "contains": [
-          "Cliente bloqueado",
-          "ACEITAVENDAAVISTACLIBLOQ",
+          "ACEITAVENDAAVISTACLIBLOQ"
+        ]
+      },
+      {
+        "source": "05-PEDIDOS-E-VENDAS.md",
+        "contains": [
           "CON_ACEITAVENDABLOQ"
         ]
       }
@@ -294,10 +298,14 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
         "contains": [
-          "Filial retira",
-          "DEFINE_FILIAL_RETIRA_PADRAO",
+          "DEFINE_FILIAL_RETIRA_PADRAO"
+        ]
+      },
+      {
+        "source": "05-PEDIDOS-E-VENDAS.md",
+        "contains": [
           "DESMEMBRAR_PED_FILIAL_RETIRA"
         ]
       }
@@ -343,10 +351,14 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
         "contains": [
-          "Conta corrente",
-          "CON_USACREDRCA",
+          "CON_USACREDRCA"
+        ]
+      },
+      {
+        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
+        "contains": [
           "EXIBIR_SALDOCC_DISPONIVEL"
         ]
       }
@@ -389,9 +401,9 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "0 | RecebidoPeloServer"
+          "RecebidoPeloServer"
         ]
       }
     ],
@@ -433,9 +445,9 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "5 | ErroProcessamentoErp"
+          "ErroProcessamentoErp"
         ]
       }
     ],
@@ -478,10 +490,15 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "05-PEDIDOS-E-VENDAS.md",
         "contains": [
-          "DTABERTURAPEDPALM",
-          "devolver o mesmo"
+          "DTABERTURAPEDPALM"
+        ]
+      },
+      {
+        "source": "05-PEDIDOS-E-VENDAS.md",
+        "contains": [
+          "MXSHISTORICOPEDC"
         ]
       }
     ],
@@ -523,9 +540,8 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "Reenvio de critica",
           "MXSHISTORICOCRITICA"
         ]
       }
@@ -570,10 +586,20 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "02-CONHECIMENTOS-GERAIS.md",
         "contains": [
-          "MXSINTEGRACAOPEDIDO_LOGST",
-          "MXSINTEGRACAOPEDIDOLOG",
+          "MXSINTEGRACAOPEDIDO_LOGST"
+        ]
+      },
+      {
+        "source": "02-CONHECIMENTOS-GERAIS.md",
+        "contains": [
+          "MXSINTEGRACAOPEDIDOLOG"
+        ]
+      },
+      {
+        "source": "02-CONHECIMENTOS-GERAIS.md",
+        "contains": [
           "MXSHISTORICOCRITICA"
         ]
       }
@@ -626,10 +652,15 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "status 4",
-          "status 5"
+          "ProcessadoPeloErp"
+        ]
+      },
+      {
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
+        "contains": [
+          "ErroProcessamentoErp"
         ]
       }
     ],
@@ -878,9 +909,9 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "2 | EnviadoParaErp"
+          "EnviadoParaErp"
         ]
       }
     ],
@@ -922,9 +953,9 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "4 | ProcessadoPeloErp"
+          "ProcessadoPeloErp"
         ]
       }
     ],
@@ -966,9 +997,9 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
         "contains": [
-          "14 | ErroIntegracaoErp"
+          "ErroIntegracaoErp"
         ]
       }
     ],
@@ -1012,11 +1043,15 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
         "contains": [
-          "Pedido preso na APK",
-          "BLOQUEIA_PEDIDO_CLIENTE_SEMLIMITE",
-          "extrator"
+          "BLOQUEIA_PEDIDO_CLIENTE_SEMLIMITE"
+        ]
+      },
+      {
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
+        "contains": [
+          "StatusPedidos"
         ]
       }
     ],
@@ -1058,10 +1093,14 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "06-CAMPANHAS-E-DESCONTOS.md",
         "contains": [
-          "Lucratividade",
-          "MOSTRAR_LUCRATIVIDADE_TOTAL_NEGOCIACAO",
+          "MOSTRAR_LUCRATIVIDADE_TOTAL_NEGOCIACAO"
+        ]
+      },
+      {
+        "source": "06-CAMPANHAS-E-DESCONTOS.md",
+        "contains": [
           "OCULTAR_LUCRATIVIDADE_PRODUTO"
         ]
       }
@@ -1105,9 +1144,14 @@
     ],
     "reference_evidence": [
       {
-        "source": "MAXIMA_RAG_UNIFICADO.md",
+        "source": "02-CONHECIMENTOS-GERAIS.md",
         "contains": [
-          "MXSINTEGRACAOPEDIDO_LOGST",
+          "MXSINTEGRACAOPEDIDO_LOGST"
+        ]
+      },
+      {
+        "source": "02-CONHECIMENTOS-GERAIS.md",
+        "contains": [
           "MXSINTEGRACAOPEDIDOLOG"
         ]
       }
