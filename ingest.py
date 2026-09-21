@@ -61,6 +61,23 @@ _last_embed_call_at = 0.0
 _http_client: httpx.Client | None = None
 _REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 
+_CONTEXTUAL_RETRIEVAL_CONTRACT_VERSION = "contextual-retrieval-v1"
+_CONTEXTUAL_SYSTEM_PROMPT = (
+    "Voce e um assistente que situa trechos de documentos tecnicos no contexto geral "
+    "do sistema maxPedido (Maxima Sistemas). "
+    "Responda APENAS com um JSON array valido, sem explicacoes adicionais."
+)
+_CONTEXTUAL_INSTRUCTIONS = (
+    "Para CADA chunk, forneca um contexto MUITO CURTO (maximo 20 palavras, 1 frase) que situe "
+    "o chunk no documento geral, melhorando a busca por similaridade semantica. "
+    "Inclua: secao, tema principal e termos tecnicos chave (tabelas, parametros, modulos). "
+    "IMPORTANTE: seja extremamente conciso — 1 frase curta por chunk.\n\n"
+    "Responda com um JSON array onde cada elemento e o contexto do chunk correspondente, "
+    "na mesma ordem. Exemplo para 3 chunks:\n"
+    '["contexto do chunk 0", "contexto do chunk 1", "contexto do chunk 2"]\n\n'
+    "JSON array:"
+)
+
 
 def _source_id(value: object) -> str:
     """Cria um identificador estavel sem expor a origem nos logs."""
@@ -230,6 +247,34 @@ def _content_hash(text: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def _contextual_retrieval_identity() -> dict[str, Any]:
+    """Identifica a contextualizacao efetiva sem incluir credenciais ou conteudo."""
+    if not config.CONTEXTUAL_RETRIEVAL_ENABLED:
+        return {"enabled": False}
+
+    model_config = get_model_config()
+    prompt_contract = json.dumps(
+        {
+            "version": _CONTEXTUAL_RETRIEVAL_CONTRACT_VERSION,
+            "system": _CONTEXTUAL_SYSTEM_PROMPT,
+            "instructions": _CONTEXTUAL_INSTRUCTIONS,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return {
+        "enabled": True,
+        "provider": model_config["llm_provider"],
+        "model": model_config["contextual_model"],
+        "contract_version": _CONTEXTUAL_RETRIEVAL_CONTRACT_VERSION,
+        "prompt_sha256": hashlib.sha256(prompt_contract.encode("utf-8")).hexdigest(),
+        "max_doc_chars": config.CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS,
+        "max_output_tokens": config.CONTEXTUAL_RETRIEVAL_MAX_TOKENS,
+        "batch_size": config.CONTEXTUAL_RETRIEVAL_BATCH_SIZE,
+    }
+
+
 def _processing_hash(
     *,
     content_hash: str,
@@ -259,12 +304,7 @@ def _processing_hash(
         },
         "analytical_context": config.ANALYTICAL_CONTEXT_ENABLED,
         "document_sections_supported": _document_sections_supported(),
-        "contextual_retrieval": {
-            "enabled": config.CONTEXTUAL_RETRIEVAL_ENABLED,
-            "model": config.CONTEXTUAL_RETRIEVAL_MODEL,
-            "max_doc_chars": config.CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS,
-            "batch_size": config.CONTEXTUAL_RETRIEVAL_BATCH_SIZE,
-        },
+        "contextual_retrieval": _contextual_retrieval_identity(),
         "sections": [
             {
                 "section_index": section.section_index,
@@ -1246,7 +1286,6 @@ def _load_urls_from_file(filepath: str) -> list[str]:
 
 _last_contextual_call_at = 0.0
 _CONTEXTUAL_MIN_INTERVAL = 2.0  # segundos entre chamadas (evita 429)
-_CONTEXTUAL_BATCH_SIZE = max(1, int(config.CONTEXTUAL_RETRIEVAL_BATCH_SIZE))  # chunks por chamada LLM
 
 
 def _extract_json_fragment(raw_text: str) -> str:
@@ -1373,27 +1412,12 @@ def _contextualize_chunks_batch(
     for idx, (chunk_index, content) in enumerate(chunks_with_indices):
         chunks_section += f"<chunk id=\"{idx}\">\n{content}\n</chunk>\n\n"
 
-    system_prompt = (
-        "Voce e um assistente que situa trechos de documentos tecnicos no contexto geral "
-        "do sistema maxPedido (Maxima Sistemas). "
-        "Responda APENAS com um JSON array valido, sem explicacoes adicionais."
-    )
-
     user_prompt = (
         f"<documento>\n{truncated_doc}\n</documento>\n\n"
         f"Abaixo estao {len(chunks_with_indices)} chunks extraidos deste documento:\n\n"
         f"{chunks_section}"
-        "Para CADA chunk, forneca um contexto MUITO CURTO (maximo 20 palavras, 1 frase) que situe "
-        "o chunk no documento geral, melhorando a busca por similaridade semantica. "
-        "Inclua: secao, tema principal e termos tecnicos chave (tabelas, parametros, modulos). "
-        "IMPORTANTE: seja extremamente conciso — 1 frase curta por chunk.\n\n"
-        "Responda com um JSON array onde cada elemento e o contexto do chunk correspondente, "
-        "na mesma ordem. Exemplo para 3 chunks:\n"
-        '[\"contexto do chunk 0\", \"contexto do chunk 1\", \"contexto do chunk 2\"]\n\n'
-        "JSON array:"
+        f"{_CONTEXTUAL_INSTRUCTIONS}"
     )
-
-    max_tokens = 65536  # max output do Gemini 2.5 Flash
 
     try:
         from rag import _gemini_generate
@@ -1401,8 +1425,8 @@ def _contextualize_chunks_batch(
         _wait_for_contextual_slot()
         response = _gemini_generate(
             model=config.CONTEXTUAL_RETRIEVAL_MODEL,
-            max_tokens=max_tokens,
-            system=system_prompt,
+            max_tokens=config.CONTEXTUAL_RETRIEVAL_MAX_TOKENS,
+            system=_CONTEXTUAL_SYSTEM_PROMPT,
             contents=user_prompt,
         )
         raw_text = response.text.strip()
@@ -1868,44 +1892,49 @@ def _prepare_chunk_rows(
         ensure_embedding_index_identity("corpus")
     rows: list[dict] = []
     failed_chunks: list[int] = []
-    batch_size = max(1, config.EMBEDDING_BATCH_SIZE)
-    for batch_start in range(0, len(chunk_items), batch_size):
-        batch = chunk_items[batch_start : batch_start + batch_size]
-        clean_batch: list[tuple[int, str, str, AnalyticalSection]] = []
+    prepared_items: list[tuple[int, str, str, AnalyticalSection]] = []
+    for chunk_index, storage_content, retrieval_content, section in chunk_items:
+        clean_storage = storage_content.replace("\x00", "").strip()
+        clean_retrieval = retrieval_content.replace("\x00", "").strip()
+        if not clean_storage or not clean_retrieval:
+            failed_chunks.append(chunk_index)
+            continue
+        prepared_items.append(
+            (chunk_index, clean_storage, clean_retrieval, section)
+        )
 
-        for chunk_index, storage_content, retrieval_content, section in batch:
-            clean_storage = storage_content.replace("\x00", "").strip()
-            clean_retrieval = retrieval_content.replace("\x00", "").strip()
-            if not clean_storage or not clean_retrieval:
-                failed_chunks.append(chunk_index)
-                continue
-            clean_batch.append((chunk_index, clean_storage, clean_retrieval, section))
-
-        for ctx_start in range(0, len(clean_batch), _CONTEXTUAL_BATCH_SIZE):
-            ctx_sub = clean_batch[ctx_start : ctx_start + _CONTEXTUAL_BATCH_SIZE]
-            ctx_pairs = [
-                (chunk_index, retrieval_content)
-                for chunk_index, _clean_storage, retrieval_content, _section in ctx_sub
-            ]
-            ctx_result = _contextualize_chunks_batch(
-                chunks_with_indices=ctx_pairs,
-                full_document=text,
-                filename=filename,
-                source_id=log_source_id,
+    contextual_batch_size = max(1, int(config.CONTEXTUAL_RETRIEVAL_BATCH_SIZE))
+    for ctx_start in range(0, len(prepared_items), contextual_batch_size):
+        ctx_sub = prepared_items[ctx_start : ctx_start + contextual_batch_size]
+        ctx_pairs = [
+            (chunk_index, retrieval_content)
+            for chunk_index, _clean_storage, retrieval_content, _section in ctx_sub
+        ]
+        ctx_result = _contextualize_chunks_batch(
+            chunks_with_indices=ctx_pairs,
+            full_document=text,
+            filename=filename,
+            source_id=log_source_id,
+        )
+        by_index = {
+            chunk_index: (clean_storage, section)
+            for chunk_index, clean_storage, _retrieval_content, section in ctx_sub
+        }
+        prepared_items[ctx_start : ctx_start + contextual_batch_size] = [
+            (
+                chunk_index,
+                by_index[chunk_index][0],
+                contextualized_content,
+                by_index[chunk_index][1],
             )
-            by_index = {
-                chunk_index: (clean_storage, section)
-                for chunk_index, clean_storage, _retrieval_content, section in ctx_sub
-            }
-            clean_batch[ctx_start : ctx_start + _CONTEXTUAL_BATCH_SIZE] = [
-                (
-                    chunk_index,
-                    by_index[chunk_index][0],
-                    contextualized_content,
-                    by_index[chunk_index][1],
-                )
-                for chunk_index, contextualized_content in ctx_result
-            ]
+            for chunk_index, contextualized_content in ctx_result
+        ]
+
+    embedding_batch_size = max(1, int(config.EMBEDDING_BATCH_SIZE))
+    for batch_start in range(0, len(prepared_items), embedding_batch_size):
+        clean_batch = prepared_items[
+            batch_start : batch_start + embedding_batch_size
+        ]
 
         if not clean_batch:
             continue
