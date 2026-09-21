@@ -186,7 +186,7 @@ READERS = {
 
 _splitter: MarkdownTextSplitter | None = None
 _document_sections_available: bool | None = None
-_INGEST_PROCESSING_VERSION = "ingest-v1"
+_INGEST_PROCESSING_VERSION = "ingest-v2"
 
 
 @dataclass
@@ -1494,6 +1494,8 @@ def _build_chunk_row(
     doc_id: str,
     chunk_index: int,
     clean_content: str,
+    retrieval_text: str,
+    contextualization_version: str | None,
     filename: str,
     doc_type: str,
     source_type: str,
@@ -1531,6 +1533,8 @@ def _build_chunk_row(
     row = {
         "document_id": doc_id,
         "content": clean_content,
+        "retrieval_text": retrieval_text,
+        "contextualization_version": contextualization_version,
         "chunk_index": chunk_index,
         "metadata": metadata,
         "embedding": embedding_to_pgvector(embedding),
@@ -1763,6 +1767,8 @@ def _clone_prepared_rows(
     )
     chunk_columns = (
         "content",
+        "retrieval_text",
+        "contextualization_version",
         "chunk_index",
         "embedding",
         "token_count",
@@ -1892,7 +1898,9 @@ def _prepare_chunk_rows(
         ensure_embedding_index_identity("corpus")
     rows: list[dict] = []
     failed_chunks: list[int] = []
-    prepared_items: list[tuple[int, str, str, AnalyticalSection]] = []
+    prepared_items: list[
+        tuple[int, str, str, AnalyticalSection, str | None]
+    ] = []
     for chunk_index, storage_content, retrieval_content, section in chunk_items:
         clean_storage = storage_content.replace("\x00", "").strip()
         clean_retrieval = retrieval_content.replace("\x00", "").strip()
@@ -1900,7 +1908,7 @@ def _prepare_chunk_rows(
             failed_chunks.append(chunk_index)
             continue
         prepared_items.append(
-            (chunk_index, clean_storage, clean_retrieval, section)
+            (chunk_index, clean_storage, clean_retrieval, section, None)
         )
 
     contextual_batch_size = max(1, int(config.CONTEXTUAL_RETRIEVAL_BATCH_SIZE))
@@ -1908,7 +1916,13 @@ def _prepare_chunk_rows(
         ctx_sub = prepared_items[ctx_start : ctx_start + contextual_batch_size]
         ctx_pairs = [
             (chunk_index, retrieval_content)
-            for chunk_index, _clean_storage, retrieval_content, _section in ctx_sub
+            for (
+                chunk_index,
+                _clean_storage,
+                retrieval_content,
+                _section,
+                _version,
+            ) in ctx_sub
         ]
         ctx_result = _contextualize_chunks_batch(
             chunks_with_indices=ctx_pairs,
@@ -1917,15 +1931,26 @@ def _prepare_chunk_rows(
             source_id=log_source_id,
         )
         by_index = {
-            chunk_index: (clean_storage, section)
-            for chunk_index, clean_storage, _retrieval_content, section in ctx_sub
+            chunk_index: (clean_storage, retrieval_content, section)
+            for (
+                chunk_index,
+                clean_storage,
+                retrieval_content,
+                section,
+                _version,
+            ) in ctx_sub
         }
         prepared_items[ctx_start : ctx_start + contextual_batch_size] = [
             (
                 chunk_index,
                 by_index[chunk_index][0],
                 contextualized_content,
-                by_index[chunk_index][1],
+                by_index[chunk_index][2],
+                (
+                    _CONTEXTUAL_RETRIEVAL_CONTRACT_VERSION
+                    if contextualized_content != by_index[chunk_index][1]
+                    else None
+                ),
             )
             for chunk_index, contextualized_content in ctx_result
         ]
@@ -1943,6 +1968,7 @@ def _prepare_chunk_rows(
         storage_contents = [item[1] for item in clean_batch]
         retrieval_contents = [item[2] for item in clean_batch]
         sections_for_batch = [item[3] for item in clean_batch]
+        contextualization_versions = [item[4] for item in clean_batch]
 
         try:
             embeddings = _embed_batch_with_retry(
@@ -1960,6 +1986,8 @@ def _prepare_chunk_rows(
                     doc_id=doc_id,
                     chunk_index=chunk_index,
                     clean_content=storage_content,
+                    retrieval_text=retrieval_content,
+                    contextualization_version=contextualization_version,
                     filename=filename,
                     doc_type=doc_type,
                     source_type=source_type,
@@ -1971,10 +1999,19 @@ def _prepare_chunk_rows(
                     embedding=embedding,
                     section=section,
                 )
-                for chunk_index, storage_content, section, embedding in zip(
+                for (
+                    chunk_index,
+                    storage_content,
+                    retrieval_content,
+                    section,
+                    contextualization_version,
+                    embedding,
+                ) in zip(
                     indices,
                     storage_contents,
+                    retrieval_contents,
                     sections_for_batch,
+                    contextualization_versions,
                     embeddings,
                 )
             ]
@@ -1987,7 +2024,13 @@ def _prepare_chunk_rows(
                 type(batch_error).__name__,
                 batch_start,
             )
-            for chunk_index, storage_content, retrieval_content, section in clean_batch:
+            for (
+                chunk_index,
+                storage_content,
+                retrieval_content,
+                section,
+                contextualization_version,
+            ) in clean_batch:
                 try:
                     embedding = _embed_batch_with_retry(
                         [retrieval_content],
@@ -2000,6 +2043,8 @@ def _prepare_chunk_rows(
                             doc_id=doc_id,
                             chunk_index=chunk_index,
                             clean_content=storage_content,
+                            retrieval_text=retrieval_content,
+                            contextualization_version=contextualization_version,
                             filename=filename,
                             doc_type=doc_type,
                             source_type=source_type,

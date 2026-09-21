@@ -40,7 +40,7 @@ antes de mudar qualquer um desses valores.
 | `migrate_evaluation_metrics_v2.sql` | Migra avaliações existentes para métricas factuais, retrieval e citação com estado não avaliado. |
 | `add_analytical_context.sql` | Seções de documentos e metadados dos trechos. |
 | `migrate_priority.sql` | Priorização de documentos. |
-| `add_section_retrieval_1536.sql` | Consulta de seções com embeddings de 1536 dimensões. |
+| `add_section_retrieval_1536.sql` | Consulta de seções e texto de retrieval dos chunks com embeddings de 1536 dimensões. |
 | `add_section_retrieval_3072.sql` | Referência histórica/experimental não suportada no runtime atual. |
 | `add_embedding_index_identity.sql` | Registra e valida a identidade vetorial de corpus, seções e feedback. |
 | `add_ingest_identity.sql` | Adiciona hashes de conteúdo e preprocessamento para ingestão incremental. |
@@ -69,9 +69,14 @@ preserva a ordem devolvida pelo RRF até que um reranker seja executado; nesse c
 ordem do reranker prevalece até a montagem do contexto.
 
 Em bases existentes, reaplique `add_section_retrieval_1536.sql`. A migração
-recria somente as funções e os índices/colunas aditivos; não remove tabelas nem exige
-reindexação dos documentos. Depois aplique `add_embedding_index_identity.sql` e siga
-o procedimento de identificação da base legada antes de iniciar o bot ou a ingestão.
+adiciona `retrieval_text`, `contextualization_version` e o índice
+`document_chunks_retrieval_fts_idx`. Linhas antigas recebem o conteúdo original
+como fallback, sem chamadas de modelo, reingestão ou recálculo de embeddings. As
+funções de busca passam a consultar esse índice; a próxima ingestão explícita
+persiste o texto exato usado no embedding. Depois aplique
+`add_embedding_index_identity.sql` e siga o procedimento de identificação da
+base legada antes de iniciar o bot ou a ingestão. Em corpus grande, programe uma
+janela para o preenchimento da coluna e a criação do índice GIN.
 
 A fixture [hybrid_rrf_fixture.sql](../tests/postgres/hybrid_rrf_fixture.sql) valida o
 contrato em PostgreSQL com pgvector. Ela deve ser executada somente em uma base de teste

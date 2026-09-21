@@ -107,6 +107,13 @@ situar cada trecho antes de criar seu embedding. O conteúdo original continua
 armazenado em `document_chunks.content` e é o único apresentado como evidência;
 o texto gerado pelo modelo não vira citação do documento.
 
+O texto exato enviado ao embedding é persistido separadamente em
+`document_chunks.retrieval_text` e também alimenta o índice full-text usado pela
+busca híbrida. `document_chunks.contextualization_version` identifica o contrato
+que realmente acrescentou contexto ao trecho; permanece nulo quando a
+contextualização está desativada ou quando ocorre fallback para o texto sem
+contexto gerado.
+
 A identidade de processamento registra, sem credenciais, o provider e o modelo
 contextual efetivamente resolvidos, a versão e o hash do contrato de prompt, além
 de `CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS`,
@@ -121,10 +128,12 @@ limite de saída. O lote contextual é aplicado sobre todos os trechos preparado
 independentemente de `EMBEDDING_BATCH_SIZE`; em seguida, os textos resultantes são
 divididos nos lotes de embeddings.
 
-Esta mudança de contrato não inicia ingestão, reindexação ou chamadas externas
-automaticamente. Na próxima execução explícita de `ingest.py` ou `!ingerir`, os
-documentos contextualizados sob a identidade antiga serão detectados como
-alterados. Planeje essa reingestão, custo e janela operacional antes de executar;
+As mudanças de contrato não iniciam ingestão, embeddings ou chamadas externas
+automaticamente. A migração `sql/add_section_retrieval_1536.sql` preenche
+`retrieval_text` com o conteúdo original existente, sem inferência. Na próxima
+execução explícita de `ingest.py` ou `!ingerir`, documentos sob a identidade
+anterior serão detectados como alterados e o texto de retrieval exato será
+gravado. Planeje essa reingestão, custo e janela operacional antes de executar;
 a versão válida do índice é preservada se a preparação falhar.
 
 ## Concorrência, deadline e retries
