@@ -85,8 +85,14 @@ Para persistir uma execução, prepare as tabelas e retire `--dry-run`:
 
 ```sh
 psql "$DATABASE_URL" -f sql/migrate_evaluation_metrics_v2.sql
+psql "$DATABASE_URL" -f sql/add_evaluation_identity.sql
 python evaluation/run_offline_eval.py --split all
 ```
+
+`add_evaluation_identity.sql` calcula os hashes no PostgreSQL e retorna somente
+contagens, fingerprints e identidades vetoriais; o relatório não recebe o conteúdo
+bruto do corpus ou das correções. Sem a migração ou sem banco configurado, a
+identidade de dados aparece como `unknown`, nunca como um snapshot presumido.
 
 É possível limitar casos e definir o relatório:
 
@@ -95,6 +101,30 @@ python evaluation/run_offline_eval.py --limit 10 --output-report evaluation/repo
 ```
 
 Relatórios gerados em `evaluation/reports/` são ignorados pelo Git.
+
+### Comparar execuções
+
+Para comparar com um relatório anterior, informe a referência. Diferenças não
+declaradas e identidades desconhecidas deixam `runtime_comparison.compatible` como
+`false`, salvam o relatório para diagnóstico e fazem o comando terminar com código 1:
+
+```sh
+python evaluation/run_offline_eval.py --dry-run --split all \
+  --compare-report evaluation/reports/reference.json
+```
+
+Em uma ablação, declare cada variável deliberadamente alterada pelo caminho exibido
+em `runtime.experiment_identity`. Por exemplo:
+
+```sh
+python evaluation/run_offline_eval.py --dry-run --split all \
+  --compare-report evaluation/reports/reference.json \
+  --experimental-variable rag_config.RAG_GLOBAL_CHALLENGER_COUNT
+```
+
+A declaração permite somente essa diferença; mudanças adicionais continuam
+incompatíveis. Ela não transforma corpus, feedback ou identidade vetorial
+desconhecidos em uma comparação válida.
 
 ### Aprovação automática do holdout
 
@@ -131,9 +161,13 @@ necessárias antes de tratar o resultado como um baseline de produção.
 
 ## Conteúdo do relatório
 
-O bloco `runtime` registra commit, hash do dataset, provider/modelos, identidade do
-índice vetorial, configuração relevante do RAG e a política do baseline. Isso permite
-comparar somente execuções compatíveis.
+O bloco `runtime` registra commit, hash do dataset e `experiment_identity`. Essa
+identidade inclui configuração efetiva de roteamento, challenger, seções,
+diversidade, reformulação, contexto, grounding e geração; hashes dos prompts e das
+políticas; controles de cache; snapshot sanitizado do corpus e do feedback elegível;
+e identidades vetoriais configuradas e persistidas por escopo. O fingerprint é
+canônico e não depende da ordem de retorno dos registros. Estados `configured`,
+`verified`, `mismatch` e `unknown` permanecem distintos.
 
 | Campo | O que acompanha |
 | --- | --- |
