@@ -570,13 +570,19 @@ def _evaluate_response(
 
 
 def _git_commit() -> str | None:
-    completed = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=ROOT_DIR,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    configured_commit = str(os.getenv("BENCHMARK_GIT_COMMIT") or "").strip()
+    if configured_commit:
+        return configured_commit
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT_DIR,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
     commit = completed.stdout.strip()
     return commit if completed.returncode == 0 and commit else None
 

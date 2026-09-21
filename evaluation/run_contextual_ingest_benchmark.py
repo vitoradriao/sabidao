@@ -54,6 +54,9 @@ def _canonical_sha256(value: Any) -> str:
 
 
 def _git_commit() -> str:
+    configured_commit = str(os.getenv("BENCHMARK_GIT_COMMIT") or "").strip()
+    if configured_commit:
+        return configured_commit
     try:
         return subprocess.check_output(
             ["git", "rev-parse", "HEAD"],

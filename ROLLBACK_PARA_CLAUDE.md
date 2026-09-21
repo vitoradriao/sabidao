@@ -70,6 +70,9 @@ CONTEXTUAL_RETRIEVAL_MODEL=claude-haiku-4-5-20251001
 ```
 
 > **Nota:** Os modelos auxiliares (reformulação, reranking, contextual retrieval) podem continuar usando `gemini-2.5-flash` se quiser economizar tokens do Claude. Só o modelo PRINCIPAL precisa ser Claude.
+> Na versão atual, o contextual retrieval por LLM é opt-in e permanece inativo
+> enquanto `CONTEXTUAL_RETRIEVAL_ENABLED=false`; trocar apenas o modelo não o
+> habilita.
 
 ---
 

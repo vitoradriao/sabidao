@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "issue": 16,
+  "variant": "llm_contextualization",
+  "decision_scope": "development_only",
+  "identity": {
+    "commit": "c1a5e721ab41183f2ebcabbae8f1a061602064f0",
+    "dataset_sha256": "01e363b8f1f9acc7590fbf22b0be865418d394984501275cb8fe50cc28d71a89",
+    "baseline_policy_sha256": "3116a568bb59671056b7890f03651ca9dcfe46fe5c589ec0396cbea382785118",
+    "corpus_file_fingerprint_sha256": "3188ceea1531a572bc222212fc83f834eeb6f5bb20cee30094faa0f104b51049",
+    "indexed_corpus_sha256": "0a5672003236a5e1b3e10839dc6abe1238d810c6a7ca918cdd6f57e03006909e",
+    "invariant_config_sha256": "65e332de3f08cd2427a55235f8a101f8135f98be4dba7ce042eef3d4ec344139",
+    "generation_provider": "deepseek_openai_compatible",
+    "generation_model": "deepseek-flash",
+    "contextualization_model": "deepseek-flash",
+    "embedding_provider": "gemini",
+    "embedding_model": "gemini-embedding-001",
+    "embedding_dimensions": 1536,
+    "embedding_preprocessing_version": "rag-text-v1",
+    "human_review": "pending",
+    "holdout_executed": false
+  },
+  "ingestion": {
+    "started_at": "2026-09-21T12:42:48.816230-03:00",
+    "duration_ms": 66980,
+    "documents": 1,
+    "sections": 124,
+    "chunks_processed": 132,
+    "chunks_failed": 0,
+    "chunks_contextualized": 131,
+    "chunks_contextualization_fallback": 1,
+    "contextualization_calls": 7,
+    "contextualization_tokens": {
+      "input": 53001,
+      "cached_input": 102784,
+      "output": 4471,
+      "reasoning": 6251,
+      "total": 166507
+    },
+    "contextualization_cost_usd_off_peak": 0.014691702,
+    "embedding_calls": 27,
+    "embedding_inputs": 256,
+    "embedding_input_characters": 224795,
+    "cost_complete": false
+  },
+  "evaluation": {
+    "started_at": "2026-09-21T12:48:00.686655-03:00",
+    "cases": 20,
+    "recall_at_10": 0.5714,
+    "recall_at_20": 0.7143,
+    "ndcg_at_10": 0.5714,
+    "factual_correctness": 0.8571,
+    "unsupported_claims": 0.0,
+    "unsupported_claims_denominator": 17,
+    "citation_validity": 1.0,
+    "behavior_match": 0.85,
+    "false_absence_claim": 0.2143,
+    "necessary_clarification_rate": 0.25,
+    "correct_abstention_rate": 1.0,
+    "p50_latency_ms": 6537,
+    "p95_latency_ms": 13727,
+    "model_calls": 40,
+    "billable_query_embedding_calls": 20,
+    "query_embedding_cache_hits": 77,
+    "empty_model_responses": 1,
+    "model_tokens": {
+      "input": 57147,
+      "cached_input": 58880,
+      "output": 8330,
+      "reasoning": 20799,
+      "total": 145156
+    },
+    "deepseek_cost_usd_off_peak": 0.02622609,
+    "cost_complete": false
+  },
+  "limitations": [
+    "Amostra pequena: 20 casos de desenvolvimento.",
+    "Todos os casos permanecem com human_review pending.",
+    "O holdout nao foi autorizado nem executado.",
+    "Um chunk recebeu fallback parcial e uma resposta do modelo veio vazia.",
+    "O provider de embeddings nao expos tokens ou custo por chamada; custo total permanece incompleto."
+  ]
+}
