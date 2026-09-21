@@ -12,6 +12,10 @@ from evaluation import run_contextual_ingest_benchmark as benchmark
 
 
 class TestContextualIngestBenchmark(unittest.TestCase):
+    def test_git_commit_accepts_explicit_runtime_identity(self):
+        with patch.dict(os.environ, {"BENCHMARK_GIT_COMMIT": "commit-congelado"}):
+            self.assertEqual(benchmark._git_commit(), "commit-congelado")
+
     def test_database_identity_hashes_url_without_exposing_it(self):
         with patch.dict(
             os.environ,
