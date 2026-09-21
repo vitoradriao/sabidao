@@ -1,0 +1,613 @@
+{
+  "report_type": "sabidao_issue_53_operational_baseline",
+  "schema_version": 1,
+  "generated_at": "2026-09-21",
+  "issue": 53,
+  "baseline_commit": "7fe4ed0f17498c37a6b80367dce0df4a0902b424",
+  "dataset": {
+    "name": "maxpedido_baseline_v1",
+    "sha256": "c0fa3fca82c7b2d3b896a8ed7d70e4568b7b5d9dcfed71593ebe0c1b3349b79f",
+    "total_cases": 30,
+    "development_cases": 20,
+    "holdout_cases": 10,
+    "human_review": {
+      "status": "approved",
+      "reviewer": "vitoradriao",
+      "reviewed_at": "2026-09-21",
+      "divergences": 0
+    }
+  },
+  "corpus_snapshot": {
+    "documents": 27,
+    "sections": 5108,
+    "chunks": 5502,
+    "feedback_items": 0,
+    "corpus_sha256": "800fcf94fd49483505c1c4cf9145b4f83b21a6cabffd76b0bbb4032685da2a9f",
+    "vector_identities": [
+      {
+        "model": "gemini-embedding-001",
+        "dimensions": 1536,
+        "scope": "corpus",
+        "preprocessing_version": "rag-text-v1",
+        "provider": "gemini"
+      },
+      {
+        "model": "gemini-embedding-001",
+        "dimensions": 1536,
+        "scope": "sections",
+        "preprocessing_version": "rag-text-v1",
+        "provider": "gemini"
+      }
+    ],
+    "contextual_retrieval_enabled": false
+  },
+  "development": {
+    "total_cases": 20,
+    "metrics": {
+      "behavior_match": {
+        "passed": 17,
+        "failed": 3,
+        "evaluated": 20,
+        "not_evaluated": 0,
+        "rate": 0.85,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.6396,
+          "high": 0.9476,
+          "method": "wilson"
+        }
+      },
+      "factual_correctness": {
+        "passed": 7,
+        "failed": 7,
+        "evaluated": 14,
+        "not_evaluated": 6,
+        "rate": 0.5,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.268,
+          "high": 0.732,
+          "method": "wilson"
+        }
+      },
+      "retrieval_relevance": {
+        "passed": 10,
+        "failed": 4,
+        "evaluated": 14,
+        "not_evaluated": 6,
+        "rate": 0.7143,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.4535,
+          "high": 0.8828,
+          "method": "wilson"
+        }
+      },
+      "recall_at_10": {
+        "sum": 9.5,
+        "evaluated": 14,
+        "not_evaluated": 6,
+        "rate": 0.6786
+      },
+      "recall_at_20": {
+        "sum": 9.5,
+        "evaluated": 14,
+        "not_evaluated": 6,
+        "rate": 0.6786
+      },
+      "ndcg_at_10": {
+        "sum": 8.6864,
+        "evaluated": 14,
+        "not_evaluated": 6,
+        "rate": 0.6205
+      },
+      "citation_validity": {
+        "passed": 14,
+        "failed": 0,
+        "evaluated": 14,
+        "not_evaluated": 6,
+        "rate": 1.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.7847,
+          "high": 1.0,
+          "method": "wilson"
+        }
+      },
+      "intent_match": {
+        "passed": 10,
+        "failed": 10,
+        "evaluated": 20,
+        "not_evaluated": 0,
+        "rate": 0.5,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.2993,
+          "high": 0.7007,
+          "method": "wilson"
+        }
+      },
+      "false_abstention": {
+        "occurrences": 0,
+        "non_occurrences": 14,
+        "evaluated": 14,
+        "not_evaluated": 6,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.2153,
+          "method": "wilson"
+        }
+      },
+      "false_absence_claim": {
+        "occurrences": 2,
+        "non_occurrences": 12,
+        "evaluated": 14,
+        "not_evaluated": 6,
+        "rate": 0.1429,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0401,
+          "high": 0.3994,
+          "method": "wilson"
+        }
+      },
+      "unsupported_claims": {
+        "occurrences": 0,
+        "non_occurrences": 17,
+        "evaluated": 17,
+        "not_evaluated": 3,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.1843,
+          "method": "wilson"
+        }
+      }
+    },
+    "outcomes": {
+      "correct_answers": {
+        "count": 7,
+        "denominator": 14,
+        "rate": 0.5,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.268,
+          "high": 0.732,
+          "method": "wilson"
+        }
+      },
+      "unsupported_answers": {
+        "count": 0,
+        "denominator": 17,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.1843,
+          "method": "wilson"
+        }
+      },
+      "correct_abstentions": {
+        "count": 2,
+        "denominator": 2,
+        "rate": 1.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.3424,
+          "high": 1.0,
+          "method": "wilson"
+        }
+      },
+      "incorrect_abstentions": {
+        "count": 1,
+        "denominator": 18,
+        "rate": 0.0556,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0099,
+          "high": 0.2576,
+          "method": "wilson"
+        }
+      },
+      "necessary_clarifications": {
+        "count": 0,
+        "denominator": 4,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.4899,
+          "method": "wilson"
+        }
+      },
+      "unnecessary_clarifications": {
+        "count": 0,
+        "denominator": 16,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.1936,
+          "method": "wilson"
+        }
+      },
+      "answerable_coverage": {
+        "count": 14,
+        "denominator": 14,
+        "rate": 1.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.7847,
+          "high": 1.0,
+          "method": "wilson"
+        }
+      },
+      "population": {
+        "answerable": 14,
+        "ambiguous": 4,
+        "no_evidence": 2
+      }
+    },
+    "p50_latency_ms": 10982,
+    "p95_latency_ms": 42584,
+    "model_usage": {
+      "call_count": 139,
+      "model_call_count": 42,
+      "external_call_count": 97,
+      "calls_with_usage": 42,
+      "calls_without_usage": 97,
+      "by_stage": {
+        "generation": 20,
+        "query_embedding": 97,
+        "regeneration": 2,
+        "rerank": 20
+      },
+      "totals": {
+        "input_tokens": 67320,
+        "cached_input_tokens": 180864,
+        "output_tokens": 10836,
+        "reasoning_tokens": 58286,
+        "total_tokens": 317306
+      },
+      "known_estimated_cost_usd": 0.0,
+      "estimated_cost_usd": null,
+      "cost_complete": false
+    }
+  },
+  "holdout": {
+    "total_cases": 10,
+    "metrics": {
+      "behavior_match": {
+        "passed": 8,
+        "failed": 2,
+        "evaluated": 10,
+        "not_evaluated": 0,
+        "rate": 0.8,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.4902,
+          "high": 0.9433,
+          "method": "wilson"
+        }
+      },
+      "factual_correctness": {
+        "passed": 5,
+        "failed": 1,
+        "evaluated": 6,
+        "not_evaluated": 4,
+        "rate": 0.8333,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.4365,
+          "high": 0.9699,
+          "method": "wilson"
+        }
+      },
+      "retrieval_relevance": {
+        "passed": 5,
+        "failed": 1,
+        "evaluated": 6,
+        "not_evaluated": 4,
+        "rate": 0.8333,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.4365,
+          "high": 0.9699,
+          "method": "wilson"
+        }
+      },
+      "recall_at_10": {
+        "sum": 4.5,
+        "evaluated": 6,
+        "not_evaluated": 4,
+        "rate": 0.75
+      },
+      "recall_at_20": {
+        "sum": 4.5,
+        "evaluated": 6,
+        "not_evaluated": 4,
+        "rate": 0.75
+      },
+      "ndcg_at_10": {
+        "sum": 2.9812,
+        "evaluated": 6,
+        "not_evaluated": 4,
+        "rate": 0.4969
+      },
+      "citation_validity": {
+        "passed": 5,
+        "failed": 1,
+        "evaluated": 6,
+        "not_evaluated": 4,
+        "rate": 0.8333,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.4365,
+          "high": 0.9699,
+          "method": "wilson"
+        }
+      },
+      "intent_match": {
+        "passed": 4,
+        "failed": 6,
+        "evaluated": 10,
+        "not_evaluated": 0,
+        "rate": 0.4,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.1682,
+          "high": 0.6873,
+          "method": "wilson"
+        }
+      },
+      "false_abstention": {
+        "occurrences": 0,
+        "non_occurrences": 6,
+        "evaluated": 6,
+        "not_evaluated": 4,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.3903,
+          "method": "wilson"
+        }
+      },
+      "false_absence_claim": {
+        "occurrences": 0,
+        "non_occurrences": 6,
+        "evaluated": 6,
+        "not_evaluated": 4,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.3903,
+          "method": "wilson"
+        }
+      },
+      "unsupported_claims": {
+        "occurrences": 2,
+        "non_occurrences": 6,
+        "evaluated": 8,
+        "not_evaluated": 2,
+        "rate": 0.25,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0715,
+          "high": 0.5907,
+          "method": "wilson"
+        }
+      }
+    },
+    "outcomes": {
+      "correct_answers": {
+        "count": 3,
+        "denominator": 6,
+        "rate": 0.5,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.1876,
+          "high": 0.8124,
+          "method": "wilson"
+        }
+      },
+      "unsupported_answers": {
+        "count": 2,
+        "denominator": 8,
+        "rate": 0.25,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0715,
+          "high": 0.5907,
+          "method": "wilson"
+        }
+      },
+      "correct_abstentions": {
+        "count": 2,
+        "denominator": 2,
+        "rate": 1.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.3424,
+          "high": 1.0,
+          "method": "wilson"
+        }
+      },
+      "incorrect_abstentions": {
+        "count": 0,
+        "denominator": 8,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.3244,
+          "method": "wilson"
+        }
+      },
+      "necessary_clarifications": {
+        "count": 0,
+        "denominator": 2,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.6576,
+          "method": "wilson"
+        }
+      },
+      "unnecessary_clarifications": {
+        "count": 0,
+        "denominator": 8,
+        "rate": 0.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.0,
+          "high": 0.3244,
+          "method": "wilson"
+        }
+      },
+      "answerable_coverage": {
+        "count": 6,
+        "denominator": 6,
+        "rate": 1.0,
+        "confidence_interval": {
+          "level": 0.95,
+          "low": 0.6097,
+          "high": 1.0,
+          "method": "wilson"
+        }
+      },
+      "population": {
+        "answerable": 6,
+        "ambiguous": 2,
+        "no_evidence": 2
+      }
+    },
+    "p50_latency_ms": 9188,
+    "p95_latency_ms": 59172,
+    "model_usage": {
+      "call_count": 67,
+      "model_call_count": 21,
+      "external_call_count": 46,
+      "calls_with_usage": 21,
+      "calls_without_usage": 46,
+      "by_stage": {
+        "generation": 10,
+        "query_embedding": 46,
+        "regeneration": 1,
+        "rerank": 10
+      },
+      "totals": {
+        "input_tokens": 90386,
+        "cached_input_tokens": 20352,
+        "output_tokens": 5100,
+        "reasoning_tokens": 35413,
+        "total_tokens": 151251
+      },
+      "known_estimated_cost_usd": 0.0,
+      "estimated_cost_usd": null,
+      "cost_complete": false
+    },
+    "non_regression": {
+      "status": "failed",
+      "complete": true,
+      "missing_checks": [],
+      "coverage": {
+        "expected_holdout_cases": 10,
+        "evaluated_holdout_cases": 10,
+        "missing_populations": [],
+        "complete": true
+      },
+      "checks": [
+        {
+          "id": "critical-no-unsupported-answer",
+          "description": "Nenhuma resposta do holdout pode conter fato proibido ou erro de grounding.",
+          "critical": true,
+          "path": "outcomes.unsupported_answers.rate",
+          "operator": "<=",
+          "expected": 0.0,
+          "actual": 0.25,
+          "passed": false
+        },
+        {
+          "id": "critical-no-false-absence",
+          "description": "Nao declarar ausencia em perguntas respondiveis do holdout.",
+          "critical": true,
+          "path": "metrics.false_absence_claim.rate",
+          "operator": "<=",
+          "expected": 0.0,
+          "actual": 0.0,
+          "passed": true
+        },
+        {
+          "id": "answerable-coverage",
+          "description": "Responder pelo menos 80% das perguntas respondiveis do holdout.",
+          "critical": false,
+          "path": "outcomes.answerable_coverage.rate",
+          "operator": ">=",
+          "expected": 0.8,
+          "actual": 1.0,
+          "passed": true
+        },
+        {
+          "id": "correct-answer-rate",
+          "description": "Acertar os fatos obrigatorios em pelo menos 70% das perguntas respondiveis.",
+          "critical": false,
+          "path": "outcomes.correct_answers.rate",
+          "operator": ">=",
+          "expected": 0.7,
+          "actual": 0.5,
+          "passed": false
+        },
+        {
+          "id": "correct-abstention-rate",
+          "description": "Abster-se em pelo menos 80% dos casos sem evidencia.",
+          "critical": false,
+          "path": "outcomes.correct_abstentions.rate",
+          "operator": ">=",
+          "expected": 0.8,
+          "actual": 1.0,
+          "passed": true
+        },
+        {
+          "id": "clarification-rate",
+          "description": "Pedir esclarecimento em pelo menos 80% dos casos ambiguos.",
+          "critical": false,
+          "path": "outcomes.necessary_clarifications.rate",
+          "operator": ">=",
+          "expected": 0.8,
+          "actual": 0.0,
+          "passed": false
+        },
+        {
+          "id": "retrieval-recall-20",
+          "description": "Recuperar em media pelo menos 80% das evidencias esperadas ate a posicao 20.",
+          "critical": false,
+          "path": "metrics.recall_at_20.rate",
+          "operator": ">=",
+          "expected": 0.8,
+          "actual": 0.75,
+          "passed": false
+        }
+      ],
+      "critical_failures": [
+        "critical-no-unsupported-answer"
+      ]
+    }
+  },
+  "decision": {
+    "status": "failed",
+    "reason": "O holdout completo falhou no criterio critico de respostas sem suporte e tambem nao atingiu todos os limiares nao criticos.",
+    "next_step": "Corrigir respostas sem suporte, cobertura de esclarecimento, correção factual e recuperação; repetir desenvolvimento e somente depois um novo holdout."
+  },
+  "limitations": [
+    "O runner registrou git_commit nulo dentro do worktree Docker; o commit foi fixado manualmente nesta publicação sanitizada a partir do worktree versionado.",
+    "O provider de embeddings não retornou uso/preço; model_usage.cost_complete permanece false e o custo total não pode ser comprovado pelo relatório.",
+    "A execução foi dry-run: não houve persistência das métricas nas tabelas de avaliação.",
+    "O banco foi reingerido com contextualização determinística desativada; o backup pré-reindexação está fora do Git em runtime/issue53_pre_reindex_20260921.dump."
+  ]
+}
