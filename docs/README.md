@@ -19,7 +19,7 @@ Encontre o procedimento pelo que você precisa fazer. Estes guias descrevem o pr
 ## Referências
 
 - [Modelo de configuração](../.env.example): variáveis disponíveis para o ambiente.
-- [Notas de retorno ao Claude](../ROLLBACK_PARA_CLAUDE.md): procedimento histórico; confira a compatibilidade com a configuração atual antes de usá-lo.
+- [Registro histórico da reversão para Claude](../ROLLBACK_PARA_CLAUDE.md): plano arquivado de 12/03/2026, incompatível com o HEAD atual e não operacional.
 - [Orientações para assistentes de programação](../AGENTS.md): idioma e critérios de qualidade do projeto.
 
 O nome do guia Docker na raiz foi mantido para preservar os links existentes.

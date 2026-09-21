@@ -25,8 +25,8 @@ Assistente de suporte técnico para **maxPedido e integrações Máxima**, dispo
 Clone o repositório e prepare o ambiente no Windows com Python 3.11:
 
 ```powershell
-git clone https://github.com/vitoradriao/bot-maxima.git
-cd bot-maxima
+git clone https://github.com/vitoradriao/sabidao.git
+cd sabidao
 .\setup_maquina.bat
 ```
 
@@ -47,11 +47,18 @@ Para executar os serviços em contêineres, siga o [guia Docker](GUIA_DOCKER.md)
 | `docs/` | Documentação do projeto e identidade visual. |
 | `scripts/` | Ferramentas de manutenção da base de conhecimento. |
 | `sql/`, `docker/` | Esquemas, migrações e inicialização do banco. |
-| `tests/`, `evaluation/` | Testes automatizados e avaliação das respostas. |
+| `tests/` | Testes automatizados dos contratos de código e banco. |
+| `evaluation/` | Infraestrutura, dataset e política para avaliar respostas. |
 | `bootstrap/` | Documento de referência para as regras de negócio. |
 | `documentos/` | Fontes de conhecimento utilizadas pelo assistente. |
 
 A documentação de desenvolvimento fica em `docs/`; os conteúdos consultados pelo bot ficam em `documentos/`. Arquivos temporários, logs, cópias de segurança e relatórios gerados são ignorados pelo Git. Arquivos já versionados continuam no histórico, mesmo quando estão em uma pasta ignorada.
+
+Os testes automatizados verificam contratos do sistema, enquanto `evaluation/`
+oferece a infraestrutura para executar experimentos. Isso não significa que o
+baseline esteja validado operacionalmente: a revisão humana dos casos e a
+execução controlada com o ambiente real continuam acompanhadas na
+[issue #53](https://github.com/vitoradriao/sabidao/issues/53).
 
 ## Comandos do Discord
 

@@ -1,4 +1,17 @@
-# Relatório de Reversão: Gemini → Claude (Anthropic)
+# Registro histórico: reversão de Gemini para Claude (Anthropic)
+
+> [!WARNING]
+> **Documento arquivado, registrado na versão inicial `3a6214e` de 17/03/2026 e
+> relativo ao snapshot de 12/03/2026.** As instruções abaixo não são compatíveis
+> com o HEAD atual e não constituem um procedimento operacional. A versão atual
+> suporta `gemini` e `openai`; Claude (Anthropic) não é um provider suportado.
+> Para a configuração vigente, consulte [Configuração](docs/configuracao.md) e
+> [Operação](docs/operacao.md). Uma eventual adoção de Anthropic exige
+> especificação, implementação e validação próprias.
+
+O conteúdo restante é preservado apenas como registro da arquitetura e do plano
+existentes naquele momento. Não execute seus comandos nem aplique seus trechos ao
+código atual.
 
 > **Data da migração Gemini:** 2026-03-12
 > **Motivo:** API Claude sem tokens. Usando Gemini temporariamente.
@@ -385,7 +398,7 @@ embed.add_field(name="Modelo", value=config.CLAUDE_MODEL, inline=False)
 
 ---
 
-## Modelos Claude recomendados na volta
+## Modelos Claude registrados no plano histórico
 
 | Uso | Modelo | Custo |
 |-----|--------|-------|
@@ -393,8 +406,9 @@ embed.add_field(name="Modelo", value=config.CLAUDE_MODEL, inline=False)
 | **Reformulação / Reranking** | `claude-haiku-3-5-20241022` | Baixo |
 | **Contextual Retrieval** | `claude-haiku-4-5-20251001` | Baixo |
 
-> Se quiser o melhor modelo possível para respostas: `claude-opus-4-6` (mais caro).
-> O Sonnet 4 é o melhor custo-benefício para suporte técnico.
+> Na época, o plano também citava `claude-opus-4-6` como alternativa mais cara e
+> classificava o Sonnet 4 como opção de custo-benefício. Isso não representa uma
+> recomendação ou compatibilidade da versão atual.
 
 ---
 
