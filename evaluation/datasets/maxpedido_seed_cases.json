@@ -13,7 +13,7 @@
     "forbidden_facts": ["MXSHISTORICOPEDC recebe primeiro o pedido"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["Pedido e gravado", "MXSINTEGRACAOPEDIDO"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Camada 1 - Guia operacional rapido"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-fluxo-status-inicial",
@@ -29,7 +29,7 @@
     "forbidden_facts": ["status 9"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["Server grava", "status 0"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Fluxo canonico de pedido"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-fluxo-get-erp",
@@ -45,7 +45,7 @@
     "forbidden_facts": ["APK realiza GET"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["ERP realiza GET", "endpoint de pedidos"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Fluxo canonico de pedido"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-fluxo-put-status",
@@ -61,7 +61,7 @@
     "forbidden_facts": ["status 9 para erro"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["PUT de retorno", "status 4", "status 5"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Fluxo canonico de pedido"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-sql-verificacao-inicial",
@@ -77,7 +77,7 @@
     "forbidden_facts": ["DELETE FROM MXSINTEGRACAOPEDIDO"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["SELECT * FROM MXSINTEGRACAOPEDIDO", "ORDER BY DTINCLUSAO DESC"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Query de verificacao inicial"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-parametros-cliente-bloqueado",
@@ -93,7 +93,7 @@
     "forbidden_facts": ["USAGRADE controla cliente bloqueado"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["Cliente bloqueado", "ACEITAVENDAAVISTACLIBLOQ", "CON_ACEITAVENDABLOQ"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Matriz de parametros criticos por cenario"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-parametros-filial-retira",
@@ -109,7 +109,7 @@
     "forbidden_facts": ["USAR_CAMPANHA_DESCONTO_PROGRESSIVO"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["Filial retira", "DEFINE_FILIAL_RETIRA_PADRAO", "DESMEMBRAR_PED_FILIAL_RETIRA"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Matriz de parametros criticos por cenario"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-parametros-conta-corrente",
@@ -125,7 +125,7 @@
     "forbidden_facts": ["CON_ACEITAVENDABLOQ habilita conta corrente"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["Conta corrente", "CON_USACREDRCA", "EXIBIR_SALDOCC_DISPONIVEL"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Matriz de parametros criticos por cenario"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-status-zero",
@@ -141,7 +141,7 @@
     "forbidden_facts": ["ProcessadoPeloErp"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["0 | RecebidoPeloServer"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Tabela canonica de status"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-status-cinco",
@@ -157,7 +157,7 @@
     "forbidden_facts": ["PedidoAprovado"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["5 | ErroProcessamentoErp"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Tabela canonica de status"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-timeline-data-abertura",
@@ -173,7 +173,7 @@
     "forbidden_facts": ["a data pode ser omitida"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["DTABERTURAPEDPALM", "devolver o mesmo"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Timeline nao atualiza (Outros ERPs)"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-critica-historico",
@@ -189,7 +189,7 @@
     "forbidden_facts": ["apagar a MXSINTEGRACAOPEDIDO"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["Reenvio de critica", "MXSHISTORICOCRITICA"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Reenvio de critica"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-followup-tabelas-log",
@@ -209,7 +209,7 @@
     "forbidden_facts": ["DROP TABLE"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["MXSINTEGRACAOPEDIDO_LOGST", "MXSINTEGRACAOPEDIDOLOG", "MXSHISTORICOCRITICA"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Tabelas-chave do fluxo"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-followup-status-erro",
@@ -229,7 +229,7 @@
     "forbidden_facts": ["status 9"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["status 4", "status 5"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Fluxo canonico de pedido"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-ambigua-status",
@@ -243,7 +243,7 @@
     "tags": ["ambiguidade"],
     "forbidden_facts": ["use o status 4"],
     "provenance": {"kind": "synthetic_ambiguity", "design_reference": "BM-17"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_entity", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_entity", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-ambigua-erro",
@@ -257,7 +257,7 @@
     "tags": ["ambiguidade", "erro"],
     "forbidden_facts": ["reinicie o extrator"],
     "provenance": {"kind": "synthetic_ambiguity", "design_reference": "BM-17"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_error", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_error", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-ambigua-parametro",
@@ -271,7 +271,7 @@
     "tags": ["ambiguidade", "parametro"],
     "forbidden_facts": ["USAGRADE"],
     "provenance": {"kind": "synthetic_ambiguity", "design_reference": "BM-17"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_feature", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_feature", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-ambigua-followup-sem-historico",
@@ -285,7 +285,7 @@
     "tags": ["ambiguidade", "follow-up"],
     "forbidden_facts": ["execute um DELETE"],
     "provenance": {"kind": "synthetic_ambiguity", "design_reference": "BM-17"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_history", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_history", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-sem-evidencia-erp-xptos",
@@ -299,7 +299,7 @@
     "tags": ["sem-evidencia"],
     "forbidden_facts": ["menu Z99"],
     "provenance": {"kind": "synthetic_negative", "design_reference": "BM-17", "invented_entity": "ERP XPTOS"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "invented_entity_negative", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "invented_entity_negative", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "dev-sem-evidencia-modo-turbo",
@@ -313,7 +313,7 @@
     "tags": ["sem-evidencia", "sql"],
     "forbidden_facts": ["MODO_TURBO"],
     "provenance": {"kind": "synthetic_negative", "design_reference": "BM-17", "invented_feature": "modo turbo"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "invented_feature_negative", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "invented_feature_negative", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-status-dois",
@@ -329,7 +329,7 @@
     "forbidden_facts": ["status 3"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["2 | EnviadoParaErp"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Tabela canonica de status"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-status-quatro",
@@ -345,7 +345,7 @@
     "forbidden_facts": ["status 5 indica sucesso"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["4 | ProcessadoPeloErp"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Tabela canonica de status"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-status-quatorze",
@@ -361,7 +361,7 @@
     "forbidden_facts": ["Autorizacao rejeitada"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["14 | ErroIntegracaoErp"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Tabela canonica de status"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-pedido-preso",
@@ -377,7 +377,7 @@
     "forbidden_facts": ["apague o pedido"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["Pedido preso na APK", "BLOQUEIA_PEDIDO_CLIENTE_SEMLIMITE", "extrator"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Pedido preso na APK / nao chega ao ERP"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-parametros-lucratividade",
@@ -393,7 +393,7 @@
     "forbidden_facts": ["HABILITA_MAPA_OPORTUNIDADE"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["Lucratividade", "MOSTRAR_LUCRATIVIDADE_TOTAL_NEGOCIACAO", "OCULTAR_LUCRATIVIDADE_PRODUTO"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Matriz de parametros criticos por cenario"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-tabelas-json-log",
@@ -409,7 +409,7 @@
     "forbidden_facts": ["MXSPARAMETROVALOR guarda o JSON"],
     "reference_evidence": [{"source": "MAXIMA_RAG_UNIFICADO.md", "contains": ["MXSINTEGRACAOPEDIDO_LOGST", "MXSINTEGRACAOPEDIDOLOG"]}],
     "provenance": {"repository_path": "docbkp/rag_unificado/MAXIMA_RAG_UNIFICADO.md", "locator": "Tabelas-chave do fluxo"},
-    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_source_review", "reviewer": "Codex", "method": "cross_check_committed_source", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-ambigua-rotina",
@@ -423,7 +423,7 @@
     "tags": ["ambiguidade"],
     "forbidden_facts": ["rotina 316"],
     "provenance": {"kind": "synthetic_ambiguity", "design_reference": "BM-17"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_problem", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_problem", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-ambigua-depois",
@@ -437,7 +437,7 @@
     "tags": ["ambiguidade", "follow-up"],
     "forbidden_facts": ["reinicie o banco"],
     "provenance": {"kind": "synthetic_ambiguity", "design_reference": "BM-17"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_history", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "ambiguity_by_missing_history", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-sem-evidencia-pegasus",
@@ -451,7 +451,7 @@
     "tags": ["sem-evidencia"],
     "forbidden_facts": ["PEGASUS_QUANTUM"],
     "provenance": {"kind": "synthetic_negative", "design_reference": "BM-17", "invented_feature": "Pegasus Quantum"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "invented_feature_negative", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "invented_feature_negative", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   },
   {
     "id": "holdout-sem-evidencia-coluna-secreta",
@@ -465,6 +465,6 @@
     "tags": ["sem-evidencia", "sql"],
     "forbidden_facts": ["SECRETO_ADMIN"],
     "provenance": {"kind": "synthetic_negative", "design_reference": "BM-17", "invented_field": "SECRETO_ADMIN"},
-    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "invented_field_negative", "reviewed_at": "2026-09-19", "human_review": "pending"}
+    "review": {"status": "automated_scenario_review", "reviewer": "Codex", "method": "invented_field_negative", "reviewed_at": "2026-09-19", "human_review": "approved", "human_reviewer": "vitoradriao", "human_reviewed_at": "2026-09-21", "divergences": []}
   }
 ]

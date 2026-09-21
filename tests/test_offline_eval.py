@@ -384,6 +384,18 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(sum(case["split"] == "holdout" for case in dataset), 10)
         self.assertTrue(all(case.get("provenance") for case in dataset))
         self.assertTrue(all(case.get("review", {}).get("reviewer") for case in dataset))
+        self.assertTrue(
+            all(
+                case.get("review", {}).get("human_review") == "approved"
+                for case in dataset
+            )
+        )
+        self.assertTrue(
+            all(
+                case.get("review", {}).get("human_reviewer") == "vitoradriao"
+                for case in dataset
+            )
+        )
         self.assertEqual(
             {case["answerability"] for case in dataset},
             {"answerable", "ambiguous", "no_evidence"},

@@ -11,8 +11,9 @@ inicial tem 30 casos: 20 de desenvolvimento e 10 de holdout.
 Os testes automatizados exercitam o cálculo de métricas e os contratos do
 avaliador. O runner, o dataset e a política descritos aqui formam a
 infraestrutura de avaliação entregue na issue #18; eles não comprovam, por si
-sós, a qualidade do sistema em operação. Os 30 casos ainda aguardam revisão
-humana e não há baseline operacional aprovado. Esse trabalho continua na
+sós, a qualidade do sistema em operação. Os 30 casos tiveram as perguntas
+revisadas pelo mantenedor em 21/09/2026, sem divergências registradas, mas ainda
+não há baseline operacional aprovado. Esse trabalho continua na
 [issue #53](https://github.com/vitoradriao/sabidao/issues/53), que exige ambiente,
 snapshot, orçamento e resultados sanitizados identificados antes de qualquer
 declaração de validação operacional.
@@ -32,8 +33,9 @@ declaração de validação operacional.
 Cada caso identifica `provenance`, `review`, `split` e `answerability`. Os casos
 respondíveis foram conferidos contra uma fonte versionada no repositório; os casos
 sintéticos declaram explicitamente a entidade inventada ou a ambiguidade usada. A
-revisão inicial é automatizada e `human_review` permanece `pending`: ela não deve ser
-apresentada como validação humana do domínio.
+revisão inicial foi automatizada. Em 21/09/2026, o mantenedor `vitoradriao`
+confirmou as perguntas dos 30 casos; a revisão está registrada como
+`human_review: approved`, com revisor, data e divergências.
 
 Lacunas importadas de `knowledge_gaps` também recebem `review.status` igual a
 `pending_human`. Antes de promovê-las ao holdout ou tratá-las como verdade de
@@ -216,8 +218,8 @@ provider não expõe uso ou preço suficiente, o custo conhecido continua visív
   registra `retrieved_depth` no detalhe da métrica.
 - O baseline não usa LLM-as-judge. Se esse método for adotado, versão do juiz, prompt,
   ordem, viés de provider e concordância com revisão humana precisam ser medidos.
-- Os casos ainda aguardam revisão humana de domínio, registrada explicitamente no
-  dataset; não os use como verdade regulatória ou contratual.
+- A revisão humana confirma as perguntas do conjunto inicial, mas não transforma o
+  dataset pequeno em verdade regulatória ou contratual.
 
 ## Teste determinístico do avaliador
 
