@@ -40,6 +40,21 @@ ADD COLUMN IF NOT EXISTS source_type TEXT;
 ALTER TABLE document_chunks
 ADD COLUMN IF NOT EXISTS doc_priority INTEGER;
 
+ALTER TABLE document_chunks
+ADD COLUMN IF NOT EXISTS retrieval_text TEXT;
+
+ALTER TABLE document_chunks
+ADD COLUMN IF NOT EXISTS contextualization_version TEXT;
+
+UPDATE document_chunks
+SET retrieval_text = content
+WHERE retrieval_text IS NULL;
+
+ALTER TABLE document_chunks
+ADD COLUMN IF NOT EXISTS retrieval_fts tsvector GENERATED ALWAYS AS (
+    to_tsvector('portuguese', COALESCE(retrieval_text, content))
+) STORED;
+
 UPDATE document_chunks dc
 SET
     module = COALESCE(dc.module, dc.metadata->>'module'),
@@ -72,6 +87,9 @@ ON document_chunks(doc_priority DESC);
 
 CREATE INDEX IF NOT EXISTS document_chunks_section_doc_chunk_idx
 ON document_chunks(section_id, document_id, chunk_index);
+
+CREATE INDEX IF NOT EXISTS document_chunks_retrieval_fts_idx
+ON document_chunks USING gin(retrieval_fts);
 
 DROP FUNCTION IF EXISTS public.match_chunks(vector, integer, double precision, text[], text[], uuid[], integer);
 DROP FUNCTION IF EXISTS public.match_chunks(vector, integer, real, text[], text[], uuid[], integer);
@@ -317,7 +335,7 @@ BEGIN
             dc.chunk_index,
             dc.metadata,
             dc.embedding,
-            dc.fts,
+            dc.retrieval_fts AS fts,
             d.filename,
             dc.section_id,
             COALESCE(dc.heading_path, ds.heading_path, dc.metadata->>'heading_path', '') AS heading_path,

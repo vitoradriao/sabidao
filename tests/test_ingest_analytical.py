@@ -124,6 +124,8 @@ class TestAnalyticalIngest(unittest.TestCase):
             doc_id="doc-1",
             chunk_index=0,
             clean_content="Conteudo do chunk",
+            retrieval_text="Contexto de retrieval\n\nConteudo do chunk",
+            contextualization_version="contextual-retrieval-v1",
             filename="base.md",
             doc_type="md",
             source_type="file",
@@ -143,6 +145,14 @@ class TestAnalyticalIngest(unittest.TestCase):
         self.assertEqual(row["metadata"]["section_title"], "Pedido nao integra")
         self.assertEqual(row["metadata"]["module"], "sql_integracao")
         self.assertEqual(row["metadata"]["content_hash"], "content-hash")
+        self.assertEqual(
+            row["retrieval_text"],
+            "Contexto de retrieval\n\nConteudo do chunk",
+        )
+        self.assertEqual(
+            row["contextualization_version"],
+            "contextual-retrieval-v1",
+        )
 
     def test_build_section_retrieval_text_includes_operational_signals(self):
         section = ingest.AnalyticalSection(

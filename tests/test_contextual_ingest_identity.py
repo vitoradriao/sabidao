@@ -179,6 +179,60 @@ class TestContextualIngestIdentity(unittest.TestCase):
         self.assertEqual([row["content"] for row in rows], [
             f"original-{index}" for index in range(5)
         ])
+        self.assertEqual(
+            [row["retrieval_text"] for row in rows],
+            embedded_contents,
+        )
+        self.assertTrue(
+            all(
+                row["contextualization_version"]
+                == ingest._CONTEXTUAL_RETRIEVAL_CONTRACT_VERSION
+                for row in rows
+            )
+        )
+        self.assertEqual(failed, [])
+
+    def test_non_contextualized_chunk_keeps_retrieval_text_without_version(self):
+        section = ingest.AnalyticalSection(
+            section_index=0,
+            title="Manual",
+            heading_path="Manual",
+            content="Conteudo",
+            module="geral",
+            answer_mode="general",
+            entities={},
+            semantic_context="",
+        )
+
+        with (
+            patch.multiple(
+                config,
+                CONTEXTUAL_RETRIEVAL_ENABLED=False,
+                EMBEDDING_BATCH_SIZE=10,
+            ),
+            patch.object(ingest, "ensure_embedding_index_identity"),
+            patch.object(
+                ingest,
+                "_embed_batch_with_retry",
+                return_value=[[0.001] * config.EMBEDDING_DIMENSIONS],
+            ) as embed,
+        ):
+            rows, failed = ingest._prepare_chunk_rows(
+                doc_id="documento-1",
+                filename="manual.md",
+                title="Manual",
+                text="documento completo",
+                doc_type="md",
+                source_type="file",
+                module="geral",
+                doc_priority=5,
+                chunk_items=[(0, "original", "cabecalho\n\noriginal", section)],
+            )
+
+        self.assertEqual(embed.call_args.args[0], ["cabecalho\n\noriginal"])
+        self.assertEqual(rows[0]["content"], "original")
+        self.assertEqual(rows[0]["retrieval_text"], "cabecalho\n\noriginal")
+        self.assertIsNone(rows[0]["contextualization_version"])
         self.assertEqual(failed, [])
 
 

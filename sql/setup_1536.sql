@@ -35,13 +35,18 @@ CREATE TABLE document_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
+    retrieval_text TEXT,
+    contextualization_version TEXT,
     chunk_index INTEGER NOT NULL,
     metadata JSONB DEFAULT '{}'::jsonb,
     embedding VECTOR(1536) NOT NULL,
     token_count INTEGER,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     -- Coluna full-text search gerada automaticamente (portugues)
-    fts tsvector GENERATED ALWAYS AS (to_tsvector('portuguese', content)) STORED
+    fts tsvector GENERATED ALWAYS AS (to_tsvector('portuguese', content)) STORED,
+    retrieval_fts tsvector GENERATED ALWAYS AS (
+        to_tsvector('portuguese', COALESCE(retrieval_text, content))
+    ) STORED
 );
 
 CREATE UNIQUE INDEX documents_filename_unique
@@ -61,6 +66,9 @@ ON document_chunks(document_id, chunk_index);
 -- Indice GIN para full-text search rapido
 CREATE INDEX document_chunks_fts_idx
 ON document_chunks USING gin(fts);
+
+CREATE INDEX document_chunks_retrieval_fts_idx
+ON document_chunks USING gin(retrieval_fts);
 
 -- ══════════════════════════════════════════════
 -- Funcao: match_chunks (busca vetorial pura - fallback)
@@ -224,7 +232,7 @@ BEGIN
             dc.chunk_index,
             dc.metadata,
             dc.embedding,
-            dc.fts,
+            dc.retrieval_fts AS fts,
             d.filename,
             d.doc_type
         FROM document_chunks dc
