@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vitoradriao/sabidao/contracts/canonical-docs/v1/manifest.schema.json",
+  "title": "Manifesto documental Sabidão v1",
+  "description": "Contrato de seleção, transição e lotes do corpus legado/canônico.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "revision",
+    "batches",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "manifest_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "batches": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/batch"
+      }
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "nullableNonEmptyString": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stableKey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 80
+    },
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batch_id",
+        "description"
+      ],
+      "properties": {
+        "batch_id": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "description": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "successor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_id",
+        "section_keys"
+      ],
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "section_keys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableKey"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "exclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "decided_by",
+        "decided_at",
+        "revisit_after"
+      ],
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "decided_by": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "decided_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revisit_after": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "document_id",
+        "format",
+        "state",
+        "ingestion",
+        "batch_id",
+        "exclusion",
+        "successors"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+\\.md$"
+        },
+        "document_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "format": {
+          "enum": [
+            "legacy",
+            "canonical"
+          ]
+        },
+        "state": {
+          "enum": [
+            "active",
+            "superseded"
+          ]
+        },
+        "ingestion": {
+          "enum": [
+            "include",
+            "exclude"
+          ]
+        },
+        "batch_id": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "exclusion": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/exclusion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "successors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/successor"
+          },
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "canonical"
+              }
+            },
+            "required": [
+              "format"
+            ]
+          },
+          "then": {
+            "properties": {
+              "document_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "ingestion": {
+                "const": "include"
+              }
+            },
+            "required": [
+              "ingestion"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exclusion": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "exclusion": {
+                "$ref": "#/$defs/exclusion"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "superseded"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "ingestion": {
+                "const": "exclude"
+              },
+              "successors": {
+                "minItems": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "successors": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

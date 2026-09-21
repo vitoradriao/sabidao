@@ -1,0 +1,32 @@
+{
+  "vocabulary_version": "fixture_v1",
+  "scope": "Vocabulário mínimo para exemplos e fixtures do contrato; a taxonomia definitiva pertence à issue #31.",
+  "products": [
+    "maxpedido",
+    "maxmotorista",
+    "maxpag",
+    "maxgestao",
+    "winthor",
+    "unknown"
+  ],
+  "modules": [
+    "configuracao",
+    "pedidos_vendas",
+    "logistica",
+    "financeiro",
+    "sql_integracao",
+    "unknown"
+  ],
+  "answer_modes": [
+    "procedure",
+    "configuration",
+    "reference",
+    "troubleshooting",
+    "sql_lookup",
+    "unknown"
+  ],
+  "erp_systems": [
+    "winthor",
+    "unknown"
+  ]
+}

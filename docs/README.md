@@ -14,6 +14,7 @@ Encontre o procedimento pelo que você precisa fazer. Estes guias descrevem o pr
 | Indexar ou atualizar documentos | [Operação da base](operacao.md) |
 | Preparar o banco ou mudar a dimensão dos vetores | [SQL e migrações](../sql/README.md) |
 | Medir a qualidade das respostas | [Avaliação](../evaluation/README.md) |
+| Criar documentos no formato canônico v1 | [Contrato documental canônico](../contracts/canonical-docs/v1/README.md) |
 | Alterar e validar o projeto | [Como contribuir](../CONTRIBUTING.md) |
 
 ## Referências

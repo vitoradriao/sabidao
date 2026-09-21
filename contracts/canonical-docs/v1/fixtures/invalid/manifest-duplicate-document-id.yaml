@@ -1,0 +1,23 @@
+schema_version: 1.0.0
+manifest_id: 30000000-0000-4000-8000-000000000003
+revision: 1
+batches:
+  - batch_id: lote-invalido
+    description: Fixture com identidade duplicada.
+entries:
+  - path: sinteticos/a.md
+    document_id: 10000000-0000-4000-8000-000000000001
+    format: canonical
+    state: active
+    ingestion: include
+    batch_id: lote-invalido
+    exclusion: null
+    successors: []
+  - path: sinteticos/b.md
+    document_id: 10000000-0000-4000-8000-000000000001
+    format: canonical
+    state: active
+    ingestion: include
+    batch_id: lote-invalido
+    exclusion: null
+    successors: []
