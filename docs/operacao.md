@@ -7,6 +7,8 @@ Execute os comandos na raiz do projeto, com o ambiente Python ativo e os serviç
 ## Preparar as fontes
 
 Mantenha em `DOCS_DIR` apenas os materiais que devem fazer parte da consulta. Revise duplicações, documentos desatualizados e arquivos gerados antes de indexar.
+Antes de aplicar uma mudança ampla de classificação, confira o relatório
+offline descrito em [Taxonomia documental](taxonomia.md#conferência-antes-de-migrar).
 
 Para indexar os arquivos diretamente em `documentos/`, sem percorrer subpastas:
 

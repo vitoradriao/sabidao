@@ -8,7 +8,7 @@ doc_type: md
 semantic_type: data_dictionary
 products: [winthor]
 taxonomy:
-  taxonomy_version: fixture_v1
+  taxonomy_version: taxonomy_v1
   primary_module: sql_integracao
   secondary_modules: []
   answer_mode: reference

@@ -3,15 +3,17 @@
 Este diretório especifica o formato editorial que documentos canônicos do
 Sabidão devem seguir. A versão `1.0.0` define a especificação usada pelo linter
 offline. A ingestão rejeita um documento que se declare canônico e viole o
-contrato antes de banco ou IA, mas ainda não projeta seus metadados no banco nem
-migra os arquivos em `documentos/`.
+contrato antes de banco ou IA. A classificação editorial é projetada em
+metadados derivados com compatibilidade para os filtros atuais; a projeção da
+identidade editorial e revisão no banco permanece na issue #67. Os arquivos em
+`documentos/` não são migrados por essa validação.
 
 Os artefatos normativos são:
 
 - `document.schema.json`: front matter de um documento Markdown;
 - `manifest.schema.json`: inventário externo do corpus e de sua transição;
-- `vocabulary.json`: vocabulário mínimo usado somente pelo template e pelas
-  fixtures; a taxonomia definitiva permanece na issue #31;
+- `vocabulary.json`: registro da taxonomia canônica `taxonomy_v1`, com
+  significados e compatibilidade descritos em [Taxonomia](../../../docs/taxonomia.md);
 - `template.md`: ponto de partida fora do corpus ativo;
 - `fixtures/`: documentos Markdown e manifestos sintéticos usados na validação
   offline, sem integrar o corpus ativo.

@@ -36,6 +36,7 @@ import config
 from bot_common import normalize_text
 from canonical_docs import validate_canonical_text
 from markdown_parser import parse_markdown, split_markdown_sections
+from taxonomy import Classification, RULE_VERSION, editorial, heuristic
 from db import (
     db_advisory_xact_lock,
     db_delete,
@@ -203,6 +204,7 @@ class AnalyticalSection:
     entities: dict[str, list[str]]
     semantic_context: str
     section_id: str | None = None
+    classification: Classification | None = None
 
 
 def _entities_as_lines(entities: dict[str, list[str]] | None) -> list[str]:
@@ -287,6 +289,7 @@ def _processing_hash(
     doc_priority: int,
     sections: list[AnalyticalSection],
     chunk_items: list[tuple[int, str, str, AnalyticalSection]],
+    document_classification: Classification | None = None,
 ) -> str:
     """Identifica todos os insumos que alteram chunks ou embeddings."""
     payload = {
@@ -294,6 +297,8 @@ def _processing_hash(
         "content_hash": content_hash,
         "doc_type": doc_type,
         "module": module,
+        "taxonomy_version": RULE_VERSION,
+        "document_classification": document_classification.metadata() if document_classification else None,
         "doc_priority": doc_priority,
         "embedding": {
             "provider": config.EMBEDDING_PROVIDER,
@@ -316,6 +321,7 @@ def _processing_hash(
                 "content": section.content,
                 "module": section.module,
                 "answer_mode": section.answer_mode,
+                "classification": section.classification.metadata() if section.classification else None,
                 "entities": section.entities,
                 "semantic_context": section.semantic_context,
                 "retrieval_text": _build_section_retrieval_text(title, section),
@@ -684,6 +690,66 @@ def _split_markdown_sections(
         )
 
     return sections
+
+
+def _classify_text_sections(
+    text: str,
+    *,
+    filename: str,
+    title: str,
+    source: str,
+    doc_type: str,
+) -> tuple[Classification, list[AnalyticalSection]]:
+    """Prepara classificação documental e seccional para ingestão e auditoria offline."""
+    canonical = None
+    if doc_type.lower() == "md" and text.lstrip("\ufeff").splitlines()[:1] == ["---"]:
+        canonical, _parsed = validate_canonical_text(text)
+
+    if canonical:
+        document_classification = editorial(
+            canonical["taxonomy"], products=tuple(canonical["products"])
+        )
+    else:
+        legacy_module = _infer_module(filename, title, source, doc_type)
+        document_classification = heuristic(
+            title=title,
+            content=text if len(text) <= 1200 else "",
+            legacy_module=legacy_module,
+            legacy_answer_mode=_infer_answer_mode(text, title),
+        )
+    sections = _split_markdown_sections(
+        text,
+        doc_title=title,
+        base_module=document_classification.legacy_module,
+        doc_type=doc_type,
+    )
+    parsed_sections = split_markdown_sections(text) if canonical else []
+    for index, section in enumerate(sections):
+        if canonical:
+            heading = parsed_sections[index][0]
+            section_metadata = canonical["sections"].get(heading.section_key) if heading else None
+            override = section_metadata["classification_override"] if section_metadata else None
+            classification = editorial(
+                canonical["taxonomy"], override, products=tuple(canonical["products"])
+            )
+        else:
+            classification = heuristic(
+                title=section.heading_path,
+                content=section.content,
+                legacy_module=section.module,
+                legacy_answer_mode=section.answer_mode,
+            )
+        section.classification = classification
+        section.module = classification.legacy_module
+        section.answer_mode = classification.legacy_answer_mode
+        section.semantic_context = _build_semantic_context(
+            doc_title=title,
+            heading_path=section.heading_path,
+            module=section.module,
+            answer_mode=section.answer_mode,
+            entities=section.entities,
+        )
+    return document_classification, sections
 
 
 # --- P1.3: Inferencia de prioridade de documento ---
@@ -1530,6 +1596,7 @@ def _build_chunk_row(
                 "semantic_context": section.semantic_context,
                 "entities": section.entities,
                 "answer_mode": section.answer_mode,
+                "classification": section.classification.metadata() if section.classification else None,
             }
         )
 
@@ -1678,6 +1745,7 @@ def _prepare_document_section_rows(
                 "retrieval_ready": True,
                 "content_hash": content_hash,
                 "processing_hash": processing_hash,
+                "classification": section.classification.metadata() if section.classification else None,
             },
         }
         for section, retrieval_text, embedding in prepared
@@ -1788,7 +1856,7 @@ def _clone_prepared_rows(
                 "filename": filename,
                 "doc_type": doc_type,
                 "source_type": source_type,
-                "module": module,
+                "module": source_chunk.get("module") or metadata.get("module") or module,
                 "title": title,
                 "doc_priority": doc_priority,
                 "content_hash": content_hash,
@@ -1799,7 +1867,7 @@ def _clone_prepared_rows(
             "document_id": document_id,
             **{column: source_chunk.get(column) for column in chunk_columns},
             "metadata": metadata,
-            "module": module,
+            "module": source_chunk.get("module") or metadata.get("module") or module,
             "doc_type": doc_type,
             "source_type": source_type,
             "doc_priority": doc_priority,
@@ -2097,16 +2165,14 @@ def _ingest_text_source(
         }
 
     try:
-        first_line = text.lstrip("\ufeff").splitlines()[:1]
-        if doc_type.lower() == "md" and first_line == ["---"]:
-            validate_canonical_text(text)
-        module = _infer_module(filename, title, source, doc_type)
-        sections = _split_markdown_sections(
+        document_classification, sections = _classify_text_sections(
             text,
-            doc_title=title,
-            base_module=module,
+            filename=filename,
+            title=title,
+            source=source,
             doc_type=doc_type,
         )
+        module = document_classification.legacy_module
         chunk_items: list[tuple[int, str, str, AnalyticalSection]] = []
         for section in sections:
             section_chunks = _get_splitter().split_text(section.content)
@@ -2157,6 +2223,7 @@ def _ingest_text_source(
         doc_priority=doc_priority,
         sections=sections,
         chunk_items=chunk_items,
+        document_classification=document_classification,
     )
     try:
         existing = supabase_select(
@@ -2319,6 +2386,9 @@ def _ingest_text_source(
             "error": "preparacao incompleta",
         }
 
+    for row in [*section_rows, *chunk_rows]:
+        row.setdefault("metadata", {})["document_classification"] = document_classification.metadata()
+
     document_row = {
         "id": doc_id,
         "filename": filename,
@@ -2389,6 +2459,7 @@ def _ingest_text_source(
         "chunks_count": len(chunk_rows),
         "failed_chunks": 0,
         "module": module,
+        "classification": document_classification.metadata(),
         "reused_embeddings": bool(reused_document),
         "content_hash": content_digest,
         "processing_hash": processing_digest,
