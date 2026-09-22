@@ -33,7 +33,32 @@ docker compose logs --tail=100 postgres
 
 Aguarde o banco ficar saudável. Em um volume novo, a inicialização aplica o esquema de 1536 dimensões e as migrações listadas em `docker/postgres/init/00-bootstrap.sh`.
 
-Volumes existentes não são reinicializados. Para atualizá-los, consulte o [guia SQL](sql/README.md).
+O bootstrap aplica `sql/migrate_canonical_identity.sql` depois de
+`sql/add_analytical_context.sql`. Essa migração adiciona a identidade editorial e
+as chaves de seção sem converter o corpus ou reindexar vetores.
+
+Volumes existentes não são reinicializados. Para atualizá-los, faça backup ou
+snapshot, valide em uma base de testes e aplique a migração aditiva conforme o
+[guia SQL](sql/README.md). Não remova `postgres_data`, não use `docker compose down -v`
+e não execute `setup_*.sql` em um volume com dados.
+
+Com o serviço `postgres` saudável e o SQL montado no container, a aplicação da
+migração em um volume existente pode ser feita com:
+
+```sh
+docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f /opt/bot-maxima/sql/migrate_canonical_identity.sql'
+```
+
+`document_sections` precisa existir antes desse comando; se ainda não existir,
+aplique antes:
+
+```sh
+docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f /opt/bot-maxima/sql/add_analytical_context.sql'
+```
+
+Depois, execute a migração canônica. Ela não
+preenche identidade desconhecida: dados legados permanecem válidos e as colunas
+canônicas continuam nulas quando não há evidência editorial.
 
 ## 3. Indexar os documentos
 
@@ -48,6 +73,10 @@ docker compose --profile tools run --rm ingest python ingest.py ./documentos --n
 ```
 
 A ingestão precisa de acesso ao banco e aos serviços de IA. Para atualização de fontes e recuperação de falhas, consulte o [guia de operação](docs/operacao.md).
+
+A atualização do schema não executa a ingestão nem exige `--force`: não há conversão
+do corpus, reindexação ou recálculo de embeddings. Provider, modelo, dimensão,
+preprocessamento, RRF e defaults de ranking permanecem inalterados.
 
 ## 4. Iniciar o Discord
 
@@ -71,7 +100,10 @@ docker compose up -d discord_bot
 
 Antes de subir uma implantação, injete secrets pelo mecanismo protegido do ambiente ou por um `.env` com acesso restrito. Nunca reutilize os valores de exemplo nem publique o PostgreSQL em `0.0.0.0` sem um requisito de rede explícito e controles externos de firewall e autenticação.
 
-Aplique as migrações necessárias conforme as instruções da versão.
+Se a migração falhar, interrompa a atualização, preserve os logs e restaure o
+backup/snapshot validado ou a versão anterior da aplicação. Não há script down
+publicado; não remova tabelas, colunas ou o volume para fazer rollback. A migração
+é aditiva e pode permanecer instalada durante o rollback do código.
 
 Para parar os serviços e manter o volume do banco:
 

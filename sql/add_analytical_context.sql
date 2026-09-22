@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS document_sections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     section_index INTEGER NOT NULL,
+    section_key TEXT NULL,
     heading_path TEXT NOT NULL DEFAULT '',
     title TEXT,
     module TEXT,
@@ -21,6 +22,10 @@ CREATE TABLE IF NOT EXISTS document_sections (
 
 CREATE UNIQUE INDEX IF NOT EXISTS document_sections_doc_idx_unique
 ON document_sections(document_id, section_index);
+
+CREATE UNIQUE INDEX IF NOT EXISTS document_sections_document_section_key_unique
+ON document_sections(document_id, section_key)
+WHERE section_key IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS document_sections_document_id_idx
 ON document_sections(document_id);

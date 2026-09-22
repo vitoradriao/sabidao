@@ -20,6 +20,38 @@ ignorados mesmo no modo recursivo. Ajuste `INGEST_EXCLUDED_DIRS` para mudar a
 lista. Para incluir backups de forma explícita, defina a variável como vazia e
 revise as fontes antes da execução.
 
+## Atualizar o schema antes da ingestão
+
+Em uma base existente, aplique `sql/migrate_canonical_identity.sql` antes de
+usar a identidade editorial canônica. `documents` deve existir e
+`document_sections` deve ter sido criada por `sql/add_analytical_context.sql`.
+Se essa dependência ainda não estiver presente, aplique as migrações nesta ordem:
+
+```sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/add_analytical_context.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/migrate_canonical_identity.sql
+```
+
+Quando `document_sections` já existir, execute somente
+`sql/migrate_canonical_identity.sql`. Faça backup ou snapshot, teste em uma base
+descartável e confira a aplicação conforme o [guia SQL](../sql/README.md).
+
+A migração adiciona `canonical_id`, `schema_version`, `document_revision` e
+`metadata` em `documents`, além de `section_key` em `document_sections`, todos
+nullable. Dados legados continuam válidos e permanecem nulos quando a identidade
+editorial é desconhecida. Ela não converte o corpus, não altera o manifesto, não
+gera embeddings, não ingere nem reindexa documentos e não muda provider, modelo,
+dimensão, RRF ou defaults de ranking.
+
+Em um banco novo, o `docker/postgres/init/00-bootstrap.sh` aplica a migração no
+bootstrap, depois de `add_analytical_context.sql`. Não repita o bootstrap em um
+volume existente e não use `setup_*.sql` para atualizá-lo.
+
+Não há script down publicado. Para retornar a aplicação, restaure a versão anterior
+e mantenha as colunas aditivas instaladas. Para desfazer o schema, use o
+backup/snapshot validado ou uma operação reversível específica; não remova dados,
+tabelas ou o volume como forma de rollback.
+
 ## Atualizar documentos
 
 A execução comum calcula hashes do conteúdo extraído e do preprocessamento.
@@ -42,6 +74,11 @@ Bancos existentes precisam receber `sql/add_ingest_identity.sql` antes de usar
 a ingestão incremental. A migração apenas adiciona colunas e índices; não
 reindexa documentos existentes. Fontes antigas, ainda sem hashes, ganham a
 identidade na primeira ingestão posterior.
+
+Essa migração de ingestão é independente de `migrate_canonical_identity.sql`.
+Aplicar o schema canônico não promove fontes legadas nem substitui a ingestão
+explícita posterior. Não use `--force` ou `!reindex` apenas para concluir o
+upgrade do banco.
 
 Para repetir fontes registradas como falha:
 
