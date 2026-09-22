@@ -351,6 +351,14 @@ def _path_to_document_filename(path: Path, docs_root: Path | None = None) -> str
     return path.name
 
 
+def _is_excluded_logistics_markdown(path: Path) -> bool:
+    return (
+        not config.INGEST_LOGISTICS_ENABLED
+        and path.suffix.lower() == ".md"
+        and "logistica" in path.stem.casefold()
+    )
+
+
 def _get_splitter() -> MarkdownTextSplitter:
     """Retorna instancia reutilizavel do MarkdownTextSplitter."""
     global _splitter
@@ -2400,6 +2408,19 @@ def ingest_file(
     document_filename = filename_override or _path_to_document_filename(path, docs_root_path)
     source_id = _source_id(document_filename)
 
+    if _is_excluded_logistics_markdown(path):
+        logger.info(
+            "Ignorando documento Markdown de logistica por configuracao: %s",
+            document_filename,
+        )
+        return {
+            "filename": document_filename,
+            "chunks_count": 0,
+            "failed_chunks": 0,
+            "skipped": True,
+            "skip_reason": "logistics_disabled",
+        }
+
     if ext not in READERS:
         logger.warning(
             "INGEST_WARNING source_id=%s stage=read reason=unsupported_format",
@@ -2500,6 +2521,12 @@ def _collect_local_files(
     deduped_sources: list[Path] = []
     seen: set[str] = set()
     for path in file_sources:
+        if _is_excluded_logistics_markdown(path):
+            logger.info(
+                "Ignorando documento Markdown de logistica por configuracao: %s",
+                _path_to_document_filename(path, docs_path),
+            )
+            continue
         key = str(path.resolve()).lower()
         if key in seen:
             continue
