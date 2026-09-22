@@ -26,3 +26,14 @@ Antes de apresentar ou publicar código, revise e corrija internamente:
 - Não publique credenciais, dados brutos de clientes ou artefatos temporários.
 - Mantenha os caminhos usados pelos inicializadores e pelo Docker.
 - Execute verificações proporcionais à mudança e informe limitações reais.
+
+## Integração de pull requests
+
+- Ao integrar um pull request, use sempre squash merge. Não tente merge commit ou rebase merge.
+
+## Conclusão de issues e roadmap
+
+- Sempre tente concluir 100% do escopo e dos critérios de aceite da issue antes de declarar a entrega concluída.
+- Após concluir uma issue, atualize o roadmap correspondente com o estado da entrega, o commit/PR e as limitações relevantes.
+- Se qualquer parte do escopo, critério de aceite, validação ou documentação ficar pendente, deixe isso explícito na entrega, indicando exatamente o que falta e o motivo.
+- Nunca apresente uma issue como concluída quando houver pendências relevantes; diferencie claramente código implementado, validação realizada e trabalho restante.
