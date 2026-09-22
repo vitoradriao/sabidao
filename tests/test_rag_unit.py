@@ -196,6 +196,32 @@ class TestStrictAbstain(unittest.TestCase):
         self.assertEqual(trace["top_fusion_score"], 0.99)
         self.assertEqual(trace["top_feedback_priority"], 2.0)
 
+    def test_offline_stage_keeps_chunks_but_log_strips_content(self):
+        chunks = [
+            {
+                "id": "candidate-1",
+                "filename": "sensitive.md",
+                "content": "conteudo que nao pode ir para o log",
+            }
+        ]
+
+        stage = rag._summarize_retrieval_stage(chunks, include_chunks=True)
+        logged = rag._sanitize_trace_for_log(
+            {
+                "retrieval_stages": {"candidate_pool": stage},
+                "context_selection": {
+                    "retained_evidence": [
+                        {"source": "cliente-secreto.md", "spans": []}
+                    ],
+                    "allowed_sources": ["cliente-secreto.md"],
+                },
+            }
+        )
+
+        self.assertEqual(stage["chunks"][0]["content"], chunks[0]["content"])
+        self.assertNotIn("conteudo que nao pode ir para o log", str(logged))
+        self.assertNotIn("cliente-secreto.md", str(logged))
+
 
 class TestCitationValidation(unittest.TestCase):
     def test_accepts_grounded_answer_with_inline_citations(self):

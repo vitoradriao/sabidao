@@ -178,6 +178,66 @@ A cobertura é relativa ao dataset fornecido. Isso não certifica sua revisão h
 identidade experimental ou validade operacional; essas validações continuam
 necessárias antes de tratar o resultado como um baseline de produção.
 
+## Comparação pareada com Jev
+
+A issue #90 entrega somente o contrato e o harness para a comparação ativa. O
+baseline registra as variantes com identificadores estáveis:
+
+- `existing` (A): pipeline atual;
+- `jev_rerank` (B): reranking com Jev, dependente do caminho ativo da issue #91;
+- `jev_rerank+evidence_gate` (C): variante registrada, mas explicitamente
+  indisponível enquanto o gate da issue #92 não existir.
+
+O perfil também congela `pair_id`, `snapshot_id`, as políticas de identidade, a
+janela de evidência e o construtor de contexto. Uma variante indisponível falha
+explicitamente quando solicitada; ela nunca é substituída silenciosamente pela
+variante A. O relatório registra `effective_variant`, fallback e motivo, e um
+fallback para `existing` não conta como sucesso de Jev.
+
+Antes de executar providers, valide a preparação local. `--prepare-only` acessa
+somente o dataset, o `baseline_config.json` e o relatório local; não chama banco,
+modelo, embeddings, rede ou escreve tabelas:
+
+```sh
+python evaluation/run_offline_eval.py --prepare-only \
+  --output-report evaluation/reports/jev-prepare.json
+```
+
+O status `blocked` é esperado enquanto o snapshot não estiver registrado e o
+caminho B ainda depender da issue #91. A opção legada `--dry-run` tem outro
+significado: impede apenas a escrita das tabelas e ainda pode chamar banco e
+providers pagos.
+
+Com providers de teste ou com o caminho da issue #91 integrado, execute o par
+informando explicitamente o snapshot:
+
+```sh
+python evaluation/run_offline_eval.py --paired \
+  --snapshot-id <snapshot-congelado> \
+  --pair-id <par-estavel> \
+  --dry-run --output-report evaluation/reports/jev-paired.json
+```
+
+Cada provider pareado precisa devolver no trace o `snapshot_id` efetivamente
+usado e a `experiment_identity` completa, incluindo `fingerprint_sha256`; o
+runner rejeita respostas que não comprovem esses dois campos. Na base desta
+issue, a variante B ainda depende da integração ativa da #91. As fixtures
+sintéticas exercitam o runner diretamente com providers fake; o comando CLI só
+fica executável para B depois que essa integração expuser o provider ativo.
+
+O harness produz duas visões do mesmo recorte: `ranking_ablation_same_pool`,
+que reutiliza o mesmo conjunto de candidatos para isolar a ordenação, e
+`end_to_end_same_snapshot`, que executa cada caminho independentemente no mesmo
+snapshot. Cada resposta registra os estágios `sections`, `candidate_pool`,
+`post_rerank`, `post_gate` e `final_context`, com ordem, contagem, exclusões,
+IDs opacos e métricas com denominador e motivo de indisponibilidade. O envelope
+final preserva hashes, fontes e spans, sem texto bruto nos traces persistidos ou
+no `ASK_TRACE`.
+
+O resultado desta issue não aprova adoção, custo ou operação. Revisão humana,
+ensaio operacional, orçamento e decisão de adoção continuam nas issues #53,
+#93 e #96; a integração do caminho ativo de Jev continua na #91.
+
 ## Conteúdo do relatório
 
 O bloco `runtime` registra commit, hash do dataset e `experiment_identity`. Essa

@@ -15,7 +15,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 import sys
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -27,8 +27,56 @@ import rag
 from bot_common import normalize_text
 
 
-EVALUATOR_SCHEMA_VERSION = 6
+EVALUATOR_SCHEMA_VERSION = 7
 METRIC_DEFINITIONS_VERSION = 2
+COMPARISON_PROFILE_VERSION = 1
+COMPARISON_SCHEMA_VERSION = 1
+VARIANT_EXISTING = "existing"
+VARIANT_JEV_RERANK = "jev_rerank"
+VARIANT_JEV_RERANK_GATE = "jev_rerank+evidence_gate"
+COMPARISON_VARIANTS = (
+    VARIANT_EXISTING,
+    VARIANT_JEV_RERANK,
+    VARIANT_JEV_RERANK_GATE,
+)
+RETRIEVAL_STAGE_NAMES = (
+    "sections",
+    "candidate_pool",
+    "post_rerank",
+    "post_gate",
+    "final_context",
+)
+COMPARISON_VIEWS = (
+    "ranking_ablation_same_pool",
+    "end_to_end_same_snapshot",
+)
+
+
+class VariantConfigurationError(ValueError):
+    """A variante ou o perfil de comparação não respeita o contrato."""
+
+
+class VariantUnavailableError(RuntimeError):
+    """A variante foi solicitada antes de existir um caminho de execução ativo."""
+
+
+_VARIANT_DEFINITIONS = {
+    VARIANT_EXISTING: {
+        "label": "A — existing",
+        "available_without_provider": True,
+        "requires": [],
+    },
+    VARIANT_JEV_RERANK: {
+        "label": "B — jev_rerank",
+        "available_without_provider": False,
+        "requires": ["#91"],
+    },
+    VARIANT_JEV_RERANK_GATE: {
+        "label": "C — jev_rerank+evidence_gate",
+        "available_without_provider": False,
+        "requires": ["#91", "#92"],
+    },
+}
 METRIC_DEFINITIONS = {
     "behavior_match": (
         "Compara se a resposta ou abstencao ocorreu conforme expected_behavior."
@@ -151,6 +199,88 @@ _CONFIG_FIELDS = (
 )
 
 AnswerProvider = Callable[[str, dict[str, Any]], tuple[str, list[dict], dict[str, Any]]]
+ComparisonProvider = Callable[..., tuple[str, list[dict], dict[str, Any]]]
+
+
+def _comparison_selected_cases(
+    dataset: list[dict[str, Any]],
+    *,
+    split: str,
+    limit: int | None,
+) -> list[dict[str, Any]]:
+    selected = [
+        case
+        for case in dataset
+        if split == "all" or str(case.get("split") or "development") == split
+    ]
+    return selected[:limit] if limit and limit > 0 else selected
+
+
+def _metric_unavailable_reason(
+    metric_name: str,
+    result: dict[str, Any],
+) -> str | None:
+    details = (result.get("metric_details") or {}).get(metric_name)
+    if isinstance(details, dict):
+        reason = details.get("unavailable_reason") or details.get("reason")
+        if reason:
+            return str(reason)
+    if result.get(metric_name) is None:
+        return "metric_not_evaluated"
+    return None
+
+
+def _metric_observation(metric_name: str, result: dict[str, Any]) -> dict[str, Any]:
+    value = result.get(metric_name)
+    return {
+        "value": value,
+        "denominator": 1 if value is not None else 0,
+        "unavailable_reason": _metric_unavailable_reason(metric_name, result),
+        "metric_version": str(METRIC_DEFINITIONS_VERSION),
+    }
+
+
+def _invoke_comparison_provider(
+    provider: ComparisonProvider | None,
+    *,
+    case: dict[str, Any],
+    scope: dict[str, Any],
+    variant_id: str,
+    mode: str,
+    candidate_pool: list[dict] | None,
+) -> tuple[str, list[dict], dict[str, Any]]:
+    if provider is None:
+        raise VariantUnavailableError(f"provider ausente para variante: {variant_id}")
+    question = str(case.get("question") or "").strip()
+    try:
+        import inspect
+
+        parameters = inspect.signature(provider).parameters
+        accepts_kwargs = any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
+        )
+        if accepts_kwargs or {
+            "variant_id",
+            "mode",
+            "candidate_pool",
+        }.issubset(parameters):
+            return provider(
+                question,
+                scope,
+                variant_id=variant_id,
+                mode=mode,
+                candidate_pool=candidate_pool,
+            )
+        if len(parameters) >= 5:
+            return provider(question, scope, variant_id, mode, candidate_pool)
+        if len(parameters) >= 3:
+            return provider(question, scope, variant_id)
+        return provider(question, scope)
+    except (TypeError, ValueError) as exc:
+        raise VariantConfigurationError(
+            f"provider inválido para variante {variant_id}: {type(exc).__name__}"
+        ) from exc
 
 
 def _load_dataset(path: Path) -> list[dict[str, Any]]:
@@ -170,6 +300,197 @@ def _load_json_object(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"Expected a JSON object: {path}")
     return payload
+
+
+def _variant_definition(variant_id: str) -> dict[str, Any]:
+    normalized = str(variant_id or "").strip()
+    definition = _VARIANT_DEFINITIONS.get(normalized)
+    if definition is None:
+        raise VariantConfigurationError(
+            f"Variante desconhecida: {normalized or '<vazia>'}. "
+            f"Use uma de: {', '.join(COMPARISON_VARIANTS)}."
+        )
+    return {"variant_id": normalized, **definition}
+
+
+def _comparison_profile(baseline_config: dict[str, Any] | None) -> dict[str, Any]:
+    profile = (baseline_config or {}).get("comparison")
+    if not isinstance(profile, dict):
+        raise VariantConfigurationError(
+            "baseline_config.comparison é obrigatório para uma comparação pareada."
+        )
+    if profile.get("profile_version") != COMPARISON_PROFILE_VERSION:
+        raise VariantConfigurationError(
+            "baseline_config.comparison.profile_version incompatível."
+        )
+    variants = profile.get("variants")
+    if not isinstance(variants, list) or not variants:
+        raise VariantConfigurationError(
+            "baseline_config.comparison.variants deve ser uma lista não vazia."
+        )
+    normalized_variants = [str(variant_id).strip() for variant_id in variants]
+    if len(set(normalized_variants)) != len(normalized_variants):
+        raise VariantConfigurationError(
+            "baseline_config.comparison.variants não pode repetir variantes."
+        )
+    for variant_id in normalized_variants:
+        _variant_definition(variant_id)
+    unavailable = profile.get("unavailable_variants") or {}
+    if not isinstance(unavailable, dict):
+        raise VariantConfigurationError(
+            "baseline_config.comparison.unavailable_variants deve ser um objeto."
+        )
+    registered_variants = set(normalized_variants)
+    for variant_id, definition in unavailable.items():
+        normalized_id = str(variant_id).strip()
+        _variant_definition(normalized_id)
+        if normalized_id in registered_variants:
+            raise VariantConfigurationError(
+                f"Variante registrada como ativa e indisponível: {normalized_id}."
+            )
+        if not isinstance(definition, dict):
+            raise VariantConfigurationError(
+                f"Definição inválida para variante indisponível: {normalized_id}."
+            )
+        if definition.get("status") != "unavailable":
+            raise VariantConfigurationError(
+                f"Variante indisponível sem status explícito: {normalized_id}."
+            )
+        reason = definition.get("reason") or definition.get("unavailable_reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise VariantConfigurationError(
+                f"Variante indisponível sem motivo: {normalized_id}."
+            )
+    views = profile.get("views")
+    if not isinstance(views, list) or not views:
+        raise VariantConfigurationError(
+            "baseline_config.comparison.views deve ser uma lista não vazia."
+        )
+    unknown_views = [view for view in views if view not in COMPARISON_VIEWS]
+    if unknown_views:
+        raise VariantConfigurationError(
+            f"Visões de comparação desconhecidas: {', '.join(map(str, unknown_views))}."
+        )
+    gate_declaration = unavailable.get(VARIANT_JEV_RERANK_GATE)
+    if gate_declaration is None:
+        raise VariantConfigurationError(
+            "evidence_gate deve permanecer explicitamente indisponível no perfil."
+        )
+    controls = profile.get("controls")
+    if not isinstance(controls, dict):
+        raise VariantConfigurationError(
+            "baseline_config.comparison.controls é obrigatório."
+        )
+    for field in (
+        "same_dataset",
+        "same_snapshot",
+        "same_retrieval_pool_for_ranking_ablation",
+        "same_evidence_window",
+        "same_generation_and_embedding_configuration",
+    ):
+        if controls.get(field) is not True:
+            raise VariantConfigurationError(
+                f"Controle pareado incompatível ou ausente: {field}."
+            )
+    context_builder = controls.get("same_context_builder")
+    evidence_window = controls.get("evidence_window")
+    if not isinstance(context_builder, str) or not context_builder.strip():
+        raise VariantConfigurationError(
+            "controls.same_context_builder deve identificar o construtor congelado."
+        )
+    if not isinstance(evidence_window, dict):
+        raise VariantConfigurationError(
+            "controls.evidence_window deve ser um objeto."
+        )
+    if (
+        evidence_window.get("builder") != context_builder
+        or evidence_window.get("raw_text_persisted") is not False
+    ):
+        raise VariantConfigurationError(
+            "controls.evidence_window não corresponde ao construtor ou expõe texto bruto."
+        )
+    return {
+        **profile,
+        "variants": normalized_variants,
+        "unavailable_variants": {
+            str(variant_id).strip(): dict(definition)
+            for variant_id, definition in unavailable.items()
+        },
+    }
+
+
+def _comparison_identifiers(
+    profile: dict[str, Any],
+    *,
+    pair_id: str | None,
+    snapshot_id: str | None,
+    require_snapshot: bool,
+) -> tuple[str, str | None]:
+    resolved_pair_id = str(pair_id or profile.get("pair_id") or "").strip()
+    resolved_snapshot_id = str(snapshot_id or profile.get("snapshot_id") or "").strip()
+    if not resolved_pair_id:
+        raise VariantConfigurationError(
+            "A comparação pareada exige um pair_id estável."
+        )
+    if require_snapshot and not resolved_snapshot_id:
+        raise VariantConfigurationError(
+            "A comparação pareada exige snapshot_id; não presuma o snapshot do banco."
+        )
+    return resolved_pair_id, resolved_snapshot_id or None
+
+
+def _validate_variant_execution(
+    variant_id: str,
+    *,
+    answer_provider: AnswerProvider | None,
+    profile: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    definition = _variant_definition(variant_id)
+    unavailable = (profile or {}).get("unavailable_variants", {})
+    if variant_id in unavailable:
+        reason = unavailable[variant_id].get("reason") or unavailable[variant_id].get(
+            "unavailable_reason"
+        )
+        raise VariantUnavailableError(
+            f"A variante {variant_id} está indisponível: {reason}."
+        )
+    if not definition["available_without_provider"] and answer_provider is None:
+        requirements = ", ".join(definition["requires"])
+        raise VariantUnavailableError(
+            f"A variante {variant_id} ainda não possui caminho ativo no rag.ask; "
+            f"integre {requirements} ou forneça um provider fake explícito."
+        )
+    return definition
+
+
+def _comparison_metadata(
+    *,
+    variant_id: str,
+    pair_id: str | None,
+    snapshot_id: str | None,
+    view: str,
+    profile: dict[str, Any] | None,
+) -> dict[str, Any]:
+    definition = _variant_definition(variant_id)
+    controls = (profile or {}).get("controls") or {}
+    return {
+        "profile_version": (profile or {}).get(
+            "profile_version", COMPARISON_PROFILE_VERSION
+        ),
+        "variant_id": variant_id,
+        "variant_label": definition["label"],
+        "pair_id": pair_id,
+        "snapshot_id": snapshot_id,
+        "view": view,
+        "requested_variant": variant_id,
+        "effective_variant": variant_id,
+        "fallback_stage": None,
+        "fallback_reason": None,
+        "effective_reranker_provider": None,
+        "effective_reranker_model": None,
+        "evidence_window": controls.get("evidence_window")
+        or controls.get("same_evidence_window"),
+    }
 
 
 def _is_abstained(answer: str, trace: dict[str, Any]) -> bool:
@@ -677,6 +998,318 @@ def _retrieval_metrics(
     )
 
 
+def _sanitize_evaluation_metadata(value: Any) -> Any:
+    """Remove payloads de conteúdo de artefatos de comparação."""
+    if isinstance(value, dict):
+        return {
+            str(key): _sanitize_evaluation_metadata(item)
+            for key, item in value.items()
+            if key not in {"content", "text", "answer", "question", "state"}
+        }
+    if isinstance(value, list):
+        return [_sanitize_evaluation_metadata(item) for item in value]
+    if isinstance(value, tuple):
+        return [_sanitize_evaluation_metadata(item) for item in value]
+    return value
+
+
+def _stage_unavailable_metrics(
+    *,
+    stage: dict[str, Any],
+    reference_count: int,
+    reason: str,
+) -> tuple[dict[str, None], dict[str, Any]]:
+    retrieved_depth = int(stage.get("count") or len(stage.get("ids") or []))
+    matched: dict[str, int] = {}
+    values = {
+        "recall_at_10": None,
+        "recall_at_20": None,
+        "evidence_discounted_coverage_at_10": None,
+        "ndcg_at_10": None,
+    }
+    details = {
+        metric_name: _metric_detail(
+            retrieved_depth=retrieved_depth,
+            reference_count=reference_count,
+            matched_evidence=matched,
+            unavailable_reason=reason,
+        )
+        for metric_name in values
+    }
+    return values, details
+
+
+def _opaque_report_id(value: Any, *, prefix: str = "candidate") -> str:
+    text = str(value or "").strip()
+    if re.fullmatch(r"(?:candidate|section)-[0-9a-f]{24}", text):
+        return text
+    return f"{prefix}-{hashlib.sha256(text.encode('utf-8')).hexdigest()[:24]}"
+
+
+def _sanitize_stage_for_report(stage: Any, *, stage_name: str = "") -> dict[str, Any]:
+    if not isinstance(stage, dict):
+        return {
+            "status": "unavailable",
+            "ids": [],
+            "order": [],
+            "count": 0,
+            "reason": "stage_not_declared",
+        }
+    sanitized = _sanitize_evaluation_metadata(
+        {key: value for key, value in stage.items() if key != "chunks"}
+    )
+    if not isinstance(sanitized, dict):
+        return {}
+    prefix = "section" if stage_name == "sections" else "candidate"
+    for key in ("ids", "order"):
+        values = sanitized.get(key)
+        if isinstance(values, list):
+            sanitized[key] = [_opaque_report_id(value, prefix=prefix) for value in values]
+    exclusions = sanitized.get("excluded", sanitized.get("exclusions"))
+    if isinstance(exclusions, list):
+        safe_exclusions = []
+        for item in exclusions:
+            if not isinstance(item, dict):
+                continue
+            safe_item = {
+                key: item[key]
+                for key in ("rank", "reason")
+                if key in item
+            }
+            if safe_item:
+                safe_exclusions.append(safe_item)
+        if "excluded" in sanitized:
+            sanitized["excluded"] = safe_exclusions
+        else:
+            sanitized["exclusions"] = safe_exclusions
+    evidence = sanitized.get("evidence")
+    if isinstance(evidence, list):
+        safe_evidence = []
+        for item in evidence:
+            if not isinstance(item, dict):
+                continue
+            safe_item = {
+                key: item[key]
+                for key in (
+                    "source",
+                    "document_id",
+                    "section_id",
+                    "content_hash",
+                    "location",
+                    "spans",
+                    "rank",
+                    "retrieval_origin",
+                    "is_neighbor",
+                    "seed_chunk_id",
+                )
+                if key in item
+            }
+            if "evidence_id" in item:
+                safe_item["evidence_id"] = _opaque_report_id(
+                    item["evidence_id"], prefix="candidate"
+                )
+            if "candidate_id" in item and item["candidate_id"]:
+                safe_item["candidate_id"] = _opaque_report_id(
+                    item["candidate_id"], prefix="candidate"
+                )
+            safe_evidence.append(safe_item)
+        sanitized["evidence"] = safe_evidence
+    return sanitized
+
+
+def _sanitize_context_selection(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    sanitized = _sanitize_evaluation_metadata(value)
+    if not isinstance(sanitized, dict):
+        return {}
+    retained = sanitized.get("retained_evidence")
+    if isinstance(retained, list):
+        sanitized["retained_evidence"] = [
+            _sanitize_stage_for_report({"evidence": [item]}).get("evidence", [{}])[0]
+            for item in retained
+            if isinstance(item, dict)
+        ]
+    order = sanitized.get("order")
+    if isinstance(order, list):
+        sanitized["order"] = [
+            _opaque_report_id(item, prefix="candidate") for item in order
+        ]
+    exclusions = sanitized.get("exclusions")
+    if isinstance(exclusions, list):
+        safe_exclusions = []
+        for item in exclusions:
+            if not isinstance(item, dict):
+                continue
+            safe_item = {
+                key: item[key]
+                for key in (
+                    "index",
+                    "rank",
+                    "reason",
+                    "limit",
+                    "source",
+                    "document_id",
+                    "section_id",
+                    "content_hash",
+                    "location",
+                    "spans",
+                    "retrieval_origin",
+                    "is_neighbor",
+                    "seed_chunk_id",
+                )
+                if key in item
+            }
+            for key in ("evidence_id", "candidate_id", "id", "chunk_id"):
+                if key in item and item[key] is not None:
+                    safe_item[key] = _opaque_report_id(item[key], prefix="candidate")
+            if safe_item:
+                safe_exclusions.append(safe_item)
+        sanitized["exclusions"] = safe_exclusions
+    return sanitized
+
+
+def _rendered_context_chunks(
+    chunks: list[dict], trace: dict[str, Any]
+) -> list[dict]:
+    """Recorta os chunks finais aos spans realmente renderizados no prompt."""
+    selection = trace.get("context_selection")
+    retained = selection.get("retained_evidence") if isinstance(selection, dict) else None
+    if not isinstance(retained, list):
+        return list(chunks or [])
+
+    evidence_by_key: dict[str, dict[str, Any]] = {}
+    for evidence in retained:
+        if not isinstance(evidence, dict):
+            continue
+        for key in (
+            evidence.get("evidence_id"),
+            evidence.get("candidate_id"),
+            evidence.get("content_hash"),
+        ):
+            if key is not None and str(key).strip():
+                evidence_by_key[str(key)] = evidence
+
+    rendered: list[dict] = []
+    for chunk in chunks or []:
+        if not isinstance(chunk, dict):
+            continue
+        content = str(chunk.get("content") or "")
+        content_hash = str(chunk.get("content_hash") or "").strip()
+        if not content_hash:
+            metadata = chunk.get("metadata")
+            if isinstance(metadata, dict):
+                content_hash = str(metadata.get("content_hash") or "").strip()
+        if not content_hash:
+            content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        keys = (
+            chunk.get("evidence_id"),
+            chunk.get("candidate_id"),
+            chunk.get("id"),
+            content_hash,
+        )
+        evidence = next(
+            (
+                evidence_by_key.get(str(key))
+                for key in keys
+                if key is not None and str(key).strip() and str(key) in evidence_by_key
+            ),
+            None,
+        )
+        if evidence is None:
+            continue
+        spans = evidence.get("spans")
+        if not isinstance(spans, list):
+            continue
+        rendered_parts = []
+        for span in spans:
+            if not isinstance(span, dict):
+                continue
+            start = max(0, int(span.get("start") or 0))
+            end = min(len(content), int(span.get("end") or start))
+            if end > start:
+                rendered_parts.append(content[start:end])
+        if rendered_parts:
+            rendered_chunk = dict(chunk)
+            rendered_chunk["content"] = "\n".join(rendered_parts)
+            rendered.append(rendered_chunk)
+    return rendered
+
+
+def _evaluate_retrieval_stages(
+    *,
+    case: dict[str, Any],
+    final_chunks: list[dict],
+    trace: dict[str, Any],
+) -> dict[str, Any]:
+    declared = trace.get("retrieval_stages")
+    if not isinstance(declared, dict):
+        return {}
+
+    stage_results: dict[str, Any] = {}
+    reference_count = len(_evidence_specs(case.get("reference_evidence")))
+    for stage_name in RETRIEVAL_STAGE_NAMES:
+        raw_stage = declared.get(stage_name)
+        stage = raw_stage if isinstance(raw_stage, dict) else {}
+        if stage_name == "final_context":
+            stage_chunks = _rendered_context_chunks(final_chunks, trace)
+        else:
+            stage_chunks = stage.get("chunks")
+            if (
+                not isinstance(stage_chunks, list)
+                and stage.get("count") == len(final_chunks)
+                and final_chunks
+            ):
+                stage_chunks = final_chunks
+        status = str(stage.get("status") or "available")
+        if status not in {"available", "complete"}:
+            metrics, details = _stage_unavailable_metrics(
+                stage=stage,
+                reference_count=reference_count,
+                reason=str(stage.get("reason") or "stage_not_available"),
+            )
+        elif not isinstance(stage_chunks, list):
+            metrics, details = _stage_unavailable_metrics(
+                stage=stage,
+                reference_count=reference_count,
+                reason=(
+                    "stage_content_not_available"
+                    if stage.get("count")
+                    else "stage_empty"
+                ),
+            )
+        else:
+            metrics, details = _retrieval_metrics(
+                stage_chunks,
+                case.get("reference_evidence"),
+                case.get("ranking_judgments"),
+            )
+        stage_results[stage_name] = {
+            "stage": _sanitize_stage_for_report(stage, stage_name=stage_name),
+            "metrics": metrics,
+            "metric_details": details,
+            "metric_observations": {
+                metric_name: {
+                    "value": value,
+                    "denominator": int(
+                        (details.get(metric_name) or {}).get("reference_count", 0)
+                    )
+                    if value is not None
+                    else 0,
+                    "unavailable_reason": (
+                        (details.get(metric_name) or {}).get("unavailable_reason")
+                        if isinstance(details.get(metric_name), dict)
+                        else None
+                    )
+                    or ("metric_not_evaluated" if value is None else None),
+                    "metric_version": str(METRIC_DEFINITIONS_VERSION),
+                }
+                for metric_name, value in metrics.items()
+            },
+        }
+    return stage_results
+
+
 def _citation_validity(
     abstained: bool,
     trace: dict[str, Any],
@@ -788,6 +1421,11 @@ def _evaluate_response(
         case.get("reference_evidence"),
         case.get("ranking_judgments"),
     )
+    stage_metrics = _evaluate_retrieval_stages(
+        case=case,
+        final_chunks=chunks,
+        trace=trace,
+    )
     citation_validity, citation_details = _citation_validity(
         abstained,
         trace,
@@ -832,6 +1470,7 @@ def _evaluate_response(
         "false_absence_claim": false_absence_claim,
         "unsupported_claims": unsupported_claims,
         "score": score,
+        "stage_metrics": stage_metrics,
         "metric_details": {
             "factual_correctness": factual_details,
             "retrieval_relevance": retrieval_details,
@@ -848,6 +1487,13 @@ def _evaluate_response(
                 "value": unsupported_claims,
                 "forbidden_fact_matches": forbidden_matches,
                 "grounding_errors": list(trace.get("grounding_errors") or []),
+            },
+            "stages": {
+                stage_name: {
+                    "metric_details": value["metric_details"],
+                    "stage": value["stage"],
+                }
+                for stage_name, value in stage_metrics.items()
             },
         },
     }
@@ -1045,6 +1691,8 @@ def _jev_identity() -> dict[str, Any]:
 
 def _experiment_identity(
     baseline_config: dict[str, Any] | None,
+    *,
+    comparison: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     database_identity = _database_identity()
     identity = {
@@ -1069,13 +1717,37 @@ def _experiment_identity(
             "business_rules": "process_local_by_path_and_mtime",
             "full_context": "process_local_by_max_mtime",
         },
+        "evaluation_contract": {
+            "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
+            "metric_definitions_version": METRIC_DEFINITIONS_VERSION,
+            "metric_definitions_sha256": _canonical_sha256(METRIC_DEFINITIONS),
+            "context_selection_version": getattr(
+                rag, "CONTEXT_SELECTION_VERSION", None
+            ),
+            "token_counter_version": getattr(rag, "TOKEN_COUNTER_VERSION", None),
+            "retrieval_stage_names": list(RETRIEVAL_STAGE_NAMES),
+            "comparison_views": list(COMPARISON_VIEWS),
+        },
     }
+    if comparison is not None:
+        identity["comparison"] = {
+            key: comparison.get(key)
+            for key in (
+                "profile_version",
+                "variant_id",
+                "pair_id",
+                "snapshot_id",
+                "view",
+            )
+        }
     return {**identity, "fingerprint_sha256": _canonical_sha256(identity)}
 
 
 def _runtime_metadata(
     dataset: list[dict[str, Any]],
     baseline_config: dict[str, Any] | None,
+    *,
+    comparison: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     canonical_dataset = json.dumps(
         dataset,
@@ -1083,7 +1755,10 @@ def _runtime_metadata(
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
-    experiment_identity = _experiment_identity(baseline_config)
+    experiment_identity = _experiment_identity(
+        baseline_config,
+        comparison=comparison,
+    )
     return {
         "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
         "metric_definitions_version": METRIC_DEFINITIONS_VERSION,
@@ -1093,6 +1768,7 @@ def _runtime_metadata(
         "model_config": rag.get_model_config(),
         "embedding_index_identity": rag.get_embedding_index_identity(),
         "jev": _jev_identity(),
+        "comparison": comparison,
         "rag_config": {
             field: getattr(config, field)
             for field in _CONFIG_FIELDS
@@ -1484,6 +2160,25 @@ def _evaluate_non_regression(
     }
 
 
+def _trace_for_report(
+    trace: dict[str, Any],
+    comparison: dict[str, Any],
+) -> dict[str, Any]:
+    safe_trace = _sanitize_evaluation_metadata({**trace, "comparison": comparison})
+    if not isinstance(safe_trace, dict):
+        return {"comparison": comparison}
+    stages = safe_trace.get("retrieval_stages")
+    if isinstance(stages, dict):
+        safe_trace["retrieval_stages"] = {
+            stage_name: _sanitize_stage_for_report(stage, stage_name=stage_name)
+            for stage_name, stage in stages.items()
+        }
+    for key in ("context_selection", "context_envelope"):
+        if key in safe_trace:
+            safe_trace[key] = _sanitize_context_selection(safe_trace[key])
+    return safe_trace
+
+
 def _insert_run(*, dataset_name: str, total_cases: int, metadata: dict[str, Any]) -> str:
     model_info = rag.get_model_config()
     row = rag.supabase_insert(
@@ -1518,7 +2213,38 @@ def run_evaluation(
     split: str = "all",
     reference_runtime: dict[str, Any] | None = None,
     experimental_variables: list[str] | None = None,
+    variant_id: str = VARIANT_EXISTING,
+    pair_id: str | None = None,
+    snapshot_id: str | None = None,
+    comparison_view: str = "end_to_end_same_snapshot",
+    comparison_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if comparison_view not in COMPARISON_VIEWS:
+        raise VariantConfigurationError(
+            f"Visão de comparação desconhecida: {comparison_view}."
+        )
+    profile = comparison_profile
+    if (
+        profile is None
+        and variant_id != VARIANT_EXISTING
+        and isinstance(baseline_config, dict)
+    ):
+        profile = _comparison_profile(baseline_config)
+    variant_definition = _validate_variant_execution(
+        variant_id,
+        answer_provider=answer_provider,
+        profile=profile if isinstance(profile, dict) else None,
+    )
+    comparison = _comparison_metadata(
+        variant_id=variant_id,
+        pair_id=pair_id,
+        snapshot_id=snapshot_id,
+        view=comparison_view,
+        profile=profile if isinstance(profile, dict) else None,
+    )
+    comparison["available_without_provider"] = bool(
+        variant_definition["available_without_provider"]
+    )
     selected = [
         case
         for case in dataset
@@ -1529,7 +2255,11 @@ def run_evaluation(
         raise ValueError(f"Dataset has no cases for split: {split}")
 
     started_at = datetime.now(timezone.utc).isoformat()
-    runtime_metadata = _runtime_metadata(dataset, baseline_config)
+    runtime_metadata = _runtime_metadata(
+        dataset,
+        baseline_config,
+        comparison=comparison,
+    )
     runtime_metadata["selection"] = {
         "split": split,
         "limit": limit,
@@ -1562,6 +2292,7 @@ def run_evaluation(
 
     rows_to_store: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
+    paired_execution = pair_id is not None or snapshot_id is not None
 
     for index, case in enumerate(selected, start=1):
         case_id = str(case.get("id") or f"case-{index:04d}")
@@ -1572,6 +2303,12 @@ def run_evaluation(
             if isinstance(case.get("conversation_history"), list)
             else None
         )
+        provider_scope = dict(scope)
+        if paired_execution:
+            provider_scope["_comparison_snapshot_id"] = snapshot_id
+            provider_scope["_comparison_experiment_identity"] = runtime_metadata[
+                "experiment_identity"
+            ]
 
         t0 = time.perf_counter()
         if answer_provider is None:
@@ -1581,10 +2318,74 @@ def run_evaluation(
                 images=None,
                 system_prompt=None,
                 platform="offline_eval",
-                scope=scope,
+                scope=provider_scope,
             )
         else:
-            answer, chunks, trace = answer_provider(question, scope)
+            answer, chunks, trace = answer_provider(question, provider_scope)
+        if not isinstance(trace, dict):
+            raise ValueError("O provider de avaliação deve retornar um trace objeto.")
+        observed_snapshot = trace.get("snapshot_id")
+        if paired_execution:
+            if observed_snapshot is None:
+                raise VariantConfigurationError(
+                    "provider pareado não informou snapshot_id verificado."
+                )
+            if str(observed_snapshot) != str(snapshot_id):
+                raise VariantConfigurationError(
+                    "snapshot_id do provider diverge do snapshot pareado."
+                )
+        observed_identity = trace.get("experiment_identity")
+        expected_identity = runtime_metadata.get("experiment_identity")
+        if paired_execution and (
+            not isinstance(observed_identity, dict)
+            or not observed_identity.get("fingerprint_sha256")
+        ):
+            raise VariantConfigurationError(
+                "provider pareado não informou experiment_identity verificada."
+            )
+        if (
+            isinstance(observed_identity, dict)
+            and isinstance(expected_identity, dict)
+            and observed_identity.get("fingerprint_sha256")
+            and expected_identity.get("fingerprint_sha256")
+            and observed_identity["fingerprint_sha256"]
+            != expected_identity["fingerprint_sha256"]
+        ):
+            raise VariantConfigurationError(
+                "experiment_identity do provider diverge da identidade do runtime."
+            )
+        trace_comparison = dict(comparison)
+        provider_comparison = trace.get("comparison")
+        if isinstance(provider_comparison, dict):
+            for key in (
+                "effective_variant",
+                "fallback_stage",
+                "fallback_reason",
+                "completion_status",
+                "fallback",
+                "effective_reranker_provider",
+                "effective_reranker_model",
+                "evidence_window",
+            ):
+                if key in provider_comparison:
+                    trace_comparison[key] = provider_comparison[key]
+        provider_reranker = trace.get("reranker") or trace.get("jev_reranker")
+        if isinstance(provider_reranker, dict):
+            if provider_reranker.get("provider") is not None:
+                trace_comparison["effective_reranker_provider"] = str(
+                    provider_reranker["provider"]
+                )
+            if provider_reranker.get("model") is not None:
+                trace_comparison["effective_reranker_model"] = str(
+                    provider_reranker["model"]
+                )
+        if "context_envelope" not in trace and isinstance(
+            trace.get("context_selection"), dict
+        ):
+            trace["context_envelope"] = {
+                **trace["context_selection"],
+                "status": "ready_for_generation",
+            }
         latency_ms = int((time.perf_counter() - t0) * 1000)
 
         evaluation = _evaluate_response(
@@ -1611,13 +2412,41 @@ def run_evaluation(
             ),
             "provenance": case.get("provenance"),
             "review": case.get("review"),
+            "variant_id": variant_id,
+            "pair_id": pair_id,
+            "snapshot_id": snapshot_id,
+            "experiment_identity": runtime_metadata.get("experiment_identity"),
+            "comparison": trace_comparison,
             **evaluation,
             "top_similarity": rag._safe_similarity(trace.get("top_similarity", 0.0)),
             "latency_ms": latency_ms,
-            "trace": trace,
+            "trace": _trace_for_report(trace, trace_comparison),
             "answer_preview": (answer or "")[:240],
         }
+        if comparison_profile is not None:
+            result.pop("question", None)
+            result.pop("answer_preview", None)
         result["outcome"] = _case_outcome(result)
+        result["effective_variant"] = trace_comparison.get("effective_variant")
+        result["fallback"] = bool(
+            trace_comparison.get("fallback")
+            or trace_comparison.get("fallback_stage")
+            or trace_comparison.get("effective_variant") != variant_id
+        )
+        result["variant_success"] = not result["fallback"] and (
+            trace_comparison.get("effective_variant") == variant_id
+        )
+        result["comparison_outcome"] = (
+            "fallback" if result["fallback"] else result["outcome"]
+        )
+        result["metric_observations"] = {
+            name: _metric_observation(name, result) for name in METRIC_DEFINITIONS
+        }
+        result["completion"] = _paired_completion(
+            trace,
+            _summarize_model_usage([{"trace": trace}]),
+            latency_ms=latency_ms,
+        )
         results.append(result)
 
         rows_to_store.append(
@@ -1639,7 +2468,7 @@ def run_evaluation(
                 "top_similarity": result["top_similarity"],
                 "latency_ms": latency_ms,
                 "score": evaluation["score"],
-                "trace": trace,
+                "trace": result["trace"],
                 "evaluation_details": {
                     **evaluation["metric_details"],
                     "decision": {
@@ -1747,6 +2576,7 @@ def run_evaluation(
             baseline_config,
             expected_holdout_cases=sum(case.get("split") == "holdout" for case in dataset),
         ),
+        "stage_metrics": _summarize_stage_metrics(results),
         "model_usage": _summarize_model_usage(results),
         "limitations": [
             "Os intervalos de 95% usam Wilson e amostras pequenas permanecem incertas.",
@@ -1772,6 +2602,51 @@ def run_evaluation(
             ),
         ],
         "results": results,
+    }
+
+
+def _paired_completion(
+    trace: dict[str, Any],
+    usage: dict[str, Any],
+    *,
+    latency_ms: int | float | None = None,
+) -> dict[str, Any]:
+    calls = trace.get("model_calls")
+    external_calls = trace.get("external_calls")
+    observed_calls = isinstance(calls, list) and isinstance(external_calls, list)
+    completion_status = str(trace.get("completion_status") or "completed")
+    latency = latency_ms if latency_ms is not None else trace.get("latency_ms")
+    return {
+        "status": completion_status,
+        "fallback": bool(trace.get("fallback") or trace.get("fallback_used")),
+        "calls": {
+            "value": usage.get("call_count") if observed_calls else None,
+            "denominator": 1 if observed_calls else 0,
+            "unavailable_reason": None if observed_calls else "calls_not_observed",
+        },
+        "tokens": {
+            "value": usage.get("totals") if observed_calls else None,
+            "denominator": 1 if observed_calls and usage.get("totals") else 0,
+            "unavailable_reason": None
+            if observed_calls and usage.get("totals")
+            else "usage_unavailable",
+        },
+        "cost": {
+            "value": usage.get("estimated_cost_usd") if observed_calls else None,
+            "denominator": 1
+            if observed_calls and usage.get("cost_complete")
+            else 0,
+            "unavailable_reason": None
+            if observed_calls and usage.get("cost_complete")
+            else "cost_incomplete",
+        },
+        "latency_ms": {
+            "value": latency if isinstance(latency, (int, float)) else None,
+            "denominator": 1 if isinstance(latency, (int, float)) else 0,
+            "unavailable_reason": None
+            if isinstance(latency, (int, float))
+            else "latency_not_observed",
+        },
     }
 
 
@@ -1821,6 +2696,550 @@ def _summarize_metric(
     }
 
 
+def _summarize_stage_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
+    metric_names = (
+        "recall_at_10",
+        "recall_at_20",
+        "evidence_discounted_coverage_at_10",
+        "ndcg_at_10",
+    )
+    summary: dict[str, Any] = {}
+    for stage_name in RETRIEVAL_STAGE_NAMES:
+        stage_entries = [
+            result.get("stage_metrics", {}).get(stage_name, {})
+            for result in results
+        ]
+        summary[stage_name] = {
+            "available_cases": sum(
+                1
+                for entry in stage_entries
+                if (entry.get("stage") or {}).get("status")
+                in {"available", "complete"}
+            ),
+            "metrics": {
+                metric_name: _summarize_metric(
+                    [
+                        {metric_name: (entry.get("metrics") or {}).get(metric_name)}
+                        for entry in stage_entries
+                    ],
+                    metric_name,
+                )
+                for metric_name in metric_names
+            },
+        }
+    return summary
+
+
+def _case_map(summary: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        str(result.get("case_id")): result
+        for result in summary.get("results", [])
+        if isinstance(result, dict) and result.get("case_id")
+    }
+
+
+def _stage_ids(result: dict[str, Any], stage_name: str) -> list[str]:
+    stage = (result.get("trace") or {}).get("retrieval_stages", {}).get(stage_name, {})
+    if not isinstance(stage, dict):
+        return []
+    values = stage.get("order") or stage.get("ids") or []
+    return [str(value) for value in values if str(value).strip()]
+
+
+def _comparison_stage_ids(trace: dict[str, Any], stage_name: str) -> list[str]:
+    stage = (trace or {}).get("retrieval_stages", {}).get(stage_name, {})
+    if not isinstance(stage, dict):
+        return []
+    chunks = stage.get("chunks")
+    if isinstance(chunks, list):
+        return [_comparison_chunk_id(chunk) for chunk in chunks]
+    values = stage.get("order") or stage.get("ids") or []
+    return [_opaque_report_id(value, prefix="candidate") for value in values]
+
+
+def _comparison_chunk_id(chunk: dict[str, Any]) -> str:
+    candidate_id = str(chunk.get("candidate_id") or "").strip()
+    if candidate_id:
+        return _opaque_report_id(candidate_id, prefix="candidate")
+    return rag._evaluation_candidate_id(chunk)
+
+
+def _stage_contract_complete(result: dict[str, Any]) -> bool:
+    stages = (result.get("trace") or {}).get("retrieval_stages")
+    return isinstance(stages, dict) and all(
+        isinstance(stages.get(stage_name), dict)
+        for stage_name in RETRIEVAL_STAGE_NAMES
+    )
+
+
+def _paired_view(
+    summaries: Mapping[str, dict[str, Any]],
+    *,
+    view: str,
+) -> dict[str, Any]:
+    variant_ids = list(summaries)
+    if len(variant_ids) < 2:
+        return {
+            "status": "incomplete",
+            "view": view,
+            "reason": "at_least_two_variants_required",
+            "cases": [],
+        }
+    reference_id = variant_ids[0]
+    reference_cases = _case_map(summaries[reference_id])
+    other_cases = {
+        variant_id: _case_map(summary)
+        for variant_id, summary in summaries.items()
+        if variant_id != reference_id
+    }
+    case_ids = sorted(
+        set(reference_cases).intersection(
+            *(set(cases) for cases in other_cases.values())
+        )
+    )
+    rows: list[dict[str, Any]] = []
+    missing_count = sum(
+        len(set(reference_cases) - set(cases))
+        for cases in other_cases.values()
+    )
+    missing_stage_cases = [
+        case_id
+        for case_id in case_ids
+        if any(
+            not _stage_contract_complete(_case_map(summaries[variant_id])[case_id])
+            for variant_id in variant_ids
+        )
+    ]
+    for case_id in case_ids:
+        reference = reference_cases[case_id]
+        row: dict[str, Any] = {"case_id": case_id, "variants": {reference_id: {}}}
+        for variant_id in variant_ids:
+            result = _case_map(summaries[variant_id])[case_id]
+            row["variants"][variant_id] = {
+                "outcome": result.get("outcome"),
+                "score": result.get("score"),
+                "effective_variant": (result.get("comparison") or {}).get(
+                    "effective_variant"
+                ),
+                "fallback_reason": (result.get("comparison") or {}).get(
+                    "fallback_reason"
+                ),
+                "candidate_pool_ids": _stage_ids(result, "candidate_pool"),
+                "post_rerank_ids": _stage_ids(result, "post_rerank"),
+                "final_context_ids": _stage_ids(result, "final_context"),
+            }
+        row["same_candidate_pool"] = all(
+            row["variants"][variant_id]["candidate_pool_ids"]
+            == row["variants"][reference_id]["candidate_pool_ids"]
+            for variant_id in variant_ids
+        )
+        row["ranking_order_changed"] = any(
+            row["variants"][variant_id]["post_rerank_ids"]
+            != row["variants"][reference_id]["post_rerank_ids"]
+            for variant_id in variant_ids
+            if variant_id != reference_id
+        )
+        rows.append(row)
+
+    if view == "ranking_ablation_same_pool":
+        incompatible = [row["case_id"] for row in rows if not row["same_candidate_pool"]]
+        status = (
+            "complete"
+            if rows and not incompatible and not missing_count and not missing_stage_cases
+            else "incomplete"
+        )
+        return {
+            "status": status,
+            "view": view,
+            "reference_variant": reference_id,
+            "case_count": len(rows),
+            "missing_result_count": missing_count,
+            "missing_stage_contract_cases": missing_stage_cases,
+            "incompatible_pool_cases": incompatible,
+            "ranking_changed_cases": [
+                row["case_id"] for row in rows if row["ranking_order_changed"]
+            ],
+            "cases": rows,
+        }
+
+    fallback_cases = [
+        row["case_id"]
+        for row in rows
+        if any(
+            row["variants"][variant_id]["effective_variant"] != variant_id
+            for variant_id in variant_ids
+        )
+    ]
+    status = "complete" if rows and not missing_count and not missing_stage_cases else "incomplete"
+    return {
+        "status": status,
+        "view": view,
+        "reference_variant": reference_id,
+        "case_count": len(rows),
+        "missing_result_count": missing_count,
+        "missing_stage_contract_cases": missing_stage_cases,
+        "fallback_cases": fallback_cases,
+        "cases": rows,
+    }
+
+
+def run_paired_comparison(
+    *,
+    dataset: list[dict[str, Any]],
+    dataset_name: str,
+    dry_run: bool,
+    limit: int | None,
+    baseline_config: dict[str, Any],
+    split: str = "all",
+    variants: list[str] | tuple[str, ...] | None = None,
+    answer_providers: Mapping[str, AnswerProvider | None] | None = None,
+    pair_id: str | None = None,
+    snapshot_id: str | None = None,
+) -> dict[str, Any]:
+    profile = _comparison_profile(baseline_config)
+    configured_variants = [str(value) for value in profile["variants"]]
+    selected_variants = list(variants or configured_variants)
+    if len(selected_variants) < 2:
+        raise VariantConfigurationError("Uma comparação pareada exige pelo menos A e B.")
+    if len(set(selected_variants)) != len(selected_variants):
+        raise VariantConfigurationError("A comparação não pode repetir variantes.")
+    registered_variants = set(configured_variants) | set(
+        (profile.get("unavailable_variants") or {}).keys()
+    )
+    if any(variant not in registered_variants for variant in selected_variants):
+        raise VariantConfigurationError(
+            "A variante solicitada não está registrada no perfil congelado."
+        )
+    resolved_pair_id, resolved_snapshot_id = _comparison_identifiers(
+        profile,
+        pair_id=pair_id,
+        snapshot_id=snapshot_id,
+        require_snapshot=True,
+    )
+    providers = dict(answer_providers or {})
+    for variant_id in selected_variants:
+        _validate_variant_execution(
+            variant_id,
+            answer_provider=providers.get(variant_id),
+            profile=profile,
+        )
+
+    selected_cases = _comparison_selected_cases(dataset, split=split, limit=limit)
+    case_ids = [str(case.get("id") or "").strip() for case in selected_cases]
+    if any(not case_id for case_id in case_ids):
+        raise VariantConfigurationError(
+            "A comparação pareada exige id não vazio em todos os casos."
+        )
+    if len(set(case_ids)) != len(case_ids):
+        raise VariantConfigurationError(
+            "A comparação pareada não pode repetir case_id no recorte selecionado."
+        )
+    question_to_case = {
+        str(case.get("question") or "").strip(): case for case in selected_cases
+    }
+    if len(question_to_case) != len(selected_cases):
+        raise VariantConfigurationError(
+            "A comparação pareada exige perguntas únicas no recorte selecionado."
+        )
+
+    def _run_mode(mode: str, view: str) -> dict[str, dict[str, Any]]:
+        captured_pools: dict[str, list[dict]] = {}
+        mode_summaries: dict[str, dict[str, Any]] = {}
+        for variant_id in selected_variants:
+            provider = providers.get(variant_id)
+
+            def mode_provider(
+                question: str,
+                scope: dict[str, Any],
+                *,
+                _provider: ComparisonProvider | None = provider,
+                _variant_id: str = variant_id,
+            ) -> tuple[str, list[dict], dict[str, Any]]:
+                case = question_to_case.get(str(question).strip())
+                if case is None:
+                    raise VariantConfigurationError(
+                        "Provider recebeu pergunta fora do recorte pareado."
+                    )
+                case_id = str(case.get("id") or "")
+                candidate_pool = (
+                    captured_pools.get(case_id)
+                    if mode == "ranking_ablation" and _variant_id != VARIANT_EXISTING
+                    else None
+                )
+                answer, chunks, trace = _invoke_comparison_provider(
+                    _provider,
+                    case=case,
+                    scope=scope,
+                    variant_id=_variant_id,
+                    mode=mode,
+                    candidate_pool=candidate_pool,
+                )
+                if _variant_id == VARIANT_EXISTING:
+                    pool_chunks = (
+                        ((trace.get("retrieval_stages") or {}).get("candidate_pool") or {}).get(
+                            "chunks"
+                        )
+                        if isinstance(trace, dict)
+                        else None
+                    )
+                    if not isinstance(pool_chunks, list):
+                        raise VariantConfigurationError(
+                            "A ablação pareada exige chunks do candidate_pool no trace da variante existing."
+                        )
+                    captured_pools[case_id] = list(pool_chunks)
+                elif mode == "ranking_ablation":
+                    expected_pool = [
+                        _comparison_chunk_id(chunk)
+                        for chunk in (candidate_pool or [])
+                    ]
+                    observed_pool = _comparison_stage_ids(
+                        trace, "candidate_pool"
+                    )
+                    if observed_pool != expected_pool:
+                        raise VariantConfigurationError(
+                            "A variante pareada alterou ou omitiu o candidate_pool da ablação."
+                        )
+                return answer, chunks, trace
+
+            mode_summaries[variant_id] = run_evaluation(
+                dataset=dataset,
+                dataset_name=dataset_name,
+                dry_run=dry_run,
+                limit=limit,
+                answer_provider=mode_provider,
+                baseline_config=baseline_config,
+                split=split,
+                variant_id=variant_id,
+                pair_id=resolved_pair_id,
+                snapshot_id=resolved_snapshot_id,
+                comparison_view=view,
+                comparison_profile=profile,
+            )
+        return mode_summaries
+
+    ranking_summaries = _run_mode(
+        "ranking_ablation", "ranking_ablation_same_pool"
+    )
+    end_to_end_summaries = _run_mode(
+        "end_to_end", "end_to_end_same_snapshot"
+    )
+    summaries = end_to_end_summaries
+
+    reference_variant = selected_variants[0]
+    unavailable_results = []
+    unavailable_declarations = profile.get("unavailable_variants") or {}
+    reference_identity = summaries[reference_variant]["runtime"].get(
+        "experiment_identity"
+    )
+    selected_cases = [
+        case
+        for case in dataset
+        if split == "all" or str(case.get("split") or "development") == split
+    ]
+    if limit and limit > 0:
+        selected_cases = selected_cases[:limit]
+    for unavailable_id, declaration in unavailable_declarations.items():
+        for index, case in enumerate(selected_cases, start=1):
+            case_id = str(case.get("id") or f"case-{index:04d}")
+            unavailable_results.append(
+                {
+                    "variant_id": str(unavailable_id),
+                    "pair_id": resolved_pair_id,
+                    "snapshot_id": resolved_snapshot_id,
+                    "experiment_identity": reference_identity,
+                    "outcome": "unavailable",
+                    "fallback": False,
+                    "effective_variant": None,
+                    "case_id": case_id,
+                    "unavailable_reason": str(declaration.get("reason")),
+                }
+            )
+    identity_comparisons = {
+        variant_id: _compare_runtime_identities(
+            summaries[variant_id]["runtime"],
+            summaries[reference_variant]["runtime"],
+            experimental_variables=["comparison.variant_id"],
+        )
+        for variant_id in selected_variants[1:]
+    }
+    view_summaries = {
+        "ranking_ablation_same_pool": ranking_summaries,
+        "end_to_end_same_snapshot": end_to_end_summaries,
+    }
+    views = {
+        view: _paired_view(view_summaries[view], view=view)
+        for view in profile.get("views", COMPARISON_VIEWS)
+        if view in COMPARISON_VIEWS
+    }
+    incomplete_identity = any(
+        comparison["status"] not in {"compatible", "compatible_with_declared_changes"}
+        for comparison in identity_comparisons.values()
+    )
+    incomplete_views = any(view["status"] != "complete" for view in views.values())
+    incomplete_holdout = any(
+        isinstance(summary.get("non_regression"), dict)
+        and (summary["non_regression"].get("coverage") or {}).get(
+            "expected_holdout_cases", 0
+        )
+        > 0
+        and summary["non_regression"].get("status") != "passed"
+        for summary in summaries.values()
+    )
+    return {
+        "comparison_schema_version": COMPARISON_SCHEMA_VERSION,
+        "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
+        "dataset_name": dataset_name,
+        "pair_id": resolved_pair_id,
+        "snapshot_id": resolved_snapshot_id,
+        "variants": selected_variants,
+        "experiment_identity": {
+            variant_id: summaries[variant_id]["runtime"].get("experiment_identity")
+            for variant_id in selected_variants
+        },
+        "unavailable_variants": [
+            {
+                "variant_id": str(variant_id),
+                "status": "unavailable",
+                "reason": str(declaration.get("reason")),
+            }
+            for variant_id, declaration in unavailable_declarations.items()
+        ],
+        "unavailable_results": unavailable_results,
+        "profile": _sanitize_evaluation_metadata(profile),
+        "identity_comparisons": identity_comparisons,
+        "views": views,
+        "status": (
+            "incomplete"
+            if incomplete_identity or incomplete_views or incomplete_holdout
+            else "complete"
+        ),
+        "approval": {
+            "status": "not_evaluated",
+            "reason": "A decisão operacional pertence às issues #53, #93 e #96.",
+        },
+        "summaries": summaries,
+        "mode_summaries": view_summaries,
+        "limitations": [
+            "Fixtures não constituem benchmark operacional nem revisão humana.",
+            "Fallback para existing não conta como sucesso da variante Jev.",
+            "Custo desconhecido e identidade de banco desconhecida permanecem incompletos.",
+        ],
+    }
+
+
+def prepare_comparison(
+    *,
+    dataset: list[dict[str, Any]],
+    dataset_name: str,
+    baseline_config: dict[str, Any],
+    split: str = "all",
+    limit: int | None = None,
+    variants: list[str] | tuple[str, ...] | None = None,
+    pair_id: str | None = None,
+    snapshot_id: str | None = None,
+) -> dict[str, Any]:
+    profile = _comparison_profile(baseline_config)
+    configured_variants = [str(value) for value in profile["variants"]]
+    selected_variants = list(variants or configured_variants)
+    registered_variants = set(configured_variants) | set(
+        (profile.get("unavailable_variants") or {}).keys()
+    )
+    if any(variant not in registered_variants for variant in selected_variants):
+        raise VariantConfigurationError(
+            "A variante solicitada não está registrada no perfil congelado."
+        )
+    resolved_pair_id, resolved_snapshot_id = _comparison_identifiers(
+        profile,
+        pair_id=pair_id,
+        snapshot_id=snapshot_id,
+        require_snapshot=False,
+    )
+    selected = [
+        case
+        for case in dataset
+        if split == "all" or str(case.get("split") or "development") == split
+    ]
+    if limit and limit > 0:
+        selected = selected[:limit]
+    blockers = []
+    if not resolved_snapshot_id:
+        blockers.append("snapshot_id_required_before_execution")
+    for variant_id in selected_variants:
+        unavailable = (profile.get("unavailable_variants") or {}).get(variant_id)
+        definition = _variant_definition(variant_id)
+        if unavailable:
+            blockers.append(
+                f"{variant_id}_unavailable:{unavailable.get('reason') or unavailable.get('unavailable_reason')}"
+            )
+        elif not definition["available_without_provider"]:
+            blockers.append(
+                f"{variant_id}_requires_active_path:{','.join(definition['requires'])}"
+            )
+    canonical_dataset = json.dumps(
+        dataset,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    preparation_identity = {
+        "schema_version": 1,
+        "status": "prepared",
+        "dataset_sha256": hashlib.sha256(canonical_dataset).hexdigest(),
+        "profile_sha256": _canonical_sha256(profile),
+        "pair_id": resolved_pair_id,
+        "snapshot_id": resolved_snapshot_id,
+        "git_commit": _git_commit(),
+        "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
+        "comparison_schema_version": COMPARISON_SCHEMA_VERSION,
+    }
+    preparation_identity["fingerprint_sha256"] = _canonical_sha256(
+        preparation_identity
+    )
+    return {
+        "comparison_schema_version": COMPARISON_SCHEMA_VERSION,
+        "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
+        "dataset_name": dataset_name,
+        "dataset_sha256": _canonical_sha256(dataset),
+        "selection": {
+            "split": split,
+            "limit": limit,
+            "case_ids": [str(case.get("id")) for case in selected],
+        },
+        "pair_id": resolved_pair_id,
+        "snapshot_id": resolved_snapshot_id,
+        "experiment_identity": preparation_identity,
+        "variants": [
+            {
+                "variant_id": variant_id,
+                **_variant_definition(variant_id),
+            }
+            for variant_id in selected_variants
+        ],
+        "unavailable_variants": [
+            {
+                "variant_id": str(variant_id),
+                "status": "unavailable",
+                "reason": str(
+                    definition.get("reason")
+                    or definition.get("unavailable_reason")
+                ),
+            }
+            for variant_id, definition in (profile.get("unavailable_variants") or {}).items()
+        ],
+        "views": profile.get("views", []),
+        "external_calls": 0,
+        "database_writes": 0,
+        "model_calls": 0,
+        "status": "blocked" if blockers else "ready",
+        "blockers": sorted(set(blockers)),
+        "estimated": {
+            "paid_calls": "not executed",
+            "cost": None,
+            "reason": "prepare-only não acessa banco, rede ou providers.",
+        },
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run offline RAG benchmark and store metrics in Supabase")
     parser.add_argument(
@@ -1843,6 +3262,32 @@ def main() -> int:
         choices=("all", "development", "holdout"),
         default="all",
         help="Dataset split to execute; holdout must not be used for tuning",
+    )
+    parser.add_argument(
+        "--variant",
+        choices=COMPARISON_VARIANTS,
+        default=VARIANT_EXISTING,
+        help="Variante registrada para uma execução única (default: existing)",
+    )
+    parser.add_argument(
+        "--paired",
+        action="store_true",
+        help="Executa as variantes registradas como um par comparável",
+    )
+    parser.add_argument(
+        "--pair-id",
+        default="",
+        help="Identificador estável do par; obrigatório se não estiver no perfil",
+    )
+    parser.add_argument(
+        "--snapshot-id",
+        default="",
+        help="Snapshot congelado do corpus/feedback usado pelo par",
+    )
+    parser.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Valida o perfil e os arquivos sem acessar DB, rede ou providers",
     )
     parser.add_argument("--limit", type=int, default=0, help="Optional max number of cases")
     parser.add_argument("--dry-run", action="store_true", help="Run without writing to Supabase")
@@ -1886,16 +3331,47 @@ def main() -> int:
             raise ValueError("Reference report has no runtime object")
         reference_runtime = candidate_runtime
 
-    summary = run_evaluation(
-        dataset=dataset,
-        dataset_name=args.dataset_name,
-        dry_run=args.dry_run,
-        limit=args.limit,
-        baseline_config=baseline_config,
-        split=args.split,
-        reference_runtime=reference_runtime,
-        experimental_variables=args.experimental_variable,
-    )
+    if args.prepare_only:
+        if args.paired or args.compare_report or args.gate:
+            parser.error("--prepare-only não pode ser combinado com --paired, --gate ou --compare-report")
+        summary = prepare_comparison(
+            dataset=dataset,
+            dataset_name=args.dataset_name,
+            baseline_config=baseline_config,
+            split=args.split,
+            limit=args.limit,
+            pair_id=args.pair_id or None,
+            snapshot_id=args.snapshot_id or None,
+        )
+    elif args.paired:
+        if args.variant != VARIANT_EXISTING:
+            parser.error("--paired não aceita --variant; use as variantes registradas no perfil")
+        if args.compare_report or args.experimental_variable:
+            parser.error("--paired não aceita comparação de runtime legada")
+        summary = run_paired_comparison(
+            dataset=dataset,
+            dataset_name=args.dataset_name,
+            dry_run=args.dry_run,
+            limit=args.limit,
+            baseline_config=baseline_config,
+            split=args.split,
+            pair_id=args.pair_id or None,
+            snapshot_id=args.snapshot_id or None,
+        )
+    else:
+        summary = run_evaluation(
+            dataset=dataset,
+            dataset_name=args.dataset_name,
+            dry_run=args.dry_run,
+            limit=args.limit,
+            baseline_config=baseline_config,
+            split=args.split,
+            reference_runtime=reference_runtime,
+            experimental_variables=args.experimental_variable,
+            variant_id=args.variant,
+            pair_id=args.pair_id or None,
+            snapshot_id=args.snapshot_id or None,
+        )
 
     report_path = Path(args.output_report) if args.output_report else None
     if report_path is None:
@@ -1904,6 +3380,29 @@ def main() -> int:
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    if args.prepare_only:
+        print(f"Preparation: {summary['status']}")
+        print(f"Dataset: {summary['dataset_name']}")
+        variant_names = [
+            item.get("variant_id", "") if isinstance(item, dict) else str(item)
+            for item in summary["variants"]
+        ]
+        print(f"Variants: {', '.join(name for name in variant_names if name)}")
+        print(f"External calls: {summary['external_calls']}")
+        if summary["blockers"]:
+            print("Blockers: " + ", ".join(summary["blockers"]))
+        print(f"Report: {report_path}")
+        return 0 if summary["status"] == "ready" else 1
+
+    if args.paired:
+        print(f"Comparison: {summary['status']}")
+        print(f"Pair: {summary['pair_id']}")
+        print(f"Snapshot: {summary['snapshot_id']}")
+        for view_name, view in summary["views"].items():
+            print(f"{view_name}: {view['status']}")
+        print(f"Report: {report_path}")
+        return 0 if summary["status"] == "complete" else 1
 
     print(f"Run ID: {summary['run_id']}")
     print(f"Dataset: {summary['dataset_name']}")
