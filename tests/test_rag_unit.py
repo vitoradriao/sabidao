@@ -343,6 +343,131 @@ class TestAnalyticalContextFormatting(unittest.TestCase):
         self.assertLessEqual(context.count("Trecho dominante"), 3)
 
 
+class TestContextBudgetSelection(unittest.TestCase):
+    def _chunk(self, chunk_id, content, *, filename="fonte.md", chunk_index=0):
+        return {
+            "id": chunk_id,
+            "document_id": "doc-1",
+            "section_id": f"section-{chunk_id}",
+            "filename": filename,
+            "content": content,
+            "chunk_index": chunk_index,
+            "similarity": 0.9,
+        }
+
+    def test_selection_preserves_reranker_order_in_same_document(self):
+        chunks = [
+            self._chunk("ranked-first", "Trecho escolhido primeiro.", chunk_index=2),
+            self._chunk("ranked-second", "Trecho escolhido depois.", chunk_index=0),
+        ]
+
+        selection = rag._select_context(chunks, question="qual trecho?")
+
+        self.assertEqual(selection.order[:2], ("ranked-first", "ranked-second"))
+        self.assertLess(
+            selection.rendered_text.index("Trecho escolhido primeiro."),
+            selection.rendered_text.index("Trecho escolhido depois."),
+        )
+        self.assertEqual(
+            [item["evidence_id"] for item in selection.evidence],
+            ["ranked-first", "ranked-second"],
+        )
+
+    def test_selection_has_separate_history_evidence_and_output_budgets(self):
+        chunks = [
+            self._chunk("kept", "A" * 80),
+            self._chunk("dropped", "B" * 240),
+        ]
+        with patch.multiple(
+            config,
+            RAG_MAX_INPUT_TOKENS=728,
+            RAG_MAX_HISTORY_TOKENS=48,
+            RAG_MODEL_CONTEXT_TOKENS=2048,
+            RAG_CONTEXT_MARGIN_TOKENS=0,
+            ASK_MAX_TOKENS=128,
+            MAX_CONTEXT_CHUNKS=8,
+            MAX_CHUNKS_PER_SECTION=3,
+            MAX_CHUNKS_PER_DOCUMENT=6,
+        ), patch.object(
+            rag,
+            "_count_context_text",
+            side_effect=lambda value, **_: (len(rag._plain_text_content(value)), "test-counter"),
+        ):
+            selection = rag._select_context(
+                chunks,
+                question="Q",
+                conversation_history=[
+                    {"role": "user", "content": "h" * 20},
+                    {"role": "assistant", "content": "h" * 20},
+                ],
+            )
+
+        self.assertLessEqual(
+            selection.budgets["input_tokens"],
+            selection.budgets["effective_input_tokens"],
+        )
+        self.assertEqual(
+            selection.budgets["input_tokens"],
+            sum(selection.budgets["input_parts"].values()),
+        )
+        self.assertLessEqual(
+            selection.budgets["history_budget_tokens"],
+            config.RAG_MAX_HISTORY_TOKENS,
+        )
+        self.assertGreaterEqual(selection.budgets["evidence_budget_tokens"], 0)
+        self.assertIn(
+            "evidence_budget_exceeded",
+            {item["reason"] for item in selection.exclusions},
+        )
+
+    def test_fixed_prompt_overflow_is_explicit(self):
+        with patch.multiple(
+            config,
+            RAG_MAX_INPUT_TOKENS=100,
+            RAG_MODEL_CONTEXT_TOKENS=2048,
+            RAG_CONTEXT_MARGIN_TOKENS=0,
+            ASK_MAX_TOKENS=128,
+        ), patch.object(
+            rag,
+            "_count_context_text",
+            side_effect=lambda value, **_: (len(rag._plain_text_content(value)), "test-counter"),
+        ):
+            with self.assertRaises(rag.ContextBudgetError) as raised:
+                rag._select_context([], system="X" * 200, question="Q")
+
+        self.assertEqual(raised.exception.details["reason"], "fixed_prompt_exceeds_budget")
+        self.assertEqual(raised.exception.details["fixed_tokens"], 201)
+
+    def test_fallback_counter_is_conservative_for_unicode_and_sql(self):
+        text = "Parâmetro de emissão: SELECT * FROM MXSINTEGRACAOPEDIDO WHERE código = 'á'."
+
+        tokens, method = rag._count_context_text(
+            text,
+            provider="gemini",
+            model="gemini-2.5-flash",
+        )
+
+        self.assertEqual(method, rag.TOKEN_COUNTER_VERSION)
+        self.assertEqual(tokens, (len(text.encode("utf-8")) + 1) // 2)
+
+    def test_trace_provenance_excludes_duplicate_and_source_is_retained_only_when_used(self):
+        chunks = [
+            self._chunk("kept", "Conteudo principal.", filename="mantida.md"),
+            self._chunk("kept", "Conteudo principal.", filename="duplicada.md"),
+        ]
+
+        selection = rag._select_context(chunks, question="qual conteudo?")
+        trace = selection.to_trace()
+
+        self.assertEqual(trace["allowed_sources"], ["mantida.md"])
+        self.assertIn(
+            "duplicate_chunk",
+            {item["reason"] for item in trace["exclusions"]},
+        )
+        serialized = str(trace)
+        self.assertNotIn("Conteudo principal.", serialized)
+
+
 class TestBusinessRulesContext(unittest.TestCase):
     def test_loads_full_business_rules_when_limit_allows_file_size(self):
         original_cache = rag._business_rules_cache
