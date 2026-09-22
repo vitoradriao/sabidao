@@ -22,6 +22,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 import config
+import jev
 import rag
 from bot_common import normalize_text
 
@@ -142,6 +143,11 @@ _CONFIG_FIELDS = (
     "GENERATION_MODEL_POLICY",
     "RAG_PROVIDER_MAX_RETRIES",
     "RAG_RETRY_BASE_SECONDS",
+    "JEV_MODEL",
+    "JEV_MAX_CONCURRENCY",
+    "JEV_REQUEST_TIMEOUT_SECONDS",
+    "JEV_STAGE_TIMEOUT_SECONDS",
+    "JEV_MIN_REMAINING_SECONDS",
 )
 
 AnswerProvider = Callable[[str, dict[str, Any]], tuple[str, list[dict], dict[str, Any]]]
@@ -1015,6 +1021,28 @@ def _prompt_and_policy_identity(
     }
 
 
+def _jev_identity() -> dict[str, Any]:
+    """Identidade segura do contrato Jev, sem chave ou conteudo de perguntas."""
+    prompt_contract = {
+        "question_types": ["choice", "noul"],
+        "noul_fields": ["type", "noul"],
+        "choice_fields": ["type", "choice", "probabilities", "confidence"],
+        "answer_ids": "must_match_question_ids",
+    }
+    return {
+        "configured": bool(config.TYPESAFE_API_KEY),
+        "endpoint": jev.ENDPOINT,
+        "model": config.JEV_MODEL,
+        "contract_version": jev.CONTRACT_VERSION,
+        "pricing_version": jev.PRICING_VERSION,
+        "input_price_usd_per_million": jev.INPUT_PRICE_USD_PER_MILLION,
+        "prompt_contract": {
+            "sha256": _canonical_sha256(prompt_contract),
+            "version": jev.CONTRACT_VERSION,
+        },
+    }
+
+
 def _experiment_identity(
     baseline_config: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -1030,6 +1058,7 @@ def _experiment_identity(
         "prompts_and_policies": _prompt_and_policy_identity(baseline_config),
         "database": database_identity,
         "vector_indexes": _vector_identity_metadata(database_identity),
+        "jev": _jev_identity(),
         "cache": {
             "query_embedding": {
                 "scope": "process_local",
@@ -1063,6 +1092,7 @@ def _runtime_metadata(
         "dataset_sha256": hashlib.sha256(canonical_dataset).hexdigest(),
         "model_config": rag.get_model_config(),
         "embedding_index_identity": rag.get_embedding_index_identity(),
+        "jev": _jev_identity(),
         "rag_config": {
             field: getattr(config, field)
             for field in _CONFIG_FIELDS

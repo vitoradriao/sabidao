@@ -3,7 +3,9 @@ config.py - Configuracoes centralizadas carregadas do ambiente e do .env
 """
 
 import logging
+import math
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -187,6 +189,16 @@ OPENAI_REFORMULATION_MODEL = os.getenv("OPENAI_REFORMULATION_MODEL", "gpt-5.4-mi
 OPENAI_CONTEXTUAL_MODEL = os.getenv("OPENAI_CONTEXTUAL_MODEL", "gpt-5.4-mini")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
 EMBEDDING_DIMENSIONS = _env_int("EMBEDDING_DIMENSIONS", 1536)
+
+# TypeSafe/Jev e opcional e permanece sem efeito enquanto nenhum consumidor o
+# utilizar. O endpoint nao e configuravel por dados de usuario.
+TYPESAFE_API_KEY = _env_setting("TYPESAFE_API_KEY")
+JEV_MODEL = _env_setting("JEV_MODEL", "jev-1.13.0")
+JEV_MAX_CONCURRENCY = _env_int("JEV_MAX_CONCURRENCY", 4)
+JEV_REQUEST_TIMEOUT_SECONDS = _env_float("JEV_REQUEST_TIMEOUT_SECONDS", 2.0)
+JEV_STAGE_TIMEOUT_SECONDS = _env_float("JEV_STAGE_TIMEOUT_SECONDS", 8.0)
+JEV_MIN_REMAINING_SECONDS = _env_float("JEV_MIN_REMAINING_SECONDS", 20.0)
+
 DB_POOL_MIN_SIZE = _env_int("DB_POOL_MIN_SIZE", 1)
 DB_POOL_MAX_SIZE = _env_int("DB_POOL_MAX_SIZE", 8)
 DB_POOL_TIMEOUT_SECONDS = _env_float("DB_POOL_TIMEOUT_SECONDS", 10.0)
@@ -421,6 +433,46 @@ def _validate_http_endpoint(name: str, value: str | None) -> None:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise EnvironmentError(
             f"{name} deve ser uma URL HTTP(S) absoluta e valida."
+        )
+
+
+def validate_jev_config(*, active: bool = False) -> None:
+    """Valida Jev somente quando um consumidor realmente o habilita."""
+    if not active:
+        return
+    if not TYPESAFE_API_KEY:
+        raise EnvironmentError(
+            "Variavel de ambiente obrigatoria nao definida: TYPESAFE_API_KEY."
+        )
+    if not isinstance(JEV_MODEL, str) or not re.fullmatch(r"jev-\d+\.\d+\.\d+", JEV_MODEL):
+        raise EnvironmentError(
+            "JEV_MODEL deve ser um identificador Jev versionado; aliases latest/preview nao sao aceitos."
+        )
+    if (
+        isinstance(JEV_MAX_CONCURRENCY, bool)
+        or not isinstance(JEV_MAX_CONCURRENCY, int)
+        or not 1 <= JEV_MAX_CONCURRENCY <= 8
+    ):
+        raise EnvironmentError("JEV_MAX_CONCURRENCY deve estar entre 1 e 8.")
+    for name, value in (
+        ("JEV_REQUEST_TIMEOUT_SECONDS", JEV_REQUEST_TIMEOUT_SECONDS),
+        ("JEV_STAGE_TIMEOUT_SECONDS", JEV_STAGE_TIMEOUT_SECONDS),
+    ):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value <= 0
+        ):
+            raise EnvironmentError(f"{name} deve ser finito e maior que zero.")
+    if (
+        isinstance(JEV_MIN_REMAINING_SECONDS, bool)
+        or not isinstance(JEV_MIN_REMAINING_SECONDS, (int, float))
+        or not math.isfinite(JEV_MIN_REMAINING_SECONDS)
+        or JEV_MIN_REMAINING_SECONDS < 0
+    ):
+        raise EnvironmentError(
+            "JEV_MIN_REMAINING_SECONDS deve ser finito e nao negativo."
         )
 
 
