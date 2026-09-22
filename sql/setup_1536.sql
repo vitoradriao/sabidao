@@ -26,10 +26,18 @@ CREATE TABLE documents (
     doc_type TEXT,
     content_hash TEXT,
     processing_hash TEXT,
+    canonical_id UUID NULL,
+    schema_version TEXT NULL,
+    document_revision INTEGER NULL,
+    metadata JSONB NULL,
     chunk_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE documents
+ADD CONSTRAINT documents_document_revision_positive_check
+CHECK (document_revision IS NULL OR document_revision >= 1);
 
 CREATE TABLE document_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,6 +59,10 @@ CREATE TABLE document_chunks (
 
 CREATE UNIQUE INDEX documents_filename_unique
 ON documents(filename);
+
+CREATE UNIQUE INDEX documents_canonical_id_unique
+ON documents(canonical_id)
+WHERE canonical_id IS NOT NULL;
 
 CREATE INDEX document_chunks_embedding_hnsw_idx
 ON document_chunks

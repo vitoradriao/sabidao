@@ -68,6 +68,7 @@ jobs:
             sql/add_feedback_memory.sql \
             sql/add_evaluation_tables.sql \
             sql/add_analytical_context.sql \
+            sql/migrate_canonical_identity.sql \
             sql/migrate_priority.sql \
             sql/add_section_retrieval_1536.sql \
             sql/add_embedding_index_identity.sql \

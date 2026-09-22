@@ -66,7 +66,32 @@ docker compose up -d postgres
 docker compose ps postgres
 ```
 
-Aguarde o estado saudável. A inicialização automática ocorre somente em um volume novo; bancos existentes precisam das [migrações correspondentes](../sql/README.md).
+Aguarde o estado saudável.
+
+### Banco novo
+
+Em um volume novo, a inicialização aplica `setup_1536.sql` e as migrações do
+`docker/postgres/init/00-bootstrap.sh`, incluindo
+`sql/migrate_canonical_identity.sql` depois de `sql/add_analytical_context.sql`.
+Não é necessário aplicar essa migração manualmente.
+
+### Banco existente
+
+A inicialização automática não é repetida em volumes existentes. Faça backup ou
+snapshot e aplique as migrações correspondentes em uma base de testes antes da
+implantação. Para a identidade editorial, confirme primeiro que
+`document_sections` existe; se necessário, aplique o contexto analítico e depois a
+migração canônica:
+
+```sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/add_analytical_context.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/migrate_canonical_identity.sql
+```
+
+Se `document_sections` já existir, aplique somente
+`sql/migrate_canonical_identity.sql`. Consulte [SQL e migrações](../sql/README.md)
+para a verificação e o rollback. Não execute `setup_1536.sql` ou `setup_3072.sql`
+em uma base com dados: esses scripts são destrutivos e não são upgrades.
 
 ## 3. Preparar e indexar documentos
 
@@ -82,6 +107,12 @@ O comando indexa os arquivos da pasta indicada sem percorrer suas subpastas. A i
 Em execuções posteriores, hashes evitam embeddings quando conteúdo e
 preprocessamento não mudaram. O modo recursivo e as exclusões de diretórios de
 backup também estão descritos no guia de operação.
+
+A migração de identidade é somente de schema: não converte o corpus, não ingere,
+reindexa ou recalcula embeddings. Dados legados continuam válidos; as colunas
+canônicas ficam nulas quando a identidade editorial é desconhecida. O preenchimento
+de identidade ocorre somente em uma ingestão/projeção que o suporte correspondente
+tenha publicado.
 
 ## 4. Iniciar o Discord
 
@@ -106,4 +137,6 @@ Use `!ping`, `!status` e `!ajuda` para conferir a disponibilidade. Depois envie 
 | Python local não encontra o host `postgres` | Use `localhost` para acessar o banco do Compose pela máquina hospedeira. |
 | Contêiner não alcança um provedor local de IA | `127.0.0.1` aponta para o próprio contêiner; use um endereço acessível pela rede do serviço. |
 | Erro de dimensão ou identidade dos vetores | Confira provider, modelo, dimensão, preprocessamento e o [registro do índice](identidade-indice-vetorial.md). |
+| Colunas canônicas ausentes | Aplique `sql/migrate_canonical_identity.sql` depois de `sql/add_analytical_context.sql`, sem executar um `setup_*.sql`. |
+| Documento legado sem identidade editorial | `canonical_id`, `schema_version`, `document_revision`, `metadata` ou `section_key` nulos podem ser o estado esperado; não preencha por aproximação. |
 | Documento não aparece nas respostas | Confira o diretório usado, o resultado da ingestão e os relatórios de falha. |

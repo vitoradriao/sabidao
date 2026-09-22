@@ -39,6 +39,7 @@ antes de mudar qualquer um desses valores.
 | `add_evaluation_tables.sql` | Tabelas `evaluation_runs`, `evaluation_results` e visão `evaluation_run_summary`. |
 | `migrate_evaluation_metrics_v2.sql` | Migra avaliações existentes para métricas factuais, retrieval e citação com estado não avaliado. |
 | `add_analytical_context.sql` | Seções de documentos e metadados dos trechos. |
+| `migrate_canonical_identity.sql` | Identidade editorial, revisão e metadados canônicos de documentos e chaves estáveis de seção. |
 | `migrate_priority.sql` | Priorização de documentos. |
 | `add_section_retrieval_1536.sql` | Consulta de seções e texto de retrieval dos chunks com embeddings de 1536 dimensões. |
 | `add_section_retrieval_3072.sql` | Referência histórica/experimental não suportada no runtime atual. |
@@ -83,6 +84,85 @@ contrato em PostgreSQL com pgvector. Ela deve ser executada somente em uma base 
 que já tenha recebido `setup_1536.sql`, `add_analytical_context.sql` e
 `add_section_retrieval_1536.sql`; todos os dados da fixture são revertidos ao final.
 
+### Identidade editorial canônica
+
+`migrate_canonical_identity.sql` é uma migração aditiva para o contrato
+documental. Ela acrescenta, sem preencher valores existentes:
+
+- `documents.canonical_id` (`UUID NULL`), com unicidade apenas entre valores não nulos;
+- `documents.schema_version` (`TEXT NULL`), que identifica o contrato documental;
+- `documents.document_revision` (`INTEGER NULL`), que registra a revisão quando conhecida;
+- `documents.metadata` (`JSONB NULL`), para metadados editoriais do documento;
+- `document_sections.section_key` (`TEXT NULL`), com unicidade por documento apenas entre valores não nulos.
+
+Os dados legados continuam válidos. Quando a identidade editorial não é conhecida,
+essas colunas permanecem nulas; a migração não atribui IDs, revisões ou metadados por
+aproximação. A mesma `section_key` pode existir em documentos diferentes, mas não se
+repete dentro do mesmo documento quando não é nula.
+
+#### Pré-requisitos e ordem
+
+Em uma base existente, `documents` precisa existir e
+`document_sections` precisa ter sido criada por `add_analytical_context.sql`. Se o
+contexto analítico ainda não estiver aplicado, faça isso antes da identidade:
+
+```sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/add_analytical_context.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/migrate_canonical_identity.sql
+```
+
+Se `document_sections` já existir, aplique somente a segunda linha. A migração pode
+ser reaplicada: usa `IF NOT EXISTS` nas colunas e índices e não converte documentos.
+Faça backup ou snapshot antes da alteração e valide primeiro em uma base descartável.
+
+Para um banco novo, não aplique essa migração isoladamente: o bootstrap executa
+`setup_1536.sql`, `add_analytical_context.sql` e, em seguida,
+`migrate_canonical_identity.sql`, antes das migrações de prioridade, retrieval e
+identidade de ingestão.
+
+#### Verificar a aplicação
+
+Depois da migração, confira apenas o catálogo do banco, sem alterar dados:
+
+```sql
+SELECT table_name, column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND (
+      (table_name = 'documents' AND column_name IN
+          ('canonical_id', 'schema_version', 'document_revision', 'metadata'))
+      OR (table_name = 'document_sections' AND column_name = 'section_key')
+  )
+ORDER BY table_name, column_name;
+
+SELECT indexname, tablename, indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND indexname IN (
+      'documents_canonical_id_unique',
+      'document_sections_document_section_key_unique'
+  )
+ORDER BY indexname;
+```
+
+As colunas devem aparecer como nullable e os dois índices como índices parciais.
+Uma falha por duplicidade em valores canônicos já preenchidos deve ser investigada;
+não remova dados para fazer a migração passar.
+
+#### Limites e rollback
+
+Esta migração não converte `documentos/`, não altera o manifesto, não ingere nem
+reindexa fontes e não chama provider de embeddings. Também não altera provider,
+modelo, dimensão `1536`, preprocessamento, RRF ou defaults de ranking. O preenchimento
+de identidade canônica pertence à ingestão/projeção posterior; não execute
+`ingest.py --force` ou `!reindex` como parte do upgrade.
+
+Não há script down publicado. Se for necessário retornar a aplicação, restaure a
+versão anterior e mantenha a migração instalada: versões que não usam essas colunas
+continuam compatíveis. Se for indispensável desfazer o schema, restaure o
+backup/snapshot validado ou prepare uma operação reversível específica; não use
+`setup_1536.sql`, `setup_3072.sql` nem remova o volume para fazer rollback.
+
 ## Inicialização no Docker
 
 Em um volume novo, `docker/postgres/init/00-bootstrap.sh` aplica:
@@ -93,10 +173,14 @@ Em um volume novo, `docker/postgres/init/00-bootstrap.sh` aplica:
 4. `add_feedback_memory.sql`
 5. `add_evaluation_tables.sql`
 6. `add_analytical_context.sql`
-7. `migrate_priority.sql`
-8. `add_section_retrieval_1536.sql`
-9. `add_embedding_index_identity.sql`
-10. `add_ingest_identity.sql`
-11. `add_evaluation_identity.sql`
+7. `migrate_canonical_identity.sql`
+8. `migrate_priority.sql`
+9. `add_section_retrieval_1536.sql`
+10. `add_embedding_index_identity.sql`
+11. `add_ingest_identity.sql`
+12. `add_evaluation_identity.sql`
 
-A inicialização não é repetida em volumes existentes. Para atualizá-los, revise as migrações aplicáveis em um ambiente de testes antes da implantação.
+A inicialização não é repetida em volumes existentes. Para atualizá-los, aplique as
+migrações correspondentes, começando pelas dependências ausentes, em um ambiente de
+testes antes da implantação. Os scripts `setup_1536.sql` e `setup_3072.sql` recriam
+tabelas e são destrutivos; não são procedimentos de upgrade de uma base com dados.
