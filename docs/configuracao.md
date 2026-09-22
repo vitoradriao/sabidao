@@ -86,6 +86,11 @@ intencionalmente alguns deles:
 | Variável | Default interno | `.env.example` | Motivo do perfil |
 | --- | ---: | ---: | --- |
 | `MAX_CONTEXT_CHUNKS` | 8 | 24 | ampliar a cobertura do corpus operacional |
+| `RAG_MAX_INPUT_TOKENS` | 24000 | 24000 | limitar o prompt de entrada antes da reserva de saída e margem |
+| `RAG_MAX_HISTORY_TOKENS` | 4000 | 4000 | reservar um teto independente para o histórico da conversa |
+| `RAG_MODEL_CONTEXT_TOKENS` | 32768 | 65536 | declarar explicitamente a janela do perfil, sem inferir pelo nome do modelo |
+| `RAG_CONTEXT_MARGIN_TOKENS` | 512 | 512 | manter margem configurável para o limite da janela do provider |
+| `RAG_IMAGE_TOKEN_RESERVE` | 1024 | 1024 | reservar espaço conservador para imagens anexadas |
 | `SIMILARITY_THRESHOLD` | 0,55 | 0,40 | recuperar mais candidatos para as etapas de filtro |
 | `RAG_MIN_STRONG_SIMILARITY` | 0,62 | 0,42 | calibrar a abstenção ao corpus atual |
 | `RAG_OPERATIONAL_SIMILARITY_MARGIN` | 0,05 | 0,03 | usar margem menor no perfil calibrado |
@@ -100,6 +105,26 @@ intencionalmente alguns deles:
 
 Para conferir a configuração sem expor credenciais, use `!status`: o resumo
 mostra providers e modelos ativos, mas não mostra chaves.
+
+### Orçamento do contexto RAG
+
+O pipeline calcula o orçamento do prompt antes da geração, separando conteúdo
+fixo/políticas/pergunta, histórico, evidências e saída. `RAG_MAX_INPUT_TOKENS`
+limita a entrada; `ASK_MAX_TOKENS` (e, para OpenAI,
+`OPENAI_MAX_OUTPUT_TOKENS`) reserva a saída; `RAG_CONTEXT_MARGIN_TOKENS`
+reserva uma margem adicional; e `RAG_MODEL_CONTEXT_TOKENS` declara a janela
+conhecida do perfil. A soma não é inferida pelo nome do modelo. Se o conteúdo
+fixo já exceder o limite, a pergunta termina com estado explícito de orçamento
+excedido, sem descartar silenciosamente regras ou a pergunta.
+
+Quando `tiktoken` está disponível para o provider OpenAI, ele é usado sem
+chamada paga. Nos demais casos, o fallback conservador versionado
+`utf8-bytes-div2-ceil-v1` estima tokens por bytes UTF-8 e é aplicado também a
+português, Unicode, SQL e tabelas. O trace registra a versão, método, contagem,
+orçamentos, evidências mantidas e motivos das exclusões, sem registrar o texto
+bruto. A seleção preserva a ordem do reranker, remove duplicatas e sobreposição
+antes de contar o orçamento e deriva `allowed_sources` somente das evidências
+retidas.
 
 ## Contextualização da ingestão
 

@@ -7,6 +7,8 @@ Suporta busca hibrida (vetor + full-text) com Reciprocal Rank Fusion.
 import atexit
 import base64 as _base64
 import contextvars
+from dataclasses import dataclass
+import hashlib
 import json
 import logging
 import math
@@ -46,6 +48,47 @@ _request_external_calls: contextvars.ContextVar[list[dict[str, Any]] | None] = (
 
 class RequestDeadlineExceeded(TimeoutError):
     """O orçamento total da pergunta terminou antes de iniciar novo trabalho."""
+
+
+class ContextBudgetError(ValueError):
+    """O prompt fixo não cabe no orçamento explícito do perfil."""
+
+    def __init__(self, message: str, details: dict[str, Any]):
+        super().__init__(message)
+        self.details = details
+
+
+CONTEXT_SELECTION_VERSION = "context-selection-v1"
+TOKEN_COUNTER_VERSION = "utf8-bytes-div2-ceil-v1"
+
+
+@dataclass(frozen=True)
+class ContextSelection:
+    """Envelope interno da seleção final de evidências do prompt."""
+
+    rendered_text: str
+    retained_chunks: tuple[dict, ...]
+    evidence: tuple[dict[str, Any], ...]
+    exclusions: tuple[dict[str, Any], ...]
+    order: tuple[str, ...]
+    token_count: int
+    budgets: dict[str, Any]
+    token_counter: dict[str, str]
+    history: tuple[dict, ...]
+    allowed_sources: frozenset[str]
+
+    def to_trace(self) -> dict[str, Any]:
+        return {
+            "version": CONTEXT_SELECTION_VERSION,
+            "retained_evidence": list(self.evidence),
+            "order": list(self.order),
+            "exclusions": list(self.exclusions),
+            "token_count": self.token_count,
+            "budgets": dict(self.budgets),
+            "token_counter": dict(self.token_counter),
+            "history_message_count": len(self.history),
+            "allowed_sources": sorted(self.allowed_sources),
+        }
 
 
 def _ensure_request_active(stage: str) -> None:
@@ -384,6 +427,148 @@ def _token_count(value: Any) -> int | None:
         return max(0, int(value))
     except (TypeError, ValueError):
         return None
+
+
+def _plain_text_content(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        if value.get("text") is not None:
+            return str(value.get("text") or "")
+        if value.get("content") is not None:
+            return _plain_text_content(value.get("content"))
+        return " ".join(
+            _plain_text_content(item)
+            for item in value.values()
+            if isinstance(item, (str, dict, list))
+        )
+    if isinstance(value, (list, tuple)):
+        return " ".join(_plain_text_content(item) for item in value)
+    return str(value)
+
+
+def _count_context_text(value: Any, *, provider: str, model: str) -> tuple[int, str]:
+    """Conta tokens sem chamada externa; usa tiktoken opcionalmente no OpenAI."""
+    text = _plain_text_content(value)
+    if not text:
+        return 0, TOKEN_COUNTER_VERSION
+
+    if provider == "openai":
+        try:
+            import tiktoken  # type: ignore
+
+            try:
+                encoding = tiktoken.encoding_for_model(model)
+            except Exception:
+                encoding = tiktoken.get_encoding("o200k_base")
+            return len(encoding.encode(text)), f"tiktoken:{encoding.name}"
+        except Exception:
+            pass
+
+    # Fallback deliberadamente conservador para português, Unicode e código.
+    return max(1, math.ceil(len(text.encode("utf-8")) / 2)), TOKEN_COUNTER_VERSION
+
+
+def _history_message_tokens(
+    message: dict[str, Any],
+    *,
+    provider: str,
+    model: str,
+) -> tuple[int, str]:
+    role = str(message.get("role") or "user").strip().lower()
+    text = f"{role}: {_plain_text_content(message.get('content', ''))}"
+    tokens, method = _count_context_text(text, provider=provider, model=model)
+    return tokens + 4, method
+
+
+def _select_history(
+    conversation_history: list[dict] | None,
+    *,
+    max_tokens: int,
+    provider: str,
+    model: str,
+) -> tuple[list[dict], dict[str, Any]]:
+    selected: list[dict] = []
+    exclusions: list[dict[str, Any]] = []
+    used_tokens = 0
+    counter_method = TOKEN_COUNTER_VERSION
+
+    for index in range(len(conversation_history or []) - 1, -1, -1):
+        message = conversation_history[index]
+        if not isinstance(message, dict):
+            exclusions.append({"index": index, "reason": "invalid_message"})
+            continue
+        message_tokens, counter_method = _history_message_tokens(
+            message,
+            provider=provider,
+            model=model,
+        )
+        if used_tokens + message_tokens > max_tokens:
+            exclusions.append(
+                {
+                    "index": index,
+                    "token_count": message_tokens,
+                    "reason": "history_budget_exceeded",
+                }
+            )
+            continue
+        selected.insert(0, dict(message))
+        used_tokens += message_tokens
+
+    return selected, {
+        "version": CONTEXT_SELECTION_VERSION,
+        "budget": max_tokens,
+        "token_count": used_tokens,
+        "message_count": len(selected),
+        "excluded": list(reversed(exclusions)),
+        "token_counter": counter_method,
+    }
+
+
+def _prompt_token_parts(
+    *,
+    system: str,
+    question: str,
+    conversation_history: list[dict],
+    images: list[dict] | None,
+    provider: str,
+    model: str,
+) -> tuple[dict[str, int], dict[str, str]]:
+    system_tokens, system_method = _count_context_text(
+        system,
+        provider=provider,
+        model=model,
+    )
+    question_tokens, question_method = _count_context_text(
+        question,
+        provider=provider,
+        model=model,
+    )
+    history_tokens = 0
+    history_method = TOKEN_COUNTER_VERSION
+    for message in conversation_history:
+        message_count, history_method = _history_message_tokens(
+            message,
+            provider=provider,
+            model=model,
+        )
+        history_tokens += message_count
+    image_tokens = len(images or []) * int(config.RAG_IMAGE_TOKEN_RESERVE)
+    return (
+        {
+            "system": system_tokens,
+            "question": question_tokens,
+            "history": history_tokens,
+            "images": image_tokens,
+        },
+        {
+            "system": system_method,
+            "question": question_method,
+            "history": history_method,
+        },
+    )
 
 
 def _normalize_openai_usage(raw_usage: Any) -> dict[str, int | None] | None:
@@ -1391,6 +1576,14 @@ def _build_abstain_response(question: str) -> str:
     )
 
 
+def _build_context_budget_response(question: str) -> str:
+    return (
+        f"{config.NO_ANSWER_PHRASE}\n\n"
+        "O contexto excedeu o limite de tokens configurado; "
+        "tente uma pergunta mais curta ou com menos histórico."
+    )
+
+
 def _validate_grounded_answer(
     *,
     answer: str,
@@ -1547,7 +1740,7 @@ def _set_response_state(
     }
 
 
-def get_model_config() -> dict[str, str]:
+def get_model_config() -> dict[str, Any]:
     """Resumo do provider/modelos ativos para exibicao e diagnostico."""
     generation_model, _routing_reason = _resolve_generation_model()
     return {
@@ -1568,6 +1761,8 @@ def get_model_config() -> dict[str, str]:
             purpose="reformulation",
         ),
         "embedding_model": _resolve_embedding_model(),
+        "context_selection_version": CONTEXT_SELECTION_VERSION,
+        "token_counter_version": TOKEN_COUNTER_VERSION,
     }
 
 
@@ -2906,64 +3101,382 @@ def _build_analytical_context_block(doc_chunks: list[dict]) -> str:
 
 
 # -- Montagem do contexto -------------------------------------------------------
-def build_context(chunks: list[dict]) -> str:
-    if not chunks:
-        return ""
+_CONTEXT_SYSTEM_PREFIX = (
+    "\n\n<context>\n"
+    "Abaixo estao os trechos relevantes dos documentos da base de conhecimento. "
+    "Use APENAS essas informacoes para responder. Quando houver bloco analytical_context, "
+    "use-o apenas como organizacao do contexto recuperado; a evidencia continua sendo o conteudo em evidence.\n\n"
+)
+_CONTEXT_SYSTEM_SUFFIX = "\n</context>"
 
-    chunks = _limit_chunk_diversity(
-        chunks,
-        max_per_section=config.MAX_CHUNKS_PER_SECTION,
-        max_per_document=config.MAX_CHUNKS_PER_DOCUMENT,
+
+def _context_chunk_hash(chunk: dict) -> str:
+    metadata = chunk.get("metadata") if isinstance(chunk.get("metadata"), dict) else {}
+    configured_hash = str(metadata.get("content_hash") or "").strip()
+    if configured_hash:
+        return configured_hash
+    content = str(chunk.get("content") or "")
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _context_chunk_key(chunk: dict) -> str:
+    content_hash = _context_chunk_hash(chunk)
+    chunk_id = str(chunk.get("id") or "").strip()
+    if chunk_id:
+        return f"id:{chunk_id}"
+    return (
+        f"location:{chunk.get('filename', '')}:{chunk.get('section_id', '')}:"
+        f"{_chunk_index_value(chunk)}:{content_hash}"
     )
-    if not chunks:
-        return ""
 
-    chunks_by_doc: dict[str, list[dict]] = {}
-    for chunk in chunks:
-        doc_key = str(chunk.get("document_id") or chunk.get("filename") or "desconhecido")
-        chunks_by_doc.setdefault(doc_key, []).append(chunk)
 
-    docs_for_context: list[dict] = []
-    for doc_chunks in chunks_by_doc.values():
-        sorted_doc_chunks = sorted(doc_chunks, key=_chunk_index_value)
-        merged_content = _merge_document_chunks(sorted_doc_chunks)
+def _context_evidence_ref(chunk: dict, rank: int) -> dict[str, Any]:
+    source = str(chunk.get("filename") or "desconhecido")
+    content = str(chunk.get("content") or "")
+    content_hash = _context_chunk_hash(chunk)
+    candidate_id = str(chunk.get("id") or chunk.get("candidate_id") or "").strip()
+    evidence_id = candidate_id or f"{source}:{_chunk_index_value(chunk)}:{content_hash[:16]}"
+    return {
+        "evidence_id": evidence_id,
+        "candidate_id": candidate_id or None,
+        "source": source,
+        "document_id": str(chunk.get("document_id") or "") or None,
+        "section_id": str(chunk.get("section_id") or "") or None,
+        "content_hash": content_hash,
+        "location": {
+            "filename": source,
+            "chunk_index": _chunk_index_value(chunk),
+        },
+        "spans": [{"start": 0, "end": len(content), "source_length": len(content)}],
+        "rank": rank,
+        "retrieval_origin": str(chunk.get("retrieval_origin") or "") or None,
+        "is_neighbor": bool(chunk.get("is_neighbor")),
+        "seed_chunk_id": str(chunk.get("seed_chunk_id") or "") or None,
+    }
+
+
+def _prepare_context_records(
+    chunks: list[dict],
+    *,
+    max_chunks: int,
+    max_per_section: int,
+    max_per_document: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    records: list[dict[str, Any]] = []
+    exclusions: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    section_counts: dict[str, int] = {}
+    document_counts: dict[str, int] = {}
+
+    for rank, chunk in enumerate(chunks or [], start=1):
+        if not isinstance(chunk, dict):
+            exclusions.append({"rank": rank, "reason": "invalid_chunk"})
+            continue
+        content = str(chunk.get("content") or "")
+        evidence = _context_evidence_ref(chunk, rank)
+        if len(records) >= max_chunks:
+            exclusions.append({**evidence, "reason": "max_context_chunks"})
+            continue
+        if not content.strip():
+            exclusions.append({**evidence, "reason": "empty_content"})
+            continue
+
+        key = _context_chunk_key(chunk)
+        if key in seen:
+            exclusions.append({**evidence, "reason": "duplicate_chunk"})
+            continue
+        seen.add(key)
+
+        document_key = str(
+            chunk.get("document_id") or chunk.get("filename") or "desconhecido"
+        )
+        section_value = chunk.get("section_id")
+        section_key = str(section_value).strip() if section_value else ""
+        if section_key and section_counts.get(section_key, 0) >= max_per_section:
+            exclusions.append({**evidence, "reason": "diversity_limit", "limit": "section"})
+            continue
+        if document_counts.get(document_key, 0) >= max_per_document:
+            exclusions.append({**evidence, "reason": "diversity_limit", "limit": "document"})
+            continue
+
+        records.append(
+            {
+                "chunk": chunk,
+                "rank": rank,
+                "document_key": document_key,
+                "section_key": section_key,
+                "content": content,
+                "evidence": evidence,
+            }
+        )
+        document_counts[document_key] = document_counts.get(document_key, 0) + 1
+        if section_key:
+            section_counts[section_key] = section_counts.get(section_key, 0) + 1
+
+    return records, exclusions
+
+
+def _render_context_records(
+    records: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    if not records:
+        return "", []
+
+    blocks: list[list[dict[str, Any]]] = []
+    for record in records:
+        if blocks:
+            previous = blocks[-1][-1]
+            same_document = previous["document_key"] == record["document_key"]
+            consecutive = _chunk_index_value(record["chunk"]) == (
+                _chunk_index_value(previous["chunk"]) + 1
+            )
+            if same_document and consecutive:
+                blocks[-1].append(record)
+                continue
+        blocks.append([record])
+
+    context_parts: list[str] = []
+    evidence_by_id: dict[str, dict[str, Any]] = {}
+    for index, block in enumerate(blocks, start=1):
+        rendered_parts: list[str] = []
+        previous_content = ""
+        previous_chunk_index: int | None = None
+        for record in block:
+            raw_content = record["content"]
+            chunk_index = _chunk_index_value(record["chunk"])
+            rendered_content = raw_content
+            if previous_chunk_index is not None and chunk_index == previous_chunk_index + 1:
+                rendered_content = _trim_chunk_overlap(
+                    previous_content,
+                    raw_content,
+                    config.CHUNK_OVERLAP,
+                )
+            if rendered_content.strip():
+                rendered_parts.append(rendered_content)
+
+            evidence = dict(record["evidence"])
+            span_start = raw_content.find(rendered_content) if rendered_content else len(raw_content)
+            if span_start < 0:
+                span_start = 0
+            evidence["spans"] = [
+                {
+                    "start": span_start,
+                    "end": span_start + len(rendered_content),
+                    "source_length": len(raw_content),
+                }
+            ]
+            evidence["rendered_block"] = index
+            evidence_by_id[evidence["evidence_id"]] = evidence
+            previous_content = raw_content
+            previous_chunk_index = chunk_index
+
+        merged_content = "\n\n".join(rendered_parts)
         if not merged_content.strip():
             continue
-        analytical_context = _build_analytical_context_block(sorted_doc_chunks)
-
+        block_chunks = [record["chunk"] for record in block]
+        analytical_context = _build_analytical_context_block(block_chunks)
+        doc_body = merged_content
+        if analytical_context:
+            doc_body = f"{analytical_context}\n\n<evidence>\n{doc_body}\n</evidence>"
         filename = next(
-            (c.get("filename") for c in sorted_doc_chunks if c.get("filename")),
+            (record["chunk"].get("filename") for record in block if record["chunk"].get("filename")),
             "desconhecido",
         )
         max_similarity = max(
             _safe_similarity(
-                chunk.get("vector_similarity", chunk.get("similarity", 0.0))
+                record["chunk"].get(
+                    "vector_similarity",
+                    record["chunk"].get("similarity", 0.0),
+                )
             )
-            for chunk in sorted_doc_chunks
+            for record in block
         )
-
-        docs_for_context.append(
-            {
-                "filename": filename,
-                "max_similarity": max_similarity,
-                "merged_content": merged_content,
-                "analytical_context": analytical_context,
-                "chunk_count": len(sorted_doc_chunks),
-            }
-        )
-
-    context_parts = []
-    for index, doc in enumerate(docs_for_context, start=1):
-        doc_body = doc["merged_content"]
-        if doc.get("analytical_context"):
-            doc_body = f"{doc['analytical_context']}\n\n<evidence>\n{doc_body}\n</evidence>"
         context_parts.append(
-            f"<document index=\"{index}\" source=\"{doc['filename']}\" relevance=\"{doc['max_similarity']:.2f}\" chunks=\"{doc['chunk_count']}\">\n"
+            f"<document index=\"{index}\" source=\"{filename}\" relevance=\"{max_similarity:.2f}\" chunks=\"{len(block)}\">\n"
             f"{doc_body}\n"
             f"</document>"
         )
 
-    return "\n\n".join(context_parts)
+    ordered_evidence = [
+        evidence_by_id[record["evidence"]["evidence_id"]]
+        for record in records
+        if record["evidence"]["evidence_id"] in evidence_by_id
+    ]
+    return "\n\n".join(context_parts), ordered_evidence
+
+
+def _context_source_block(sources: list[str] | tuple[str, ...] | set[str]) -> str:
+    normalized = sorted({_normalize_source_name(str(source)) for source in sources if str(source).strip()})
+    if not normalized:
+        return ""
+    return f"\n\n<allowed_sources>{', '.join(normalized)}</allowed_sources>"
+
+
+def _system_with_context(system: str, context: str) -> str:
+    if not context:
+        return system
+    return f"{system}{_CONTEXT_SYSTEM_PREFIX}{context}{_CONTEXT_SYSTEM_SUFFIX}"
+
+
+def _effective_output_token_budget(provider: str) -> int:
+    requested = int(config.ASK_MAX_TOKENS)
+    if provider == "openai":
+        return max(256, min(requested, int(config.OPENAI_MAX_OUTPUT_TOKENS)))
+    return max(128, requested)
+
+
+def _select_context(
+    chunks: list[dict],
+    *,
+    system: str = "",
+    question: str = "",
+    conversation_history: list[dict] | None = None,
+    images: list[dict] | None = None,
+    source_names: list[str] | tuple[str, ...] | set[str] = (),
+) -> ContextSelection:
+    provider = _active_llm_provider()
+    model, _routing_reason = _resolve_generation_model()
+    context_window = int(config.RAG_MODEL_CONTEXT_TOKENS)
+    output_budget = _effective_output_token_budget(provider)
+    margin = int(config.RAG_CONTEXT_MARGIN_TOKENS)
+    max_input = min(
+        int(config.RAG_MAX_INPUT_TOKENS),
+        context_window - output_budget - margin,
+    )
+    budget_system = system + _context_source_block(source_names)
+    fixed_parts, methods = _prompt_token_parts(
+        system=budget_system,
+        question=question,
+        conversation_history=[],
+        images=images,
+        provider=provider,
+        model=model,
+    )
+    fixed_input = sum(fixed_parts.values())
+    details = {
+        "model_context_tokens": context_window,
+        "max_input_tokens": int(config.RAG_MAX_INPUT_TOKENS),
+        "effective_input_tokens": max_input,
+        "output_tokens": output_budget,
+        "margin_tokens": margin,
+        "fixed_tokens": fixed_input,
+        "fixed_parts": dict(fixed_parts),
+    }
+    if max_input <= 0 or fixed_input > max_input:
+        raise ContextBudgetError(
+            "O conteúdo fixo do prompt excede o orçamento de contexto configurado.",
+            {**details, "reason": "fixed_prompt_exceeds_budget"},
+        )
+
+    history_budget = min(
+        int(config.RAG_MAX_HISTORY_TOKENS),
+        max(0, max_input - fixed_input),
+    )
+    selected_history, history_details = _select_history(
+        conversation_history,
+        max_tokens=history_budget,
+        provider=provider,
+        model=model,
+    )
+    prompt_parts, methods = _prompt_token_parts(
+        system=budget_system,
+        question=question,
+        conversation_history=selected_history,
+        images=images,
+        provider=provider,
+        model=model,
+    )
+    base_input = sum(prompt_parts.values())
+    evidence_budget = max_input - base_input
+    if evidence_budget <= 0:
+        raise ContextBudgetError(
+            "Não há orçamento disponível para evidências após conteúdo fixo e histórico.",
+            {**details, "history": history_details, "reason": "no_evidence_budget"},
+        )
+
+    records, exclusions = _prepare_context_records(
+        chunks,
+        max_chunks=max(1, int(config.MAX_CONTEXT_CHUNKS)),
+        max_per_section=max(1, int(config.MAX_CHUNKS_PER_SECTION)),
+        max_per_document=max(
+            int(config.MAX_CHUNKS_PER_SECTION),
+            int(config.MAX_CHUNKS_PER_DOCUMENT),
+        ),
+    )
+    retained: list[dict[str, Any]] = []
+    for record in records:
+        candidate_context, _candidate_evidence = _render_context_records(retained + [record])
+        candidate_system = _system_with_context(budget_system, candidate_context)
+        candidate_parts, _candidate_methods = _prompt_token_parts(
+            system=candidate_system,
+            question=question,
+            conversation_history=selected_history,
+            images=images,
+            provider=provider,
+            model=model,
+        )
+        candidate_tokens = sum(candidate_parts.values())
+        if candidate_tokens <= max_input:
+            retained.append(record)
+            continue
+        exclusions.append(
+            {
+                **record["evidence"],
+                "reason": "evidence_budget_exceeded",
+                "token_count_with_candidate": candidate_tokens,
+            }
+        )
+
+    rendered_text, evidence = _render_context_records(retained)
+    retained_sources = {
+        _normalize_source_name(str(record["chunk"].get("filename") or ""))
+        for record in retained
+        if str(record["chunk"].get("filename") or "").strip()
+    }
+    final_system = _system_with_context(
+        system + _context_source_block(retained_sources),
+        rendered_text,
+    )
+    final_parts, final_methods = _prompt_token_parts(
+        system=final_system,
+        question=question,
+        conversation_history=selected_history,
+        images=images,
+        provider=provider,
+        model=model,
+    )
+    final_tokens = sum(final_parts.values())
+    budgets = {
+        **details,
+        "history_budget_tokens": history_budget,
+        "evidence_budget_tokens": evidence_budget,
+        "history_selection": history_details,
+        "input_tokens": final_tokens,
+        "input_parts": dict(final_parts),
+    }
+    token_counter = {
+        "version": TOKEN_COUNTER_VERSION,
+        "provider": provider,
+        "model": model,
+        **final_methods,
+    }
+    return ContextSelection(
+        rendered_text=rendered_text,
+        retained_chunks=tuple(record["chunk"] for record in retained),
+        evidence=tuple(evidence),
+        exclusions=tuple(exclusions),
+        order=tuple(item["evidence_id"] for item in evidence),
+        token_count=final_tokens,
+        budgets=budgets,
+        token_counter=token_counter,
+        history=tuple(selected_history),
+        allowed_sources=frozenset(retained_sources),
+    )
+
+
+def build_context(chunks: list[dict]) -> str:
+    """Mantém a interface histórica e retorna apenas o texto selecionado."""
+    return _select_context(chunks).rendered_text
 
 
 # -- Reformulacao de query com historico (P0.1) ---------------------------------
@@ -3537,6 +4050,16 @@ def _ask_impl(
         "model_calls": [],
         "external_calls": external_calls if external_calls is not None else [],
     }
+    history_provider = _active_llm_provider()
+    history_model, _history_routing_reason = _resolve_generation_model()
+    bounded_history, history_selection = _select_history(
+        conversation_history,
+        max_tokens=int(config.RAG_MAX_HISTORY_TOKENS),
+        provider=history_provider,
+        model=history_model,
+    )
+    conversation_history = bounded_history
+    trace["history_selection"] = history_selection
     evaluation_chunks: list[dict] | None = None
 
     def _returned_chunks(context_chunks: list[dict]) -> list[dict]:
@@ -3563,15 +4086,58 @@ def _ask_impl(
         _ensure_request_active("full_context_load")
         full_context = _load_full_context_docs()
         chunks: list[dict] = []
-        system = base_system
         if full_context:
-            system += (
-                "\n\n<knowledge_base>\n"
+            try:
+                selection = _select_context(
+                    [
+                        {
+                            "id": "full-context",
+                            "document_id": "full-context",
+                            "filename": "full-context",
+                            "content": full_context,
+                            "chunk_index": 0,
+                        }
+                    ],
+                    system=base_system,
+                    question=question,
+                    conversation_history=conversation_history,
+                    images=images,
+                )
+            except ContextBudgetError as exc:
+                trace["context_budget"] = exc.details
+                trace["abstained"] = True
+                trace["abstention_reason"] = "context_budget_exceeded"
+                _set_response_state(
+                    trace,
+                    "context_budget_exceeded",
+                    citation_syntax="not_applicable",
+                    semantic_support="not_evaluated",
+                )
+                answer = _build_context_budget_response(question)
+                trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
+                _log_ask_trace(trace)
+                return answer, chunks, trace
+            trace["context_selection"] = selection.to_trace()
+            system = (
+                f"{base_system}\n\n<knowledge_base>\n"
                 "Abaixo esta a BASE DE CONHECIMENTO COMPLETA da Maxima Sistemas. "
                 "Use apenas informacoes explicitamente presentes nesses documentos.\n\n"
-                f"{full_context}\n"
+                f"{selection.rendered_text}\n"
                 "</knowledge_base>"
             )
+            if not selection.rendered_text:
+                trace["abstained"] = True
+                trace["abstention_reason"] = "no_context_after_budget"
+                _set_response_state(
+                    trace,
+                    "insufficient_evidence",
+                    citation_syntax="not_applicable",
+                    semantic_support="insufficient_evidence",
+                )
+                answer = _build_abstain_response(question)
+                trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
+                _log_ask_trace(trace)
+                return answer, chunks, trace
         else:
             answer = "Base de conhecimento indisponivel no momento. Tente novamente."
             trace["abstained"] = True
@@ -3792,16 +4358,8 @@ def _ask_impl(
 
     _ensure_request_active("context_build")
     stage_started_at = _time.monotonic()
-    context = build_context(chunks)
-    _mark_stage("context_build", stage_started_at)
     business_rules = _load_business_rules_context()
     intent_instruction = _intent_response_instruction(query_plan)
-    allowed_sources = {_normalize_source_name(s) for s in trace.get("retrieved_sources", [])}
-    source_display_map = {
-        _normalize_source_name(str(source)): str(source)
-        for source in trace.get("retrieved_sources", [])
-        if str(source).strip()
-    }
 
     system = base_system
     if business_rules:
@@ -3866,18 +4424,65 @@ def _ask_impl(
             "Nao invente campos, telas, parametros, SQL ou procedimentos ausentes nas fontes recuperadas.\n"
             "</analysis_policy>"
         )
-    if context:
-        system += (
-            "\n\n<context>\n"
-            "Abaixo estao os trechos relevantes dos documentos da base de conhecimento. "
-            "Use APENAS essas informacoes para responder. Quando houver bloco analytical_context, "
-            "use-o apenas como organizacao do contexto recuperado; a evidencia continua sendo o conteudo em evidence.\n\n"
-            f"{context}\n"
-            "</context>"
+    system += (
+        "\n\n<citation_policy>\n"
+        "Nao inclua citacoes inline no meio dos paragrafos (sem [fonte: ...] por linha).\n"
+        "Use SOMENTE nomes de arquivos que estejam no contexto recuperado.\n"
+        "Inclua uma secao final obrigatoria 'Fontes:' com bullets dos arquivos usados.\n"
+        "Se faltarem evidencias para responder com seguranca, retorne exatamente a frase de no-answer.\n"
+        "</citation_policy>"
+    )
+
+    try:
+        selection = _select_context(
+            chunks,
+            system=system,
+            question=question,
+            conversation_history=conversation_history,
+            images=images,
+            source_names=trace.get("retrieved_sources", []),
         )
-    else:
+    except ContextBudgetError as exc:
+        trace["context_budget"] = exc.details
         trace["abstained"] = True
-        trace["abstention_reason"] = "no_context_after_merge"
+        trace["abstention_reason"] = "context_budget_exceeded"
+        trace["context_selection"] = {
+            "version": CONTEXT_SELECTION_VERSION,
+            "retained_evidence": [],
+            "order": [],
+            "exclusions": [],
+            "token_count": None,
+            "budgets": exc.details,
+            "token_counter": {"version": TOKEN_COUNTER_VERSION},
+            "allowed_sources": [],
+        }
+        _mark_stage("context_build", stage_started_at)
+        _set_response_state(
+            trace,
+            "context_budget_exceeded",
+            citation_syntax="not_applicable",
+            semantic_support="not_evaluated",
+        )
+        answer = _build_context_budget_response(question)
+        trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
+        _log_ask_trace(trace)
+        return answer, [], trace
+
+    _mark_stage("context_build", stage_started_at)
+    trace["context_selection"] = selection.to_trace()
+    context = selection.rendered_text
+    allowed_sources = set(selection.allowed_sources)
+    source_display_map = {
+        _normalize_source_name(str(evidence["source"])): str(evidence["source"])
+        for evidence in selection.evidence
+        if str(evidence.get("source") or "").strip()
+    }
+    chunks = list(selection.retained_chunks)
+    evaluation_chunks = list(selection.retained_chunks)
+    trace["context_selected_chunk_count"] = len(chunks)
+    if not context:
+        trace["abstained"] = True
+        trace["abstention_reason"] = "no_context_after_budget"
         _set_response_state(
             trace,
             "insufficient_evidence",
@@ -3889,16 +4494,10 @@ def _ask_impl(
         _log_ask_trace(trace)
         return answer, _returned_chunks(chunks), trace
 
-    system += (
-        "\n\n<citation_policy>\n"
-        "Nao inclua citacoes inline no meio dos paragrafos (sem [fonte: ...] por linha).\n"
-        "Use SOMENTE nomes de arquivos que estejam no contexto recuperado.\n"
-        "Inclua uma secao final obrigatoria 'Fontes:' com bullets dos arquivos usados.\n"
-        "Se faltarem evidencias para responder com seguranca, retorne exatamente a frase de no-answer.\n"
-        "</citation_policy>"
+    system = _system_with_context(
+        system + _context_source_block(allowed_sources),
+        context,
     )
-    if allowed_sources:
-        system += f"\n\n<allowed_sources>{', '.join(sorted(allowed_sources))}</allowed_sources>"
 
     _ensure_request_active("generation")
     stage_started_at = _time.monotonic()
