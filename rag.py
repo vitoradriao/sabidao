@@ -1709,6 +1709,169 @@ def _summarize_chunks_for_trace(chunks: list[dict]) -> dict[str, Any]:
     }
 
 
+def _evaluation_candidate_id(chunk: dict[str, Any]) -> str:
+    """Retorna um identificador opaco e estável para o diagnóstico."""
+    candidate_id = str(chunk.get("candidate_id") or "").strip()
+
+    content_hash = str(chunk.get("content_hash") or "").strip()
+    if not content_hash:
+        content_hash = hashlib.sha256(
+            str(chunk.get("content") or "").encode("utf-8")
+        ).hexdigest()
+    identity = {
+        "candidate_id": candidate_id or None,
+        "id": str(chunk.get("id") or ""),
+        "document_id": str(chunk.get("document_id") or ""),
+        "section_id": str(chunk.get("section_id") or ""),
+        "filename": str(chunk.get("filename") or ""),
+        "chunk_index": chunk.get("chunk_index"),
+        "content_hash": content_hash,
+    }
+    digest = hashlib.sha256(
+        json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).hexdigest()[:24]
+    return f"candidate-{digest}"
+
+
+def _opaque_stage_id(value: Any, *, prefix: str) -> str:
+    text = str(value or "").strip()
+    if re.fullmatch(r"(?:candidate|section)-[0-9a-f]{24}", text):
+        return text
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:24]
+    return f"{prefix}-{digest}"
+
+
+def _sanitize_trace_identifiers(value: Any) -> Any:
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, item in value.items():
+            if key in {"source", "filename"} and item is not None:
+                sanitized[key] = _opaque_stage_id(item, prefix="source")
+            elif key == "allowed_sources" and isinstance(item, list):
+                sanitized[key] = [
+                    _opaque_stage_id(source, prefix="source")
+                    for source in item
+                    if source is not None
+                ]
+            elif key in {
+                "evidence_id",
+                "candidate_id",
+                "chunk_id",
+                "seed_chunk_id",
+            } and item is not None:
+                sanitized[key] = _opaque_stage_id(item, prefix="candidate")
+            elif key in {"section_id", "document_id"} and item is not None:
+                sanitized[key] = _opaque_stage_id(item, prefix="section")
+            else:
+                sanitized[key] = _sanitize_trace_identifiers(item)
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_trace_identifiers(item) for item in value]
+    if isinstance(value, tuple):
+        return [_sanitize_trace_identifiers(item) for item in value]
+    return value
+
+
+def _strip_trace_payloads(value: Any) -> Any:
+    """Remove texto bruto antes de escrever o diagnóstico no log."""
+    if isinstance(value, dict):
+        return {
+            str(key): _strip_trace_payloads(item)
+            for key, item in value.items()
+            if key not in {"content", "text", "answer", "question", "state"}
+        }
+    if isinstance(value, list):
+        return [_strip_trace_payloads(item) for item in value]
+    if isinstance(value, tuple):
+        return [_strip_trace_payloads(item) for item in value]
+    return value
+
+
+def _summarize_retrieval_stage(
+    chunks: list[dict] | None = None,
+    *,
+    ids: list[str] | None = None,
+    exclusions: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+    status: str = "available",
+    reason: str | None = None,
+    evidence: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+    include_chunks: bool = False,
+) -> dict[str, Any]:
+    """Registra um estágio de avaliação sem texto bruto ou credenciais."""
+    if ids is None:
+        ids = [_evaluation_candidate_id(chunk) for chunk in (chunks or [])]
+    normalized_ids = [str(value) for value in ids if str(value).strip()]
+    stage: dict[str, Any] = {
+        "status": status,
+        "ids": normalized_ids,
+        "order": list(normalized_ids),
+        "count": len(normalized_ids),
+        "excluded": [dict(item) for item in exclusions],
+    }
+    if evidence:
+        stage["evidence"] = [dict(item) for item in evidence]
+    if include_chunks and chunks:
+        stage["chunks"] = [dict(chunk) for chunk in chunks]
+    if reason:
+        stage["reason"] = reason
+    return stage
+
+
+def _summarize_section_stage(
+    chunks: list[dict],
+    *,
+    section_ids: list[str] | None = None,
+    include_chunks: bool = False,
+) -> dict[str, Any]:
+    resolved_section_ids: list[str] = []
+    seen: set[str] = set()
+    for raw_section_id in section_ids or []:
+        section_id = str(raw_section_id or "").strip()
+        if section_id and section_id not in seen:
+            seen.add(section_id)
+            resolved_section_ids.append(
+                _opaque_stage_id(section_id, prefix="section")
+            )
+    if not resolved_section_ids:
+        for chunk in chunks or []:
+            section_id = str(
+                chunk.get("section_id")
+                or chunk.get("document_id")
+                or chunk.get("filename")
+                or ""
+            ).strip()
+            if section_id and section_id not in seen:
+                seen.add(section_id)
+                resolved_section_ids.append(
+                    _opaque_stage_id(section_id, prefix="section")
+                )
+    return _summarize_retrieval_stage(
+        ids=resolved_section_ids,
+        chunks=chunks,
+        include_chunks=include_chunks,
+    )
+
+
+def _sanitized_stage_exclusions(
+    exclusions: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+) -> list[dict[str, Any]]:
+    """Mantém rank/motivo da exclusão sem copiar IDs ou fontes do contexto."""
+    result: list[dict[str, Any]] = []
+    for index, exclusion in enumerate(exclusions or [], start=1):
+        if not isinstance(exclusion, dict):
+            continue
+        item: dict[str, Any] = {"reason": str(exclusion.get("reason") or "excluded")}
+        rank = exclusion.get("rank")
+        if isinstance(rank, int) and rank > 0:
+            item["rank"] = rank
+        else:
+            item["rank"] = index
+        result.append(item)
+    return result
+
+
 def _sanitize_trace_for_log(trace: dict[str, Any]) -> dict[str, Any]:
     """Mantem metadados operacionais sem nomes de fontes ou conteudo consultado."""
     safe_trace = {
@@ -1721,6 +1884,10 @@ def _sanitize_trace_for_log(trace: dict[str, Any]) -> dict[str, Any]:
             "grounding_errors",
         }
     }
+    safe_trace = _strip_trace_payloads(safe_trace)
+    for key in ("retrieval_stages", "context_selection", "context_envelope"):
+        if key in safe_trace:
+            safe_trace[key] = _sanitize_trace_identifiers(safe_trace[key])
     safe_trace["retrieved_source_count"] = len(trace.get("retrieved_sources", []))
     safe_trace["citation_count"] = len(trace.get("citations", []))
     return safe_trace
@@ -2933,6 +3100,11 @@ def retrieve_chunks_with_feedback(
     if retrieval_trace is not None:
         retrieval_trace.update(
             {
+                "section_hit_ids": [
+                    _opaque_stage_id(section.get("id"), prefix="section")
+                    for section in section_hits
+                    if section.get("id")
+                ],
                 "preferred_scope": preferred_scope,
                 "preferred_modules": module_filter or [],
                 "relaxation_attempted": relaxation_attempted,
@@ -4060,6 +4232,23 @@ def _ask_impl(
             "semantic_support": "not_evaluated",
         },
         "stage_timings_ms": {},
+        "retrieval_stages": {
+            stage_name: {
+                "status": "unavailable",
+                "ids": [],
+                "order": [],
+                "count": 0,
+                "excluded": [],
+                "reason": "stage_not_reached",
+            }
+            for stage_name in (
+                "sections",
+                "candidate_pool",
+                "post_rerank",
+                "post_gate",
+                "final_context",
+            )
+        },
         "model_calls": [],
         "external_calls": external_calls if external_calls is not None else [],
     }
@@ -4118,6 +4307,14 @@ def _ask_impl(
                 )
             except ContextBudgetError as exc:
                 trace["context_budget"] = exc.details
+                trace["context_envelope"] = {
+                    "version": CONTEXT_SELECTION_VERSION,
+                    "status": "unavailable",
+                    "unavailable_reason": "context_budget_exceeded",
+                }
+                trace["retrieval_stages"]["final_context"] = _summarize_retrieval_stage(
+                    status="unavailable", reason="context_budget_exceeded"
+                )
                 trace["abstained"] = True
                 trace["abstention_reason"] = "context_budget_exceeded"
                 _set_response_state(
@@ -4131,6 +4328,20 @@ def _ask_impl(
                 _log_ask_trace(trace)
                 return answer, chunks, trace
             trace["context_selection"] = selection.to_trace()
+            trace["context_envelope"] = {
+                **selection.to_trace(),
+                "status": "ready_for_generation",
+            }
+            trace["retrieval_stages"]["final_context"] = _summarize_retrieval_stage(
+                chunks=list(selection.retained_chunks),
+                ids=[
+                    _evaluation_candidate_id(chunk)
+                    for chunk in selection.retained_chunks
+                ],
+                exclusions=_sanitized_stage_exclusions(selection.exclusions),
+                evidence=selection.evidence,
+                include_chunks=platform == "offline_eval",
+            )
             system = (
                 f"{base_system}\n\n<knowledge_base>\n"
                 "Abaixo esta a BASE DE CONHECIMENTO COMPLETA da Maxima Sistemas. "
@@ -4226,6 +4437,15 @@ def _ask_impl(
         retrieval_trace=retrieval_scope_trace,
     )
     _mark_stage("retrieval", stage_started_at)
+    trace["retrieval_stages"]["sections"] = _summarize_section_stage(
+        merged_chunks,
+        section_ids=retrieval_scope_trace.get("section_hit_ids"),
+        include_chunks=platform == "offline_eval",
+    )
+    trace["retrieval_stages"]["candidate_pool"] = _summarize_retrieval_stage(
+        merged_chunks,
+        include_chunks=platform == "offline_eval",
+    )
     retrieval_scope_trace["total_retrieval_latency_ms"] = trace["stage_timings_ms"][
         "retrieval"
     ]
@@ -4238,6 +4458,14 @@ def _ask_impl(
         merged_chunks,
         request_id=query_id,
         model_calls=trace["model_calls"],
+    )
+    trace["retrieval_stages"]["post_rerank"] = _summarize_retrieval_stage(
+        ranked_chunks,
+        include_chunks=platform == "offline_eval",
+    )
+    trace["retrieval_stages"]["post_gate"] = _summarize_retrieval_stage(
+        status="not_applicable",
+        reason="evidence_gate_not_implemented",
     )
     evaluation_chunks = ranked_chunks[:20]
     chunks = _limit_chunk_diversity(
@@ -4307,6 +4535,15 @@ def _ask_impl(
                 additional_searches + 1
             )
             combined_chunks = _dedupe_chunks(chunks + broad_merged)
+            trace["retrieval_stages"]["candidate_pool"].setdefault(
+                "expansions", []
+            ).append(
+                {
+                    "reason": "global_unfiltered",
+                    "added_count": len(combined_chunks) - len(chunks),
+                    "candidate_count": len(combined_chunks),
+                }
+            )
             fallback_ranked_chunks = _rerank_chunks_with_llm(
                 search_query,
                 combined_chunks,
@@ -4329,6 +4566,10 @@ def _ask_impl(
             if improved:
                 evaluation_chunks = fallback_ranked_chunks[:20]
                 chunks = fallback_chunks
+                trace["retrieval_stages"]["post_rerank"] = _summarize_retrieval_stage(
+                    fallback_ranked_chunks,
+                    include_chunks=platform == "offline_eval",
+                )
                 trace.update(fallback_stats)
                 trace["confidence"] = trace.get("top_similarity", 0.0)
                 trace["kb_chunk_count"] = max(
@@ -4356,6 +4597,9 @@ def _ask_impl(
     )
 
     if should_abstain:
+        trace["retrieval_stages"]["final_context"] = _summarize_retrieval_stage(
+            status="unavailable", reason="strict_abstain_before_context"
+        )
         trace["abstained"] = True
         trace["abstention_reason"] = abstain_reason
         _set_response_state(
@@ -4457,6 +4701,14 @@ def _ask_impl(
         )
     except ContextBudgetError as exc:
         trace["context_budget"] = exc.details
+        trace["context_envelope"] = {
+            "version": CONTEXT_SELECTION_VERSION,
+            "status": "unavailable",
+            "unavailable_reason": "context_budget_exceeded",
+        }
+        trace["retrieval_stages"]["final_context"] = _summarize_retrieval_stage(
+            status="unavailable", reason="context_budget_exceeded"
+        )
         trace["abstained"] = True
         trace["abstention_reason"] = "context_budget_exceeded"
         trace["context_selection"] = {
@@ -4483,6 +4735,17 @@ def _ask_impl(
 
     _mark_stage("context_build", stage_started_at)
     trace["context_selection"] = selection.to_trace()
+    trace["context_envelope"] = {
+        **selection.to_trace(),
+        "status": "ready_for_generation",
+    }
+    trace["retrieval_stages"]["final_context"] = _summarize_retrieval_stage(
+        chunks=list(selection.retained_chunks),
+        ids=[_evaluation_candidate_id(chunk) for chunk in selection.retained_chunks],
+        exclusions=_sanitized_stage_exclusions(selection.exclusions),
+        evidence=selection.evidence,
+        include_chunks=platform == "offline_eval",
+    )
     context = selection.rendered_text
     allowed_sources = set(selection.allowed_sources)
     source_display_map = {

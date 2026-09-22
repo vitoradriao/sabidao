@@ -14,6 +14,17 @@ SYNTHETIC_FIXTURE = (
 BASELINE_DATASET = ROOT_DIR / "evaluation" / "datasets" / "maxpedido_eval_dataset.json"
 
 
+def _paired_fixture_response(response, scope, *, comparison=None):
+    trace = {
+        **response["trace"],
+        "snapshot_id": scope["_comparison_snapshot_id"],
+        "experiment_identity": scope["_comparison_experiment_identity"],
+    }
+    if comparison is not None:
+        trace["comparison"] = comparison
+    return response["answer"], response["chunks"], trace
+
+
 class TestOfflineEvaluator(unittest.TestCase):
     def test_git_commit_accepts_explicit_runtime_identity(self):
         with patch.dict(
@@ -336,7 +347,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIn("factual_correctness", summary["metric_definitions"])
         self.assertIn("evidence_discounted_coverage_at_10", summary["metric_definitions"])
         self.assertEqual(summary["metric_definitions_version"], 2)
-        self.assertEqual(summary["evaluator_schema_version"], 6)
+        self.assertEqual(summary["evaluator_schema_version"], 7)
         self.assertEqual(summary["score_evaluated"], 4)
 
     def test_false_absence_claim_is_measured_only_for_expected_answers(self):
@@ -837,6 +848,507 @@ class TestOfflineEvaluator(unittest.TestCase):
             limit=None,
             answer_provider=fixture_provider,
         )
+
+    def test_prepare_only_is_local_and_reports_missing_operational_blockers(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        with (
+            patch.object(run_offline_eval.rag, "ask") as ask,
+            patch.object(run_offline_eval, "_database_identity") as identity,
+        ):
+            prepared = run_offline_eval.prepare_comparison(
+                dataset=dataset,
+                dataset_name="jev-fixture",
+                baseline_config=baseline_config,
+            )
+
+        self.assertEqual(prepared["status"], "blocked")
+        self.assertEqual(prepared["external_calls"], 0)
+        self.assertEqual(prepared["database_writes"], 0)
+        self.assertIn("snapshot_id_required_before_execution", prepared["blockers"])
+        self.assertIn("jev_rerank_requires_active_path:#91", prepared["blockers"])
+        ask.assert_not_called()
+        identity.assert_not_called()
+
+    def test_paired_comparison_keeps_same_pool_and_distinguishes_active_paths(self):
+        fixture_path = ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        dataset = run_offline_eval._load_dataset(fixture_path)
+        dataset = dataset[:1]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        fixture_cases = {
+            case["id"]: case["fixture_variants"] for case in dataset
+        }
+
+        def provider_for(variant):
+            def provider(question, _scope):
+                case = next(item for item in dataset if item["question"] == question)
+                response = fixture_cases[case["id"]][variant]
+                return _paired_fixture_response(response, _scope)
+
+            return provider
+
+        with patch.object(
+            run_offline_eval,
+            "_database_identity",
+            return_value=self._verified_database_identity(),
+        ):
+            comparison = run_offline_eval.run_paired_comparison(
+                dataset=dataset,
+                dataset_name="jev-fixture",
+                dry_run=True,
+                limit=None,
+                baseline_config=baseline_config,
+                answer_providers={
+                    "existing": provider_for("existing"),
+                    "jev_rerank": provider_for("jev_rerank"),
+                },
+                pair_id="fixture-pair-v1",
+                snapshot_id="fixture-snapshot-v1",
+            )
+
+        self.assertEqual(comparison["status"], "complete")
+        self.assertEqual(
+            comparison["views"]["ranking_ablation_same_pool"]["status"],
+            "complete",
+        )
+        self.assertEqual(
+            comparison["views"]["ranking_ablation_same_pool"]["ranking_changed_cases"],
+            ["paired-ranking-inversion"],
+        )
+        self.assertEqual(
+            comparison["views"]["end_to_end_same_snapshot"]["status"],
+            "complete",
+        )
+        self.assertEqual(
+            comparison["summaries"]["jev_rerank"]["results"][0]["comparison"][
+                "effective_variant"
+            ],
+            "jev_rerank",
+        )
+
+    def test_paired_comparison_marks_fallback_without_calling_it_jev_success(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )
+        dataset = dataset[:1]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        response = dataset[0]["fixture_variants"]["existing"]
+
+        def existing_provider(_question, _scope):
+            return _paired_fixture_response(response, _scope)
+
+        def fallback_provider(_question, _scope):
+            return _paired_fixture_response(
+                response,
+                _scope,
+                comparison={
+                    "effective_variant": "existing",
+                    "fallback_stage": "rerank",
+                    "fallback_reason": "provider_error",
+                },
+            )
+
+        with patch.object(
+            run_offline_eval,
+            "_database_identity",
+            return_value=self._verified_database_identity(),
+        ):
+            comparison = run_offline_eval.run_paired_comparison(
+                dataset=dataset,
+                dataset_name="jev-fixture",
+                dry_run=True,
+                limit=None,
+                baseline_config=baseline_config,
+                answer_providers={
+                    "existing": existing_provider,
+                    "jev_rerank": fallback_provider,
+                },
+                pair_id="fixture-pair-fallback-v1",
+                snapshot_id="fixture-snapshot-v1",
+            )
+
+        view = comparison["views"]["end_to_end_same_snapshot"]
+        self.assertEqual(view["fallback_cases"], ["paired-ranking-inversion"])
+        result = comparison["summaries"]["jev_rerank"]["results"][0]
+        self.assertEqual(result["comparison"]["effective_variant"], "existing")
+        self.assertEqual(result["comparison"]["fallback_reason"], "provider_error")
+
+    def test_non_existing_variant_without_active_path_fails_before_rag_call(self):
+        dataset = [
+            {
+                "id": "one",
+                "question": "q",
+                "expected_behavior": "no_answer",
+                "expected_intent": "general",
+            }
+        ]
+        with patch.object(run_offline_eval.rag, "ask") as ask:
+            with self.assertRaises(run_offline_eval.VariantUnavailableError):
+                run_offline_eval.run_evaluation(
+                    dataset=dataset,
+                    dataset_name="unavailable",
+                    dry_run=True,
+                    limit=None,
+                    variant_id="jev_rerank",
+                )
+        ask.assert_not_called()
+
+    def test_paired_provider_without_snapshot_or_identity_is_rejected(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )[:1]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        def provider(variant):
+            def answer_provider(question, _scope):
+                response = next(
+                    case["fixture_variants"][variant]
+                    for case in dataset
+                    if case["question"] == question
+                )
+                return response["answer"], response["chunks"], response["trace"]
+
+            return answer_provider
+
+        with patch.object(
+            run_offline_eval,
+            "_database_identity",
+            return_value=self._verified_database_identity(),
+        ):
+            with self.assertRaisesRegex(
+                run_offline_eval.VariantConfigurationError,
+                "snapshot_id verificado",
+            ):
+                run_offline_eval.run_paired_comparison(
+                    dataset=dataset,
+                    dataset_name="jev-fixture",
+                    dry_run=True,
+                    limit=None,
+                    baseline_config=baseline_config,
+                    answer_providers={
+                        "existing": provider("existing"),
+                        "jev_rerank": provider("jev_rerank"),
+                    },
+                    pair_id="fixture-pair-v1",
+                    snapshot_id="fixture-snapshot-v1",
+                )
+
+    def test_paired_comparison_rejects_duplicate_case_ids(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )[:2]
+        dataset[1]["id"] = dataset[0]["id"]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        with self.assertRaisesRegex(
+            run_offline_eval.VariantConfigurationError,
+            "não pode repetir case_id",
+        ):
+            run_offline_eval.run_paired_comparison(
+                dataset=dataset,
+                dataset_name="jev-fixture",
+                dry_run=True,
+                limit=None,
+                baseline_config=baseline_config,
+                answer_providers={
+                    "existing": lambda *_args, **_kwargs: ("", [], {}),
+                    "jev_rerank": lambda *_args, **_kwargs: ("", [], {}),
+                },
+                pair_id="fixture-pair-v1",
+                snapshot_id="fixture-snapshot-v1",
+            )
+
+    def test_evidence_gate_is_explicitly_unavailable_and_never_called(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )[:1]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        responses = {
+            variant: dataset[0]["fixture_variants"][variant]
+            for variant in ("existing", "jev_rerank")
+        }
+        calls = []
+
+        def provider(variant):
+            def answer_provider(question, _scope):
+                calls.append(variant)
+                response = responses[variant]
+                return _paired_fixture_response(response, _scope)
+
+            return answer_provider
+
+        with patch.object(
+            run_offline_eval,
+            "_database_identity",
+            return_value=self._verified_database_identity(),
+        ):
+            comparison = run_offline_eval.run_paired_comparison(
+                dataset=dataset,
+                dataset_name="jev-fixture",
+                dry_run=True,
+                limit=None,
+                baseline_config=baseline_config,
+                answer_providers={
+                    "existing": provider("existing"),
+                    "jev_rerank": provider("jev_rerank"),
+                },
+                pair_id="fixture-pair-v1",
+                snapshot_id="fixture-snapshot-v1",
+            )
+
+        self.assertNotIn("jev_rerank+evidence_gate", calls)
+        self.assertEqual(
+            comparison["unavailable_variants"][0]["variant_id"],
+            "jev_rerank+evidence_gate",
+        )
+        self.assertTrue(comparison["unavailable_results"])
+        self.assertEqual(comparison["unavailable_results"][0]["outcome"], "unavailable")
+
+    def test_paired_result_has_opaque_stages_identity_and_metric_observations(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )[:1]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        def provider(variant):
+            def answer_provider(question, _scope):
+                response = next(
+                    case["fixture_variants"][variant]
+                    for case in dataset
+                    if case["question"] == question
+                )
+                return _paired_fixture_response(response, _scope)
+
+            return answer_provider
+
+        with patch.object(
+            run_offline_eval,
+            "_database_identity",
+            return_value=self._verified_database_identity(),
+        ):
+            comparison = run_offline_eval.run_paired_comparison(
+                dataset=dataset,
+                dataset_name="jev-fixture",
+                dry_run=True,
+                limit=None,
+                baseline_config=baseline_config,
+                answer_providers={
+                    "existing": provider("existing"),
+                    "jev_rerank": provider("jev_rerank"),
+                },
+                pair_id="fixture-pair-v1",
+                snapshot_id="fixture-snapshot-v1",
+            )
+
+        result = comparison["summaries"]["jev_rerank"]["results"][0]
+        self.assertIn("experiment_identity", result)
+        self.assertIn("metric_observations", result)
+        observation = result["metric_observations"]["ndcg_at_10"]
+        self.assertEqual(
+            set(observation), {"value", "denominator", "unavailable_reason", "metric_version"}
+        )
+        stage = result["trace"]["retrieval_stages"]["candidate_pool"]
+        self.assertTrue(all(str(value).startswith("candidate-") for value in stage["ids"]))
+        self.assertNotIn("parametros-s", json.dumps(result["trace"], ensure_ascii=False))
+
+    def test_context_envelope_sanitizes_order_and_exclusion_ids(self):
+        sanitized = run_offline_eval._sanitize_context_selection(
+            {
+                "order": ["parametros-s"],
+                "retained_evidence": [{"evidence_id": "parametros-s", "source": "parametros.md"}],
+                "exclusions": [
+                    {"evidence_id": "parametros-s", "reason": "max_context_chunks"}
+                ],
+            }
+        )
+
+        serialized = json.dumps(sanitized, ensure_ascii=False)
+        self.assertNotIn("parametros-s", serialized)
+        self.assertTrue(sanitized["order"][0].startswith("candidate-"))
+        self.assertTrue(sanitized["exclusions"][0]["evidence_id"].startswith("candidate-"))
+
+    def test_final_context_metrics_use_rendered_spans_not_full_chunk(self):
+        case = {
+            "reference_evidence": [
+                {"source": "doc.md", "contains": ["evidencia tardia"]}
+            ],
+            "ranking_judgments": None,
+        }
+        chunks = [
+            {
+                "id": "doc-1",
+                "filename": "doc.md",
+                "content": "ruido inicial; evidencia tardia",
+            }
+        ]
+        trace = {
+            "retrieval_stages": {
+                stage: {
+                    "status": "available",
+                    "ids": ["candidate-1"],
+                    "order": ["candidate-1"],
+                    "count": 1,
+                }
+                for stage in run_offline_eval.RETRIEVAL_STAGE_NAMES
+            },
+            "context_selection": {
+                "retained_evidence": [
+                    {
+                        "evidence_id": "doc-1",
+                        "content_hash": "hash-1",
+                        "spans": [{"start": 0, "end": 14, "source_length": 31}],
+                    }
+                ]
+            },
+        }
+
+        metrics = run_offline_eval._evaluate_retrieval_stages(
+            case=case,
+            final_chunks=chunks,
+            trace=trace,
+        )
+
+        self.assertEqual(
+            metrics["final_context"]["metrics"]["recall_at_10"],
+            0.0,
+        )
+
+    def test_edge_fixture_preserves_budget_and_multiple_references(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        def provider(variant):
+            def answer_provider(question, _scope):
+                case = next(item for item in dataset if item["question"] == question)
+                response = case["fixture_variants"][variant]
+                return _paired_fixture_response(response, _scope)
+
+            return answer_provider
+
+        with patch.object(
+            run_offline_eval,
+            "_database_identity",
+            return_value=self._verified_database_identity(),
+        ):
+            comparison = run_offline_eval.run_paired_comparison(
+                dataset=dataset,
+                dataset_name="jev-edge-fixture",
+                dry_run=True,
+                limit=None,
+                baseline_config=baseline_config,
+                answer_providers={
+                    "existing": provider("existing"),
+                    "jev_rerank": provider("jev_rerank"),
+                },
+                pair_id="fixture-edge-pair-v1",
+                snapshot_id="fixture-edge-snapshot-v1",
+            )
+
+        existing = comparison["summaries"]["existing"]
+        budget = next(
+            result
+            for result in existing["results"]
+            if result["case_id"] == "paired-budget-removes-top20-evidence"
+        )
+        self.assertEqual(
+            budget["stage_metrics"]["candidate_pool"]["metrics"]["recall_at_20"],
+            0.0,
+        )
+        multiple = next(
+            result
+            for result in existing["results"]
+            if result["case_id"] == "paired-multiple-references-one-chunk"
+        )
+        self.assertEqual(
+            multiple["stage_metrics"]["candidate_pool"]["metrics"]["recall_at_10"],
+            1.0,
+        )
+        self.assertEqual(
+            multiple["stage_metrics"]["candidate_pool"]["metric_observations"][
+                "recall_at_10"
+            ]["denominator"],
+            2,
+        )
+
+    def test_provider_identity_divergence_is_rejected_before_next_variant(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )[:1]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        response = dataset[0]["fixture_variants"]["existing"]
+
+        def existing_provider(_question, _scope):
+            return _paired_fixture_response(response, _scope)
+
+        def divergent_provider(_question, _scope):
+            return (
+                response["answer"],
+                response["chunks"],
+                {
+                    **_paired_fixture_response(response, _scope)[2],
+                    "experiment_identity": {"fingerprint_sha256": "divergente"},
+                },
+            )
+
+        with patch.object(
+            run_offline_eval,
+            "_database_identity",
+            return_value=self._verified_database_identity(),
+        ):
+            with self.assertRaises(run_offline_eval.VariantConfigurationError):
+                run_offline_eval.run_paired_comparison(
+                    dataset=dataset,
+                    dataset_name="jev-fixture",
+                    dry_run=True,
+                    limit=None,
+                    baseline_config=baseline_config,
+                    answer_providers={
+                        "existing": existing_provider,
+                        "jev_rerank": divergent_provider,
+                    },
+                    pair_id="fixture-pair-divergent-v1",
+                    snapshot_id="fixture-snapshot-v1",
+                )
 
 
 if __name__ == "__main__":
