@@ -27,6 +27,7 @@ from google import genai
 from google.genai import types as _gtypes
 
 import config
+import jev
 from bot_common import normalize_text
 from db import db_call, db_delete, db_insert, db_select, db_update, is_missing_function_error
 
@@ -762,6 +763,18 @@ def _record_model_call(
             "error_type": error_type,
         }
     )
+
+
+def _record_jev_decision(
+    model_calls: list[dict[str, Any]] | None,
+    *,
+    result: jev.DecisionResult,
+    stage: str,
+) -> None:
+    """Registra Jev sem tratar candidatos como novas tentativas."""
+    if model_calls is None:
+        return
+    model_calls.append(result.to_trace(stage=stage))
 
 
 def _summarize_model_calls(model_calls: list[dict[str, Any]]) -> dict[str, Any]:

@@ -98,6 +98,25 @@ class TestOfflineEvaluator(unittest.TestCase):
                 changed["fingerprint_sha256"],
             )
 
+    def test_experiment_identity_inclui_contrato_jev_sem_chave(self):
+        database = self._verified_database_identity()
+        with patch.object(run_offline_eval, "_database_identity", return_value=database):
+            baseline = run_offline_eval._experiment_identity({"policy": "v1"})
+            with patch.object(
+                run_offline_eval.config,
+                "JEV_MAX_CONCURRENCY",
+                run_offline_eval.config.JEV_MAX_CONCURRENCY + 1,
+            ):
+                changed = run_offline_eval._experiment_identity({"policy": "v1"})
+
+        self.assertIn("jev", baseline)
+        self.assertIn("JEV_MODEL", baseline["rag_config"])
+        self.assertNotIn("TYPESAFE_API_KEY", json.dumps(baseline))
+        self.assertNotEqual(
+            baseline["fingerprint_sha256"],
+            changed["fingerprint_sha256"],
+        )
+
     def test_database_identity_normalizes_persisted_vector_order(self):
         configured = run_offline_eval.rag.get_embedding_index_identity()
         row = {
