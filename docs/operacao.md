@@ -54,6 +54,32 @@ e mantenha as colunas aditivas instaladas. Para desfazer o schema, use o
 backup/snapshot validado ou uma operação reversível específica; não remova dados,
 tabelas ou o volume como forma de rollback.
 
+## Ingerir documentos canônicos
+
+Antes de incluir um Markdown canônico, valide o front matter e as chaves de
+seção com `py canonical_docs.py lint`. A ingestão também valida cada fonte
+canônica antes de consultar modelos ou substituir registros. `doc_type` continua
+`md`; a classificação e o tipo semântico ficam em metadados separados. O YAML
+bruto não é indexado como conteúdo. Título e classificação editoriais podem
+compor o contexto de recuperação enviado aos embeddings.
+
+O `document_id` editorial identifica a fonte mesmo se seu arquivo mudar de
+nome. Uma repetição idêntica não refaz o processamento; uma revisão superior
+substitui a projeção da mesma identidade. A mesma revisão com conteúdo
+divergente e uma revisão inferior são conflitos: corrija a fonte, não use
+`--force` para contornar a revisão. Falha de validação, preparação ou escrita
+preserva a versão anterior do índice.
+
+O banco guarda uma assinatura semântica canônica em `documents.metadata`,
+calculada a partir dos campos validados e do corpo com finais de linha
+normalizados. Reordenar chaves YAML sem mudar seus valores não altera essa
+assinatura. `content_hash` identifica somente o corpo; `processing_hash`
+identifica a projeção e o processamento necessários para reutilizar vetores.
+
+Essa capacidade não promove o manifesto nem converte os 27 Markdown legados.
+Planeje a migração de cada lote com snapshot, verificação de preservação,
+comparação de consultas e rollback antes de executar ingestão operacional.
+
 ## Atualizar documentos
 
 A execução comum calcula hashes do conteúdo extraído e do preprocessamento.

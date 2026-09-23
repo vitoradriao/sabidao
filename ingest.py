@@ -205,6 +205,7 @@ class AnalyticalSection:
     semantic_context: str
     section_id: str | None = None
     classification: Classification | None = None
+    section_key: str | None = None
 
 
 def _entities_as_lines(entities: dict[str, list[str]] | None) -> list[str]:
@@ -252,6 +253,27 @@ def _content_hash(text: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def _canonical_source(text: str) -> tuple[dict, str] | None:
+    """Valida o contrato editorial e separa o corpo antes de qualquer efeito externo."""
+    if text.lstrip("\ufeff").splitlines()[:1] != ["---"]:
+        return None
+    document, _parsed = validate_canonical_text(text)
+    lines = text.splitlines(keepends=True)
+    closing = next(
+        index for index in range(1, len(lines))
+        if lines[index].rstrip("\r\n") == "---"
+    )
+    body = "".join(lines[closing + 1 :]).replace("\r\n", "\n").replace("\r", "\n")
+    return document, body
+
+
+def _canonical_semantic_hash(document: dict, body: str) -> str:
+    payload = {"version": "canonical-semantic-v1", "document": document,
+               "body": body.replace("\r\n", "\n").replace("\r", "\n")}
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 def _contextual_retrieval_identity() -> dict[str, Any]:
     """Identifica a contextualizacao efetiva sem incluir credenciais ou conteudo."""
     if not config.CONTEXTUAL_RETRIEVAL_ENABLED:
@@ -290,6 +312,7 @@ def _processing_hash(
     sections: list[AnalyticalSection],
     chunk_items: list[tuple[int, str, str, AnalyticalSection]],
     document_classification: Classification | None = None,
+    canonical_schema_version: str | None = None,
 ) -> str:
     """Identifica todos os insumos que alteram chunks ou embeddings."""
     payload = {
@@ -338,6 +361,12 @@ def _processing_hash(
             for chunk_index, storage_content, retrieval_content, section in chunk_items
         ],
     }
+    if canonical_schema_version:
+        payload["canonical_processing"] = {
+            "schema_version": canonical_schema_version,
+            "parser_version": "markdown-parser-v1",
+            "render_version": "canonical-render-v1",
+        }
     serialized = json.dumps(
         payload,
         ensure_ascii=False,
@@ -699,10 +728,10 @@ def _classify_text_sections(
     title: str,
     source: str,
     doc_type: str,
+    canonical: dict | None = None,
 ) -> tuple[Classification, list[AnalyticalSection]]:
     """Prepara classificação documental e seccional para ingestão e auditoria offline."""
-    canonical = None
-    if doc_type.lower() == "md" and text.lstrip("\ufeff").splitlines()[:1] == ["---"]:
+    if canonical is None and doc_type.lower() == "md" and text.lstrip("\ufeff").splitlines()[:1] == ["---"]:
         canonical, _parsed = validate_canonical_text(text)
 
     if canonical:
@@ -727,6 +756,7 @@ def _classify_text_sections(
     for index, section in enumerate(sections):
         if canonical:
             heading = parsed_sections[index][0]
+            section.section_key = heading.section_key if heading else None
             section_metadata = canonical["sections"].get(heading.section_key) if heading else None
             override = section_metadata["classification_override"] if section_metadata else None
             classification = editorial(
@@ -1730,6 +1760,7 @@ def _prepare_document_section_rows(
         {
             "id": section.section_id,
             "document_id": doc_id,
+            "section_key": section.section_key,
             "section_index": section.section_index,
             "heading_path": section.heading_path,
             "title": section.title,
@@ -1795,6 +1826,7 @@ def _clone_prepared_rows(
         )
         section_columns = (
             "section_index",
+            "section_key",
             "heading_path",
             "title",
             "module",
@@ -1902,6 +1934,54 @@ def _insert_rows_in_batches(table: str, rows: list[dict], *, connection) -> None
         )
 
 
+def _check_canonical_revision(existing: dict | None, incoming: dict) -> None:
+    if not existing:
+        return
+    previous_revision = existing.get("document_revision")
+    if previous_revision is None:
+        return
+    revision = incoming["document_revision"]
+    if revision < previous_revision:
+        raise ValueError("revisao canonica anterior a revisao indexada")
+    if revision == previous_revision:
+        previous_hash = (existing.get("metadata") or {}).get("semantic_hash")
+        current_hash = incoming["metadata"]["semantic_hash"]
+        if previous_hash != current_hash:
+            raise ValueError("mesma revisao canonica possui conteudo divergente")
+
+
+def _project_canonical_rows(
+    canonical: dict, sections: list[AnalyticalSection],
+    section_rows: list[dict], chunk_rows: list[dict],
+) -> None:
+    by_index = {section.section_index: section.section_key for section in sections}
+    for row in section_rows:
+        row["metadata"].update({
+            "canonical_id": canonical["document_id"],
+            "document_revision": canonical["revision"],
+            "schema_version": canonical["schema_version"],
+        })
+        key = by_index.get(row["section_index"])
+        if key:
+            row["section_key"] = key
+            row["metadata"].update({
+                "section_key": key,
+                "source_refs": canonical["sections"][key]["source_refs"],
+            })
+    for row in chunk_rows:
+        row["metadata"].update({
+            "canonical_id": canonical["document_id"],
+            "document_revision": canonical["revision"],
+            "schema_version": canonical["schema_version"],
+        })
+        key = by_index.get(row["metadata"].get("section_index"))
+        if key:
+            row["metadata"].update({
+                "section_key": key,
+                "source_refs": canonical["sections"][key]["source_refs"],
+            })
+
+
 def _replace_document_atomically(
     *,
     filename: str,
@@ -1910,19 +1990,41 @@ def _replace_document_atomically(
     chunk_rows: list[dict],
     force: bool,
 ) -> bool:
-    """Troca uma fonte completa; em reindexes concorrentes, o ultimo commit vence."""
+    """Troca uma fonte completa sob lock da identidade estável."""
     with db_transaction() as connection:
-        db_advisory_xact_lock(f"ingest:{filename}", connection=connection)
+        canonical_id = document_row.get("canonical_id")
+        lock_identity = f"canonical:{canonical_id}" if canonical_id else f"ingest:{filename}"
+        db_advisory_xact_lock(lock_identity, connection=connection)
+        if canonical_id:
+            db_advisory_xact_lock(f"ingest:{filename}", connection=connection)
         existing = supabase_select(
             "documents",
-            select="id,processing_hash",
-            filters={"filename": f"eq.{filename}"},
+            select="id,filename,canonical_id,document_revision,metadata,processing_hash",
+            filters={"canonical_id": f"eq.{canonical_id}"} if canonical_id else {"filename": f"eq.{filename}"},
             connection=connection,
         )
+        if not canonical_id and existing and existing[0].get("canonical_id") is not None:
+            raise ValueError("fonte canonica nao pode ser substituida por ingestao legada")
+        if canonical_id:
+            _check_canonical_revision(existing[0] if existing else None, document_row)
+            filename_rows = supabase_select(
+                "documents", select="id,canonical_id",
+                filters={"filename": f"eq.{filename}"}, connection=connection,
+            )
+            for filename_row in filename_rows:
+                if existing and filename_row["id"] == existing[0]["id"]:
+                    continue
+                if filename_row.get("canonical_id") is not None:
+                    raise ValueError("filename ocupado por outra identidade canonica")
+                supabase_delete("documents", "id", filename_row["id"], connection=connection)
         if (
             existing
-            and not force
+            and (not force or canonical_id)
             and existing[0].get("processing_hash") == document_row["processing_hash"]
+            and (not canonical_id or (
+                existing[0].get("document_revision") == document_row["document_revision"]
+                and existing[0].get("filename") == filename
+            ))
         ):
             return False
 
@@ -2165,12 +2267,23 @@ def _ingest_text_source(
         }
 
     try:
+        canonical_source = _canonical_source(text) if doc_type.lower() == "md" else None
+        canonical, body = canonical_source if canonical_source else (None, text)
+        if canonical:
+            if not _document_sections_supported():
+                raise RuntimeError("ingestao canonica exige document_sections disponivel")
+            supabase_select(
+                "document_sections", select="section_key", filters={"limit": 1}
+            )
+            title = canonical["title"]
+        semantic_hash = _canonical_semantic_hash(canonical, body) if canonical else None
         document_classification, sections = _classify_text_sections(
-            text,
+            body,
             filename=filename,
             title=title,
             source=source,
             doc_type=doc_type,
+            canonical=canonical,
         )
         module = document_classification.legacy_module
         chunk_items: list[tuple[int, str, str, AnalyticalSection]] = []
@@ -2213,8 +2326,8 @@ def _ingest_text_source(
             "error": "nenhum chunk gerado",
         }
 
-    doc_priority = _infer_priority(filename, chunk_count=len(chunk_items))
-    content_digest = _content_hash(text)
+    doc_priority = 5 if canonical else _infer_priority(filename, chunk_count=len(chunk_items))
+    content_digest = _content_hash(body)
     processing_digest = _processing_hash(
         content_hash=content_digest,
         title=title,
@@ -2224,22 +2337,37 @@ def _ingest_text_source(
         sections=sections,
         chunk_items=chunk_items,
         document_classification=document_classification,
+        canonical_schema_version=canonical["schema_version"] if canonical else None,
     )
     try:
         existing = supabase_select(
             "documents",
-            select="id,processing_hash",
-            filters={"filename": f"eq.{filename}"},
+            select="id,filename,canonical_id,processing_hash,document_revision,metadata",
+            filters={"canonical_id": f"eq.{canonical['document_id']}"} if canonical else {"filename": f"eq.{filename}"},
         )
     except Exception as exc:
         _log_ingest_error(filename, "lookup_document", exc)
         raise
+    if not canonical and existing and existing[0].get("canonical_id") is not None:
+        raise ValueError("fonte canonica nao pode ser substituida por ingestao legada")
+    if canonical and existing:
+        _check_canonical_revision(existing[0], {
+            "document_revision": canonical["revision"],
+            "metadata": {"semantic_hash": semantic_hash},
+        })
     if (
         existing
-        and not force
+        and (not force or canonical)
         and existing[0].get("processing_hash") == processing_digest
+        and (not canonical or (
+            existing[0].get("document_revision") == canonical["revision"]
+            and existing[0].get("filename") == filename
+        ))
     ):
         try:
+            if canonical:
+                ensure_embedding_index_identity("corpus")
+                ensure_embedding_index_identity("sections")
             supabase_update(
                 "documents",
                 {
@@ -2282,7 +2410,8 @@ def _ingest_text_source(
     failed_chunks: list[int] = []
     try:
         reused_document = (
-            None if force else _find_reusable_document(processing_digest, filename)
+            existing[0] if canonical and existing and existing[0].get("processing_hash") == processing_digest
+            else None if force else _find_reusable_document(processing_digest, filename)
         )
     except Exception as exc:
         _log_ingest_error(filename, "find_reusable_document", exc)
@@ -2290,6 +2419,9 @@ def _ingest_text_source(
 
     try:
         if reused_document:
+            ensure_embedding_index_identity("corpus")
+            if _document_sections_supported():
+                ensure_embedding_index_identity("sections")
             section_rows, chunk_rows = _clone_prepared_rows(
                 source_document_id=str(reused_document["id"]),
                 document_id=doc_id,
@@ -2302,12 +2434,18 @@ def _ingest_text_source(
                 content_hash=content_digest,
                 processing_hash=processing_digest,
             )
-            logger.info(
-                "INGEST_STAGE source_id=%s stage=reuse_embeddings reused_source_id=%s",
-                source_id,
-                _source_id(reused_document.get("filename")),
-            )
-        else:
+            if len(chunk_rows) != len(chunk_items) or (
+                _document_sections_supported() and len(section_rows) != len(sections)
+            ):
+                reused_document = None
+                section_rows, chunk_rows = [], []
+            else:
+                logger.info(
+                    "INGEST_STAGE source_id=%s stage=reuse_embeddings reused_source_id=%s",
+                    source_id,
+                    _source_id(reused_document.get("filename")),
+                )
+        if not reused_document:
             if config.CONTEXTUAL_RETRIEVAL_ENABLED:
                 model_cfg = get_model_config()
                 logger.info(
@@ -2330,7 +2468,7 @@ def _ingest_text_source(
                 doc_id=doc_id,
                 filename=filename,
                 title=title,
-                text=text,
+                text=body,
                 doc_type=doc_type,
                 source_type=source_type,
                 module=module,
@@ -2388,6 +2526,8 @@ def _ingest_text_source(
 
     for row in [*section_rows, *chunk_rows]:
         row.setdefault("metadata", {})["document_classification"] = document_classification.metadata()
+    if canonical:
+        _project_canonical_rows(canonical, sections, section_rows, chunk_rows)
 
     document_row = {
         "id": doc_id,
@@ -2400,6 +2540,17 @@ def _ingest_text_source(
         "content_hash": content_digest,
         "processing_hash": processing_digest,
     }
+    if canonical:
+        document_row.update({
+            "canonical_id": canonical["document_id"],
+            "schema_version": canonical["schema_version"],
+            "document_revision": canonical["revision"],
+            "metadata": {
+                "semantic_hash_version": "canonical-semantic-v1",
+                "semantic_hash": semantic_hash,
+                "canonical": json.loads(json.dumps(canonical, ensure_ascii=False, default=str)),
+            },
+        })
     try:
         replaced = _replace_document_atomically(
             filename=filename,
@@ -2422,6 +2573,8 @@ def _ingest_text_source(
             failed_chunks=all_chunk_indices,
             source_type=source_type,
         )
+        if canonical and isinstance(persistence_error, ValueError):
+            raise
         return {
             "filename": filename,
             "chunks_count": 0,
