@@ -80,6 +80,23 @@ Essa capacidade não promove o manifesto nem converte os 27 Markdown legados.
 Planeje a migração de cada lote com snapshot, verificação de preservação,
 comparação de consultas e rollback antes de executar ingestão operacional.
 
+### Recuperação de fontes canônicas
+
+Após aplicar `sql/migrate_canonical_retrieval_1536.sql` (ou a variante 3072
+correspondente à dimensão do índice) e reaplicar
+`sql/add_evaluation_identity.sql`, as buscas retornam `canonical_id`, revisão,
+versão de schema, chave de seção e localizadores junto de `filename` e do conteúdo
+legado. O contexto e o trace preservam essas referências para ligar a citação
+ao trecho enviado. O manifesto seleciona documentos elegíveis em full-context;
+fontes `superseded` ou excluídas não são carregadas por esse caminho. Um
+`BUSINESS_RULES_FILE` canônico fornece somente o corpo Markdown, sem o YAML
+administrativo. A seleção do bootstrap padrão de regras continua separada.
+
+O avaliador usa o manifesto e a projeção persistida no fingerprint. Compare
+execuções apenas quando a identidade do corpus e da política for compatível;
+uma promoção de lote exige nova referência experimental. O upgrade SQL não
+executa ingestão, reindexação nem promoção do manifesto.
+
 ## Atualizar documentos
 
 A execução comum calcula hashes do conteúdo extraído e do preprocessamento.

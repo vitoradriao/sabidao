@@ -28,6 +28,13 @@ from google.genai import types as _gtypes
 
 import config
 import jev
+from canonical_docs import (
+    DEFAULT_MANIFEST,
+    load_canonical_document,
+    load_yaml,
+    validate_canonical_text,
+    validate_manifest,
+)
 from bot_common import normalize_text
 from db import db_call, db_delete, db_insert, db_select, db_update, is_missing_function_error
 
@@ -36,7 +43,7 @@ logger = logging.getLogger(__name__)
 _knowledge_gap_rpc_available: bool | None = None
 _top_knowledge_gaps_rpc_available: bool | None = None
 _business_rules_cache: tuple[str, float, str] | None = None
-_full_context_cache: tuple[str, float] | None = None  # (text, mtime_max)
+_full_context_cache: tuple[str, tuple] | None = None  # (text, file signatures)
 _validated_embedding_index_identities: set[tuple[str, str, str, int, str]] = set()
 _request_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar(
     "rag_request_deadline",
@@ -1718,6 +1725,7 @@ def _sanitize_trace_for_log(trace: dict[str, Any]) -> dict[str, Any]:
             "retrieved_sources",
             "citations",
             "cited_files",
+            "cited_evidence_refs",
             "grounding_errors",
         }
     }
@@ -2236,6 +2244,11 @@ def _search_rpc_with_filter_fallback(function_name: str, params: dict) -> list:
         raise
 
 
+def _starts_with_front_matter(text: str) -> bool:
+    lines = text.splitlines()
+    return bool(lines) and lines[0].lstrip("\ufeff") == "---"
+
+
 def _load_business_rules_context() -> str:
     if not config.RAG_ENABLE_BUSINESS_RULES:
         return ""
@@ -2254,6 +2267,14 @@ def _load_business_rules_context() -> str:
             return cached_text
 
     text = rules_path.read_text(encoding="utf-8", errors="ignore").strip()
+    if _starts_with_front_matter(text):
+        try:
+            validate_canonical_text(text)
+            _document, text, _body_line = load_canonical_document(rules_path)
+            text = text.strip()
+        except ValueError as exc:
+            logger.warning("Arquivo canonico de regras invalido (%s).", type(exc).__name__)
+            return ""
     if not text:
         return ""
 
@@ -2286,20 +2307,57 @@ def _load_full_context_docs() -> str:
         return ""
 
     allowed_exts = {ext.strip().lower() for ext in config.FULL_CONTEXT_EXTENSIONS}
+    repo_root = Path(__file__).resolve().parent
+    repository_corpus = docs_dir.resolve().is_relative_to(repo_root)
+    manifest_path = DEFAULT_MANIFEST if repository_corpus else None
+    if repository_corpus and not manifest_path.is_file():
+        logger.warning("FULL_CONTEXT: manifesto do corpus nao encontrado.")
+        return ""
+    selected_paths: set[Path] | None = None
+    if manifest_path and manifest_path.is_file():
+        try:
+            manifest = load_yaml(manifest_path)
+        except ValueError as exc:
+            logger.warning("FULL_CONTEXT: manifesto invalido (%s).", type(exc).__name__)
+            return ""
+        selected_paths = {
+            (repo_root / entry["path"]).resolve()
+            for entry in manifest.get("entries", [])
+            if isinstance(entry, dict)
+            and isinstance(entry.get("path"), str)
+            and entry.get("state") == "active"
+            and entry.get("ingestion") == "include"
+        }
     doc_files = sorted(
         f for f in docs_dir.iterdir()
         if f.is_file() and f.suffix.lower() in allowed_exts
+        and (selected_paths is None or f.resolve() in selected_paths)
     )
 
     if not doc_files:
         logger.warning("FULL_CONTEXT: nenhum documento encontrado.")
         return ""
 
-    current_mtime_max = max(f.stat().st_mtime for f in doc_files)
+    manifest_signature = (
+        (
+            str(manifest_path.resolve()),
+            hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        ),
+    ) if manifest_path else ()
+    signatures = manifest_signature + tuple(
+        (str(path.resolve()), path.stat().st_mtime_ns, path.stat().st_size)
+        for path in doc_files
+    )
     if _full_context_cache:
-        cached_text, cached_mtime = _full_context_cache
-        if cached_mtime == current_mtime_max:
+        cached_text, cached_signatures = _full_context_cache
+        if cached_signatures == signatures:
             return cached_text
+    if manifest_path and manifest_path.is_file():
+        try:
+            validate_manifest(manifest_path, repo_root)
+        except ValueError as exc:
+            logger.warning("FULL_CONTEXT: manifesto invalido (%s).", type(exc).__name__)
+            return ""
 
     parts: list[str] = []
     total_chars = 0
@@ -2308,6 +2366,10 @@ def _load_full_context_docs() -> str:
     for doc_file in doc_files:
         try:
             content = doc_file.read_text(encoding="utf-8", errors="ignore").strip()
+            if _starts_with_front_matter(content):
+                validate_canonical_text(content)
+                _document, content, _body_line = load_canonical_document(doc_file)
+                content = content.strip()
         except Exception as e:
             logger.warning(
                 "FULL_CONTEXT: erro de leitura (%s).",
@@ -2338,7 +2400,7 @@ def _load_full_context_docs() -> str:
         total_chars += len(content)
 
     full_text = "\n\n".join(parts)
-    _full_context_cache = (full_text, current_mtime_max)
+    _full_context_cache = (full_text, signatures)
     logger.info(
         "FULL_CONTEXT: %d documentos carregados (%d chars total).",
         len(parts), total_chars,
@@ -3143,6 +3205,24 @@ def _context_chunk_key(chunk: dict) -> str:
     )
 
 
+def _canonical_provenance(chunk: dict) -> dict[str, Any]:
+    metadata = chunk.get("metadata") if isinstance(chunk.get("metadata"), dict) else {}
+    source_refs = chunk.get("source_refs") or metadata.get("source_refs")
+    locator = chunk.get("locator")
+    if locator is None and isinstance(source_refs, list) and source_refs:
+        locator = source_refs[0].get("locator")
+    fields = {
+        "canonical_id": chunk.get("canonical_id") or metadata.get("canonical_id"),
+        "document_revision": chunk.get("document_revision") or metadata.get("document_revision"),
+        "schema_version": chunk.get("schema_version") or metadata.get("schema_version"),
+        "section_key": chunk.get("section_key") or metadata.get("section_key"),
+        "locator": locator,
+        "source_refs": source_refs,
+        "aliases": chunk.get("aliases") or metadata.get("aliases"),
+    }
+    return {key: value for key, value in fields.items() if value is not None}
+
+
 def _context_evidence_ref(chunk: dict, rank: int) -> dict[str, Any]:
     source = str(chunk.get("filename") or "desconhecido")
     content = str(chunk.get("content") or "")
@@ -3165,6 +3245,7 @@ def _context_evidence_ref(chunk: dict, rank: int) -> dict[str, Any]:
         "retrieval_origin": str(chunk.get("retrieval_origin") or "") or None,
         "is_neighbor": bool(chunk.get("is_neighbor")),
         "seed_chunk_id": str(chunk.get("seed_chunk_id") or "") or None,
+        **_canonical_provenance(chunk),
     }
 
 
@@ -3243,7 +3324,11 @@ def _render_context_records(
             consecutive = _chunk_index_value(record["chunk"]) == (
                 _chunk_index_value(previous["chunk"]) + 1
             )
-            if same_document and consecutive:
+            same_section = (
+                _canonical_provenance(previous["chunk"]).get("section_key")
+                == _canonical_provenance(record["chunk"]).get("section_key")
+            )
+            if same_document and same_section and consecutive:
                 blocks[-1].append(record)
                 continue
         blocks.append([record])
@@ -3289,8 +3374,23 @@ def _render_context_records(
         block_chunks = [record["chunk"] for record in block]
         analytical_context = _build_analytical_context_block(block_chunks)
         doc_body = merged_content
+        provenance = _canonical_provenance(block_chunks[0])
         if analytical_context:
             doc_body = f"{analytical_context}\n\n<evidence>\n{doc_body}\n</evidence>"
+        elif provenance:
+            doc_body = f"<evidence>\n{doc_body}\n</evidence>"
+        if provenance:
+            prompt_provenance = {
+                key: provenance[key]
+                for key in ("canonical_id", "document_revision", "section_key", "locator")
+                if key in provenance
+            }
+            doc_body = (
+                "<source_provenance>"
+                + json.dumps(prompt_provenance, ensure_ascii=False, default=str)
+                + "</source_provenance>\n"
+                + doc_body
+            )
         filename = next(
             (record["chunk"].get("filename") for record in block if record["chunk"].get("filename")),
             "desconhecido",
@@ -4052,6 +4152,7 @@ def _ask_impl(
         "retrieval_origins": [],
         "citations": [],
         "cited_files": [],
+        "cited_evidence_refs": [],
         "grounding_errors": [],
         "regeneration_attempts": 0,
         "response_state": None,
@@ -4542,11 +4643,17 @@ def _ask_impl(
     trace["grounding_errors"] = grounding_errors
     trace["cited_files"] = sorted(cited_sources)
     trace["citations"] = sorted(cited_sources)
+    trace["cited_evidence_refs"] = [
+        evidence
+        for evidence in selection.evidence
+        if _normalize_source_name(str(evidence.get("source") or "")) in cited_sources
+    ]
     trace["regeneration_attempts"] = regen_attempts
     if _is_provider_error_response(answer):
         trace["grounding_errors"] = []
         trace["cited_files"] = []
         trace["citations"] = []
+        trace["cited_evidence_refs"] = []
         _set_response_state(
             trace,
             "provider_error",

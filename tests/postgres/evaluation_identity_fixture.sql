@@ -6,6 +6,7 @@ DO $$
 DECLARE
     before_row RECORD;
     corpus_row RECORD;
+    canonical_row RECORD;
     feedback_row RECORD;
     repeated_row RECORD;
     corpus_vector_row RECORD;
@@ -51,6 +52,41 @@ BEGIN
        OR corpus_row.corpus_section_count <> before_row.corpus_section_count + 1
        OR corpus_row.corpus_chunk_count <> before_row.corpus_chunk_count + 1 THEN
         RAISE EXCEPTION 'Contagens do corpus nao refletem a fixture';
+    END IF;
+
+    UPDATE public.documents
+    SET canonical_id = '00000000-0000-0000-0000-00000000e104',
+        document_revision = 1,
+        schema_version = '1.0.0',
+        doc_type = 'md',
+        metadata = '{"canonical":{"aliases":["nome anterior.md"]}}'::jsonb
+    WHERE id = fixture_document_id;
+    SELECT * INTO canonical_row FROM public.get_evaluation_data_identity();
+    IF canonical_row.corpus_sha256 = corpus_row.corpus_sha256 THEN
+        RAISE EXCEPTION 'Fingerprint nao mudou com identidade canonica';
+    END IF;
+
+    UPDATE public.documents SET document_revision = 2 WHERE id = fixture_document_id;
+    SELECT * INTO corpus_row FROM public.get_evaluation_data_identity();
+    IF corpus_row.corpus_sha256 = canonical_row.corpus_sha256 THEN
+        RAISE EXCEPTION 'Fingerprint nao mudou com revisao canonica';
+    END IF;
+
+    UPDATE public.document_sections
+    SET section_key = 'secao-estavel',
+        metadata = '{"source_refs":[{"source_id":"manual","locator":{"kind":"line_range","start":1,"end":3}}]}'::jsonb
+    WHERE id = fixture_section_id;
+    SELECT * INTO canonical_row FROM public.get_evaluation_data_identity();
+    IF canonical_row.corpus_sha256 = corpus_row.corpus_sha256 THEN
+        RAISE EXCEPTION 'Fingerprint nao mudou com secao/proveniencia canonica';
+    END IF;
+
+    UPDATE public.document_chunks
+    SET retrieval_text = 'renderizacao alternativa do trecho'
+    WHERE document_id = fixture_document_id;
+    SELECT * INTO corpus_row FROM public.get_evaluation_data_identity();
+    IF corpus_row.corpus_sha256 = canonical_row.corpus_sha256 THEN
+        RAISE EXCEPTION 'Fingerprint nao mudou com retrieval_text';
     END IF;
 
     INSERT INTO public.feedback_items (

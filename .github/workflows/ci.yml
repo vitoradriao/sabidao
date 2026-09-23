@@ -71,6 +71,7 @@ jobs:
             sql/migrate_canonical_identity.sql \
             sql/migrate_priority.sql \
             sql/add_section_retrieval_1536.sql \
+            sql/migrate_canonical_retrieval_1536.sql \
             sql/add_embedding_index_identity.sql \
             sql/add_ingest_identity.sql \
             sql/add_evaluation_identity.sql; do
@@ -80,5 +81,7 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Validar contrato SQL da busca híbrida
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/postgres/hybrid_rrf_fixture.sql
+      - name: Validar recuperação canônica
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/postgres/canonical_retrieval_fixture.sql
       - name: Validar identidade dos dados de avaliação
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/postgres/evaluation_identity_fixture.sql

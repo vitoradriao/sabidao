@@ -50,12 +50,27 @@ Os valores de `answerability` são:
 
 `expected_facts` lista fatos obrigatórios, `forbidden_facts` lista afirmações que
 constituem falha crítica e `reference_evidence` identifica fonte e termos esperados no
-retrieval. Para avaliar a ordenação com nDCG convencional, um caso também pode declarar
+retrieval. Referências legadas continuam aceitando o caminho exato em `source`; o
+avaliador não infere identidade pelo basename. Para uma fonte canônica, declare
+`canonical_id` e, quando relevantes, `document_revision`, `section_key`, `source_id`
+e `locator`. `source` pode ser um alias editorial somente junto da identidade
+canônica explícita; splits precisam apontar para a seção ou evidência correta.
+Por exemplo:
+
+```json
+{"source": "docs/antigo.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 2, "section_key": "conta-corrente", "source_id": "manual", "locator": {"kind": "line_range", "start": 10, "end": 12}, "contains": ["Passos confirmados"]}
+```
+
+Para avaliar a ordenação com nDCG convencional, um caso também pode declarar
 `ranking_judgments` com `schema_version: 1`, `universe_id`, `corpus_fingerprint` e
 `qrels` (`candidate_id` + relevância inteira de 0 a 3). Os `candidate_id` dos chunks
 retornados precisam ser únicos e estar julgados; o nDCG usa somente os dez primeiros.
 O hash canônico
 dos qrels é registrado no detalhe, sem copiar o conteúdo bruto para o relatório.
+O fingerprint do experimento inclui o manifesto canônico e o hash sanitizado da
+projeção persistida, incluindo revisão, seção, proveniência e `retrieval_text`.
+Mudanças nessa identidade exigem nova comparação; um relatório de corpus legado
+não é diretamente comparável a um corpus promovido.
 
 ## Preparar o dataset
 

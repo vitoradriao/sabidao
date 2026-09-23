@@ -24,13 +24,17 @@ WITH document_manifest AS (
             CONCAT_WS(
                 E'\x1f',
                 d.filename,
+                COALESCE(d.canonical_id::TEXT, '<null>'),
+                COALESCE(d.document_revision::TEXT, '<null>'),
+                COALESCE(d.schema_version, '<null>'),
                 COALESCE(d.title, '<null>'),
                 COALESCE(d.source, '<null>'),
                 COALESCE(d.doc_type, '<null>'),
                 COALESCE(d.content_hash, '<null>'),
                 COALESCE(d.processing_hash, '<null>'),
                 COALESCE(d.chunk_count::TEXT, '<null>'),
-                COALESCE(d.priority::TEXT, '<null>')
+                COALESCE(d.priority::TEXT, '<null>'),
+                COALESCE(d.metadata::TEXT, '<null>')
             ),
             'sha256'
         ),
@@ -44,7 +48,10 @@ section_manifest AS (
             CONCAT_WS(
                 E'\x1f',
                 d.filename,
+                COALESCE(d.canonical_id::TEXT, '<null>'),
+                COALESCE(d.document_revision::TEXT, '<null>'),
                 s.section_index::TEXT,
+                COALESCE(s.section_key, '<null>'),
                 s.heading_path,
                 COALESCE(s.title, '<null>'),
                 COALESCE(s.module, '<null>'),
@@ -68,9 +75,13 @@ chunk_manifest AS (
             CONCAT_WS(
                 E'\x1f',
                 d.filename,
+                COALESCE(d.canonical_id::TEXT, '<null>'),
+                COALESCE(d.document_revision::TEXT, '<null>'),
                 c.chunk_index::TEXT,
                 COALESCE(s.section_index::TEXT, '<null>'),
+                COALESCE(s.section_key, '<null>'),
                 ENCODE(DIGEST(c.content, 'sha256'), 'hex'),
+                ENCODE(DIGEST(COALESCE(c.retrieval_text, ''), 'sha256'), 'hex'),
                 c.metadata::TEXT,
                 COALESCE(c.token_count::TEXT, '<null>'),
                 COALESCE(c.module, '<null>'),
