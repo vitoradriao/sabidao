@@ -1,0 +1,63 @@
+[
+  {
+    "id": "fixture-identifier",
+    "question": "Qual flag ativa a integração sintética?",
+    "split": "development",
+    "answerability": "answerable",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "expected_facts": ["A flag ATIVA_X ativa a integração"],
+    "reference_evidence": [{"source": "fixture.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 1, "section_key": "configurar", "contains": ["ATIVA_X"]}],
+    "provenance": {"migration": {"batch_id": "lote-sintetico", "unit_id": "unidade-sintetica", "role": "identifier", "position": "middle", "critical": true}},
+    "review": {"human_review": "pending"},
+    "fixture_response": {"answer": "A flag ATIVA_X ativa a integração. [Fonte: fixture.md]", "chunks": [{"filename": "fixture.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 1, "section_key": "configurar", "content": "ATIVA_X ativa a integração."}], "trace": {"query_plan": {"intent": "configuration"}, "cited_files": ["fixture.md"], "cited_evidence_refs": [{"source": "fixture.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 1, "section_key": "configurar"}], "grounding_errors": []}}
+  },
+  {
+    "id": "fixture-paraphrase",
+    "question": "Como habilito essa integração?",
+    "split": "development",
+    "answerability": "answerable",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "expected_facts": ["Defina ATIVA_X como S"],
+    "reference_evidence": [{"source": "fixture.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 1, "section_key": "configurar", "contains": ["ATIVA_X"]}],
+    "provenance": {"migration": {"batch_id": "lote-sintetico", "unit_id": "unidade-sintetica", "role": "paraphrase", "position": "middle", "critical": true}},
+    "review": {"human_review": "pending"},
+    "fixture_response": {"answer": "Defina ATIVA_X como S. [Fonte: fixture.md]", "chunks": [{"filename": "fixture.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 1, "section_key": "configurar", "content": "Defina ATIVA_X como S."}], "trace": {"query_plan": {"intent": "configuration"}, "cited_files": ["fixture.md"], "cited_evidence_refs": [{"source": "fixture.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 1, "section_key": "configurar"}], "grounding_errors": []}}
+  },
+  {
+    "id": "fixture-boundary",
+    "question": "O que ocorre quando ATIVA_X é N?",
+    "split": "development",
+    "answerability": "answerable",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "expected_facts": ["Com N, a integração permanece desativada"],
+    "reference_evidence": [{"source": "fixture.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 1, "section_key": "configurar", "contains": ["N"]}],
+    "provenance": {"migration": {"batch_id": "lote-sintetico", "unit_id": "unidade-sintetica", "role": "boundary", "position": "end", "critical": true}},
+    "review": {"human_review": "pending"},
+    "fixture_response": {"answer": "Com N, a integração permanece desativada. [Fonte: fixture.md]", "chunks": [{"filename": "fixture.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 1, "section_key": "configurar", "content": "Com N, a integração permanece desativada."}], "trace": {"query_plan": {"intent": "configuration"}, "cited_files": ["fixture.md"], "cited_evidence_refs": [{"source": "fixture.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 1, "section_key": "configurar"}], "grounding_errors": []}}
+  },
+  {
+    "id": "fixture-ambiguous",
+    "question": "Como altero a configuração?",
+    "split": "development",
+    "answerability": "ambiguous",
+    "expected_behavior": "clarify",
+    "expected_intent": "configuration",
+    "provenance": {"migration": {"batch_id": "lote-sintetico", "unit_id": "unidade-sintetica", "role": "boundary", "position": "middle", "critical": false}},
+    "review": {"human_review": "pending"},
+    "fixture_response": {"answer": "Qual configuração você deseja alterar?", "chunks": [], "trace": {"query_plan": {"intent": "configuration"}, "response_state": "clarification_needed", "cited_files": [], "grounding_errors": []}}
+  },
+  {
+    "id": "fixture-no-evidence",
+    "question": "Qual parâmetro desconhecido ativa isso?",
+    "split": "development",
+    "answerability": "no_evidence",
+    "expected_behavior": "no_answer",
+    "expected_intent": "configuration",
+    "provenance": {"migration": {"batch_id": "lote-sintetico", "unit_id": "unidade-sintetica", "role": "boundary", "position": "end", "critical": false}},
+    "review": {"human_review": "pending"},
+    "fixture_response": {"answer": "Não encontrei informações suficientes na base de conhecimento.", "chunks": [], "trace": {"query_plan": {"intent": "configuration"}, "abstained": true, "abstention_reason": "no_chunks", "cited_files": [], "grounding_errors": []}}
+  }
+]
