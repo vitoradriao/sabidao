@@ -40,12 +40,32 @@ antes de mudar qualquer um desses valores.
 | `migrate_evaluation_metrics_v2.sql` | Migra avaliações existentes para métricas factuais, retrieval e citação com estado não avaliado. |
 | `add_analytical_context.sql` | Seções de documentos e metadados dos trechos. |
 | `migrate_canonical_identity.sql` | Identidade editorial, revisão e metadados canônicos de documentos e chaves estáveis de seção. |
+| `add_canonical_promotion.sql` | Ledger aditivo de promoção, publicação e rollback por lote canônico. |
 | `migrate_priority.sql` | Priorização de documentos. |
 | `add_section_retrieval_1536.sql` | Consulta de seções e texto de retrieval dos chunks com embeddings de 1536 dimensões. |
 | `add_section_retrieval_3072.sql` | Referência histórica/experimental não suportada no runtime atual. |
 | `add_embedding_index_identity.sql` | Registra e valida a identidade vetorial de corpus, seções e feedback. |
 | `add_ingest_identity.sql` | Adiciona hashes de conteúdo e preprocessamento para ingestão incremental. |
 | `add_evaluation_identity.sql` | Calcula no banco fingerprints sanitizados do corpus, feedback elegível e identidades vetoriais para avaliações. |
+
+### Ledger de promoção canônica
+
+`add_canonical_promotion.sql` cria somente tabelas de controle; não altera
+documentos, chunks, seções ou vetores existentes e não executa promoção.
+Aplique-o depois de `migrate_canonical_identity.sql` e
+`add_evaluation_identity.sql`, primeiro em banco descartável:
+
+```sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f sql/add_canonical_promotion.sql
+```
+
+O ledger retém o snapshot das linhas antigas, inclusive texto e embeddings,
+para rollback sem recalcular vetores. Proteja sua leitura e seus backups como
+dados do corpus; hashes, contagens e estado sanitizados bastam para relatórios
+operacionais. A migração pode ser reaplicada, mas não tem `down` automático:
+remover as tabelas apagaria a capacidade de restaurar lotes já promovidos.
+Consulte o [procedimento de promoção](../docs/promocao-lotes-canonicos.md)
+antes de executar qualquer ação de lote.
 
 ### Contrato da busca híbrida
 

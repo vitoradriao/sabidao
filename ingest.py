@@ -34,7 +34,7 @@ from langchain_text_splitters import MarkdownTextSplitter
 
 import config
 from bot_common import normalize_text
-from canonical_docs import validate_canonical_text
+from canonical_docs import DEFAULT_MANIFEST, load_yaml, validate_canonical_text
 from markdown_parser import parse_markdown, split_markdown_sections
 from taxonomy import Classification, RULE_VERSION, editorial, heuristic
 from db import (
@@ -42,6 +42,7 @@ from db import (
     db_delete,
     db_insert,
     db_select,
+    db_table_exists,
     db_transaction,
     db_update,
     validate_database_config,
@@ -1982,6 +1983,36 @@ def _project_canonical_rows(
             })
 
 
+def _repository_manifest_allows(source: str, *, connection=None) -> bool:
+    """Confere a selecao publicada para fontes do corpus do repositorio."""
+    repository_root = Path(__file__).resolve().parent
+    source_path = Path(source).resolve()
+    if not source_path.is_relative_to(repository_root / "documentos"):
+        return True
+    if not DEFAULT_MANIFEST.is_file():
+        return False
+    manifest_bytes = DEFAULT_MANIFEST.read_bytes()
+    publication = (db_select("canonical_publication_state", connection=connection)
+                   if db_table_exists("public.canonical_publication_state", connection=connection) else [])
+    if publication and (publication[0]["status"] != "applied" or
+                        publication[0]["manifest_sha256"] != hashlib.sha256(manifest_bytes).hexdigest()):
+        return False
+    manifest = load_yaml(DEFAULT_MANIFEST)
+    relative_path = source_path.relative_to(repository_root).as_posix()
+    return any(
+        entry.get("path") == relative_path and entry.get("state") == "active"
+        and entry.get("ingestion") == "include"
+        for entry in manifest.get("entries", [])
+    )
+
+
+def _lock_repository_document_writes(connection) -> None:
+    # Antecipar o lock de DML antes de conferir o manifesto evita a corrida
+    # entre um check antigo e a promocao, que usa SHARE ROW EXCLUSIVE.
+    with connection.cursor() as cursor:
+        cursor.execute("LOCK TABLE public.documents IN ROW EXCLUSIVE MODE")
+
+
 def _replace_document_atomically(
     *,
     filename: str,
@@ -1997,6 +2028,10 @@ def _replace_document_atomically(
         db_advisory_xact_lock(lock_identity, connection=connection)
         if canonical_id:
             db_advisory_xact_lock(f"ingest:{filename}", connection=connection)
+        if Path(document_row["source"]).resolve().is_relative_to(Path(__file__).resolve().parent / "documentos"):
+            _lock_repository_document_writes(connection)
+            if not _repository_manifest_allows(document_row["source"], connection=connection):
+                raise ValueError("fonte nao selecionada no manifesto publicado")
         existing = supabase_select(
             "documents",
             select="id,filename,canonical_id,document_revision,metadata,processing_hash",
@@ -2368,17 +2403,18 @@ def _ingest_text_source(
             if canonical:
                 ensure_embedding_index_identity("corpus")
                 ensure_embedding_index_identity("sections")
-            supabase_update(
-                "documents",
-                {
-                    "title": title,
-                    "source": source,
-                    "doc_type": doc_type,
-                    "content_hash": content_digest,
-                    "priority": doc_priority,
-                },
-                {"id": f"eq.{existing[0]['id']}"},
-            )
+            update = {
+                "title": title, "source": source, "doc_type": doc_type,
+                "content_hash": content_digest, "priority": doc_priority,
+            }
+            if Path(source).resolve().is_relative_to(Path(__file__).resolve().parent / "documentos"):
+                with db_transaction() as connection:
+                    _lock_repository_document_writes(connection)
+                    if not _repository_manifest_allows(source, connection=connection):
+                        raise ValueError("fonte nao selecionada no manifesto publicado")
+                    supabase_update("documents", update, {"id": f"eq.{existing[0]['id']}"}, connection=connection)
+            else:
+                supabase_update("documents", update, {"id": f"eq.{existing[0]['id']}"})
         except Exception as exc:
             _log_ingest_error(filename, "update_document_metadata", exc)
             raise
@@ -2631,6 +2667,10 @@ def ingest_file(
     docs_root_path = Path(docs_root) if docs_root else None
     document_filename = filename_override or _path_to_document_filename(path, docs_root_path)
     source_id = _source_id(document_filename)
+
+    if not _repository_manifest_allows(str(path)):
+        return {"filename": document_filename, "chunks_count": 0,
+                "failed_chunks": 0, "skipped": True, "skip_reason": "manifest_not_active"}
 
     if _is_excluded_logistics_markdown(path):
         logger.info(
