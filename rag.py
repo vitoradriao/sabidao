@@ -36,7 +36,7 @@ from canonical_docs import (
     validate_manifest,
 )
 from bot_common import normalize_text
-from db import db_call, db_delete, db_insert, db_select, db_update, is_missing_function_error
+from db import db_call, db_delete, db_insert, db_select, db_table_exists, db_update, get_database_url, is_missing_function_error
 
 logger = logging.getLogger(__name__)
 
@@ -2313,6 +2313,19 @@ def _load_full_context_docs() -> str:
     if repository_corpus and not manifest_path.is_file():
         logger.warning("FULL_CONTEXT: manifesto do corpus nao encontrado.")
         return ""
+    if manifest_path and get_database_url():
+        try:
+            publication = (db_select("canonical_publication_state")
+                           if db_table_exists("public.canonical_publication_state") else [])
+            if publication and (
+                publication[0]["status"] != "applied"
+                or publication[0]["manifest_sha256"] != hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+            ):
+                logger.warning("FULL_CONTEXT: manifesto diverge da publicacao no banco.")
+                return ""
+        except Exception as exc:
+            logger.warning("FULL_CONTEXT: publicacao indisponivel (%s).", type(exc).__name__)
+            return ""
     selected_paths: set[Path] | None = None
     if manifest_path and manifest_path.is_file():
         try:

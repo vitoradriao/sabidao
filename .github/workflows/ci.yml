@@ -74,7 +74,8 @@ jobs:
             sql/migrate_canonical_retrieval_1536.sql \
             sql/add_embedding_index_identity.sql \
             sql/add_ingest_identity.sql \
-            sql/add_evaluation_identity.sql; do
+            sql/add_evaluation_identity.sql \
+            sql/add_canonical_promotion.sql; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
           done
       - name: Executar testes com banco real

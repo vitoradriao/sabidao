@@ -36,6 +36,7 @@ class PreservationTest(unittest.TestCase):
             (self.root / name).write_bytes((FIXTURES / name).read_bytes())
         (self.root / "figure.png").write_bytes(b"imagem sintetica")
         git(self.root, "init", "-q")
+        git(self.root, "config", "core.autocrlf", "false")
         git(self.root, "add", "source.md", "target.md", "figure.png")
         git(
             self.root,

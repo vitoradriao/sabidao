@@ -79,6 +79,9 @@ identifica a projeção e o processamento necessários para reutilizar vetores.
 Essa capacidade não promove o manifesto nem converte os 27 Markdown legados.
 Planeje a migração de cada lote com snapshot, verificação de preservação,
 comparação de consultas e rollback antes de executar ingestão operacional.
+O procedimento de [promoção de lotes canônicos](promocao-lotes-canonicos.md)
+descreve a ação explícita de troca e restauração; não execute `--force` ou
+`!reindex` para simular um split ou merge.
 
 ### Recuperação de fontes canônicas
 

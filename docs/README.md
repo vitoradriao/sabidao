@@ -16,6 +16,7 @@ Encontre o procedimento pelo que você precisa fazer. Estes guias descrevem o pr
 | Medir a qualidade das respostas | [Avaliação](../evaluation/README.md) |
 | Criar documentos no formato canônico v1 | [Contrato documental canônico](../contracts/canonical-docs/v1/README.md) |
 | Verificar preservação e consultas de um lote canônico | [Verificação de migração](verificacao-migracao-canonica.md) |
+| Promover ou reverter um lote canônico | [Promoção de lotes](promocao-lotes-canonicos.md) |
 | Classificar documentos e seções | [Taxonomia documental](taxonomia.md) |
 | Alterar e validar o projeto | [Como contribuir](../CONTRIBUTING.md) |
 
