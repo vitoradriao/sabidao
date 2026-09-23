@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "batch_id": "SUBSTITUIR_PELO_LOTE",
+  "frozen_at": null,
+  "environment": {
+    "disposable_database": false,
+    "original_snapshot_sha256": null,
+    "reference_snapshot": null,
+    "candidate_snapshot": null,
+    "reference_corpus_sha256": null,
+    "candidate_corpus_sha256": null
+  },
+  "declared_changes": ["database.corpus.sha256"],
+  "limits": {
+    "max_total_tokens": null,
+    "max_p95_latency_ms": null,
+    "max_cost_usd": null
+  },
+  "non_regression_metrics": [
+    {"path": "metrics.recall_at_20.rate", "direction": "higher"},
+    {"path": "metrics.factual_correctness.rate", "direction": "higher"},
+    {"path": "metrics.unsupported_claims.rate", "direction": "lower"},
+    {"path": "metrics.false_absence_claim.rate", "direction": "lower"}
+  ]
+}

@@ -24,9 +24,15 @@ declaração de validação operacional.
 | `datasets/maxpedido_seed_cases.json` | Fonte curada dos 30 casos. |
 | `datasets/maxpedido_eval_dataset.json` | Dataset normalizado usado pelo runner. |
 | `datasets/evaluator_synthetic_fixture.json` | Fixture sem banco ou API para testar o avaliador. |
+| `datasets/migration_batch_synthetic_fixture.json` | Casos sintéticos para exercitar consultas de um lote canônico. |
+| `migration_batch_policy.template.json` | Modelo não aprovado para congelar o ensaio de um lote. |
+| `verify_migration_batch.py` | Compara relatórios de referência e candidato sem chamar serviços. |
 | `build_dataset.py` | Normaliza os casos e acrescenta, opcionalmente, lacunas do banco. |
 | `run_offline_eval.py` | Executa o RAG, calcula métricas e produz o relatório. |
 | `run_contextual_ingest_benchmark.py` | Mede tempo, chunks e uso de providers na ingestão das variantes da issue #16. |
+
+Para verificar uma migração documental por lote, consulte o
+[procedimento de preservação e consultas](../docs/verificacao-migracao-canonica.md).
 
 ## Proveniência e revisão
 
