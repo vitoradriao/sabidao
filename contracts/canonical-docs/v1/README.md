@@ -3,10 +3,12 @@
 Este diretório especifica o formato editorial que documentos canônicos do
 Sabidão devem seguir. A versão `1.0.0` define a especificação usada pelo linter
 offline. A ingestão rejeita um documento que se declare canônico e viole o
-contrato antes de banco ou IA. A classificação editorial é projetada em
-metadados derivados com compatibilidade para os filtros atuais; a projeção da
-identidade editorial e revisão no banco permanece na issue #67. Os arquivos em
-`documentos/` não são migrados por essa validação.
+contrato antes de banco ou IA. A ingestão projeta identidade editorial, revisão,
+classificação, fontes e chaves de seção nos registros do índice, mantendo os
+campos de busca legados compatíveis. O front matter bruto não é indexado como
+conteúdo. O corpo Markdown fornece a evidência dos chunks; título e classificação
+editoriais podem compor o contexto de recuperação usado para embeddings. Os
+arquivos em `documentos/` não são migrados por essa validação.
 
 Os artefatos normativos são:
 
