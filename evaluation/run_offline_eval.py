@@ -27,8 +27,8 @@ import rag
 from bot_common import normalize_text
 
 
-EVALUATOR_SCHEMA_VERSION = 6
-METRIC_DEFINITIONS_VERSION = 2
+EVALUATOR_SCHEMA_VERSION = 7
+METRIC_DEFINITIONS_VERSION = 3
 METRIC_DEFINITIONS = {
     "behavior_match": (
         "Compara se a resposta ou abstencao ocorreu conforme expected_behavior."
@@ -38,8 +38,8 @@ METRIC_DEFINITIONS = {
         "fica nao avaliada quando expected_facts nao foi informado."
     ),
     "retrieval_relevance": (
-        "Verifica se ao menos uma evidencia de referencia foi recuperada pela fonte e, "
-        "quando informados, pelos termos esperados."
+        "Verifica fonte exata ou identidade canonica, revisao, secao, localizador "
+        "e termos declarados; alias exige identidade canonica verificavel."
     ),
     "recall_at_10": "Fracao das referencias distintas encontradas ate a posicao 10.",
     "recall_at_20": "Fracao das referencias distintas encontradas ate a posicao 20.",
@@ -322,17 +322,71 @@ def _evidence_specs(reference_evidence: Any) -> list[dict[str, Any]]:
             for value in raw_terms
             if value is not None and str(value).strip()
         ]
-        if source or terms:
-            specs.append({"source": source, "contains": terms})
+        canonical_id = str(item.get("canonical_id") or "").strip()
+        section_key = str(item.get("section_key") or "").strip()
+        source_id = str(item.get("source_id") or "").strip()
+        revision = item.get("document_revision", item.get("revision"))
+        locator = item.get("locator")
+        if revision is not None and (type(revision) is not int or revision < 1):
+            raise ValueError("reference_evidence.document_revision must be a positive integer")
+        if locator is not None and not isinstance(locator, dict):
+            raise ValueError("reference_evidence.locator must be an object")
+        if (revision is not None or section_key or source_id or locator is not None) and not canonical_id:
+            raise ValueError("Canonical evidence selectors require canonical_id")
+        if source or terms or canonical_id:
+            specs.append({
+                "source": source,
+                "contains": terms,
+                "canonical_id": canonical_id,
+                "document_revision": revision,
+                "section_key": section_key,
+                "source_id": source_id,
+                "locator": locator,
+            })
     return specs
 
 
 def _source_matches(actual: Any, expected: Any) -> bool:
     actual_value = str(actual or "").strip().replace("\\", "/").casefold()
     expected_value = str(expected or "").strip().replace("\\", "/").casefold()
-    if not actual_value or not expected_value:
-        return False
-    return actual_value == expected_value or Path(actual_value).name == Path(expected_value).name
+    return bool(actual_value and expected_value and actual_value == expected_value)
+
+
+def _evidence_matches_chunk(spec: dict[str, Any], chunk: dict[str, Any]) -> bool:
+    canonical_id = spec.get("canonical_id")
+    if canonical_id:
+        if str(chunk.get("canonical_id") or "").casefold() != canonical_id.casefold():
+            return False
+        if spec.get("document_revision") is not None and (
+            chunk.get("document_revision") != spec["document_revision"]
+        ):
+            return False
+        if spec.get("section_key") and chunk.get("section_key") != spec["section_key"]:
+            return False
+
+    source = spec.get("source")
+    if source and not _source_matches(chunk.get("filename") or chunk.get("source"), source):
+        aliases = chunk.get("aliases") or []
+        if not canonical_id or not isinstance(aliases, list) or not any(
+            _source_matches(alias, source) for alias in aliases
+        ):
+            return False
+
+    if spec.get("source_id") or spec.get("locator") is not None:
+        source_refs = chunk.get("source_refs") or []
+        if not isinstance(source_refs, list) or not any(
+            isinstance(ref, dict)
+            and (not spec["source_id"] or ref.get("source_id") == spec["source_id"])
+            and (spec["locator"] is None or ref.get("locator") == spec["locator"])
+            for ref in source_refs
+        ):
+            return False
+
+    normalized_content = normalize_text(str(chunk.get("content") or ""))
+    return all(
+        normalize_text(term) in normalized_content
+        for term in spec.get("contains", [])
+    )
 
 
 def _metric_detail(
@@ -543,21 +597,15 @@ def _retrieval_relevance(
     matches: list[dict[str, Any]] = []
     for evidence_index, spec in enumerate(specs, start=1):
         for chunk_index, chunk in enumerate(chunks or [], start=1):
-            source_matches = not spec["source"] or _source_matches(
-                chunk.get("filename"),
-                spec["source"],
-            )
-            normalized_content = normalize_text(str(chunk.get("content") or ""))
-            terms_match = all(
-                normalize_text(term) in normalized_content
-                for term in spec["contains"]
-            )
-            if source_matches and terms_match:
+            if _evidence_matches_chunk(spec, chunk):
                 matches.append(
                     {
                         "evidence_index": evidence_index,
                         "chunk_index": chunk_index,
                         "source": chunk.get("filename"),
+                        "canonical_id": chunk.get("canonical_id"),
+                        "document_revision": chunk.get("document_revision"),
+                        "section_key": chunk.get("section_key"),
                     }
                 )
 
@@ -617,19 +665,10 @@ def _retrieval_metrics(
 
     matched_evidence: dict[int, int] = {}
     for rank, chunk in enumerate(chunks or [], start=1):
-        normalized_content = normalize_text(str(chunk.get("content") or ""))
         for evidence_index, spec in enumerate(specs, start=1):
             if evidence_index in matched_evidence:
                 continue
-            source_matches = not spec["source"] or _source_matches(
-                chunk.get("filename"),
-                spec["source"],
-            )
-            terms_match = all(
-                normalize_text(term) in normalized_content
-                for term in spec["contains"]
-            )
-            if source_matches and terms_match:
+            if _evidence_matches_chunk(spec, chunk):
                 matched_evidence[evidence_index] = rank
 
     def recall_at(k: int) -> float:
@@ -685,21 +724,31 @@ def _citation_validity(
     if abstained:
         return None, {"reason": "abstention_not_applicable", "matched_sources": []}
 
-    expected_sources = [
-        spec["source"]
-        for spec in _evidence_specs(reference_evidence)
-        if spec["source"]
+    evidence_specs = [
+        spec for spec in _evidence_specs(reference_evidence)
+        if spec.get("source") or spec.get("canonical_id")
     ]
-    if not expected_sources:
+    if not evidence_specs:
         return None, {"reason": "missing_reference_sources", "matched_sources": []}
 
     grounding_errors = list(trace.get("grounding_errors") or [])
     cited_sources = list(trace.get("cited_files") or trace.get("citations") or [])
-    matched_sources = [
-        cited
-        for cited in cited_sources
-        if any(_source_matches(cited, expected) for expected in expected_sources)
-    ]
+    cited_refs = trace.get("cited_evidence_refs") or []
+    matched_sources: list[str] = []
+    for spec in evidence_specs:
+        if spec.get("canonical_id"):
+            citation_spec = {**spec, "contains": []}
+            matched_sources.extend(
+                str(ref.get("filename") or ref.get("source"))
+                for ref in cited_refs
+                if isinstance(ref, dict) and _evidence_matches_chunk(citation_spec, ref)
+            )
+        else:
+            matched_sources.extend(
+                str(cited)
+                for cited in cited_sources
+                if _source_matches(cited, spec["source"])
+            )
     valid = not grounding_errors and bool(matched_sources)
     return valid, {
         "grounding_errors": grounding_errors,
@@ -889,6 +938,16 @@ def _text_identity(text: str) -> dict[str, Any]:
     }
 
 
+def _canonical_manifest_identity() -> dict[str, Any]:
+    manifest = ROOT_DIR / "contracts" / "canonical-docs" / "manifest.yaml"
+    if not manifest.is_file():
+        return {"status": "missing", "sha256": None}
+    return {
+        "status": "available",
+        "sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+    }
+
+
 def _database_identity() -> dict[str, Any]:
     if not os.getenv("DATABASE_URL"):
         return {
@@ -1057,6 +1116,7 @@ def _experiment_identity(
         },
         "prompts_and_policies": _prompt_and_policy_identity(baseline_config),
         "database": database_identity,
+        "canonical_manifest": _canonical_manifest_identity(),
         "vector_indexes": _vector_identity_metadata(database_identity),
         "jev": _jev_identity(),
         "cache": {

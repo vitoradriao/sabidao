@@ -176,11 +176,28 @@ Em um volume novo, `docker/postgres/init/00-bootstrap.sh` aplica:
 7. `migrate_canonical_identity.sql`
 8. `migrate_priority.sql`
 9. `add_section_retrieval_1536.sql`
-10. `add_embedding_index_identity.sql`
-11. `add_ingest_identity.sql`
-12. `add_evaluation_identity.sql`
+10. `migrate_canonical_retrieval_1536.sql`
+11. `add_embedding_index_identity.sql`
+12. `add_ingest_identity.sql`
+13. `add_evaluation_identity.sql`
 
 A inicialização não é repetida em volumes existentes. Para atualizá-los, aplique as
 migrações correspondentes, começando pelas dependências ausentes, em um ambiente de
 testes antes da implantação. Os scripts `setup_1536.sql` e `setup_3072.sql` recriam
 tabelas e são destrutivos; não são procedimentos de upgrade de uma base com dados.
+
+## Recuperação e avaliação canônicas
+
+Após `migrate_canonical_identity.sql` e `add_section_retrieval_1536.sql`, aplique
+`migrate_canonical_retrieval_1536.sql` em bancos existentes com vetores de 1536
+dimensões. Para a variante de 3072 dimensões, use
+`migrate_canonical_retrieval_3072.sql` após a camada de busca correspondente.
+Essas migrações substituem as funções de busca para projetar identidade,
+revisão, seção e proveniência canônicas junto dos campos legados. Em seguida,
+reaplique `add_evaluation_identity.sql` para atualizar o fingerprint sanitizado
+do corpus. Faça snapshot e teste as consultas antes de atualizar a aplicação;
+os scripts não convertem documentos nem reindexam vetores.
+
+Uma versão anterior da aplicação pode voltar a usar as colunas adicionais. Para
+desfazer funções em produção, restaure a definição de busca validada para a base
+anterior; não execute `setup_1536.sql` nem `setup_3072.sql` como rollback.

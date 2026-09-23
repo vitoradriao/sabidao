@@ -98,6 +98,30 @@ class TestOfflineEvaluator(unittest.TestCase):
                 changed["fingerprint_sha256"],
             )
 
+    def test_experiment_fingerprint_tracks_manifest_eligibility(self):
+        database = self._verified_database_identity()
+        with (
+            patch.object(run_offline_eval, "_database_identity", return_value=database),
+            patch.object(
+                run_offline_eval,
+                "_canonical_manifest_identity",
+                return_value={"status": "available", "sha256": "manifesto-a"},
+            ),
+        ):
+            baseline = run_offline_eval._experiment_identity(None)
+        with (
+            patch.object(run_offline_eval, "_database_identity", return_value=database),
+            patch.object(
+                run_offline_eval,
+                "_canonical_manifest_identity",
+                return_value={"status": "available", "sha256": "manifesto-b"},
+            ),
+        ):
+            changed = run_offline_eval._experiment_identity(None)
+        self.assertNotEqual(
+            baseline["fingerprint_sha256"], changed["fingerprint_sha256"]
+        )
+
     def test_experiment_identity_inclui_contrato_jev_sem_chave(self):
         database = self._verified_database_identity()
         with patch.object(run_offline_eval, "_database_identity", return_value=database):
@@ -335,8 +359,8 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIsNotNone(summary["p95_latency_ms"])
         self.assertIn("factual_correctness", summary["metric_definitions"])
         self.assertIn("evidence_discounted_coverage_at_10", summary["metric_definitions"])
-        self.assertEqual(summary["metric_definitions_version"], 2)
-        self.assertEqual(summary["evaluator_schema_version"], 6)
+        self.assertEqual(summary["metric_definitions_version"], 3)
+        self.assertEqual(summary["evaluator_schema_version"], 7)
         self.assertEqual(summary["score_evaluated"], 4)
 
     def test_false_absence_claim_is_measured_only_for_expected_answers(self):
@@ -472,6 +496,72 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(details["ndcg_at_10"]["unavailable_reason"], "missing_qrels")
         self.assertEqual(details["retrieved_depth"], 15)
 
+    def test_canonical_reference_requires_revision_section_and_locator(self):
+        canonical_id = "10000000-0000-4000-8000-000000000001"
+        locator = {"kind": "line_range", "start": 10, "end": 12}
+        chunk = {
+            "filename": "docs/novo.md",
+            "aliases": ["docs/antigo.md"],
+            "canonical_id": canonical_id,
+            "document_revision": 2,
+            "section_key": "conta-corrente",
+            "source_refs": [{"source_id": "manual", "locator": locator}],
+            "content": "Passos confirmados para conta corrente",
+        }
+        reference = [{
+            "source": "docs/antigo.md",
+            "canonical_id": canonical_id,
+            "document_revision": 2,
+            "section_key": "conta-corrente",
+            "source_id": "manual",
+            "locator": locator,
+            "contains": ["Passos confirmados"],
+        }]
+
+        relevance, _ = run_offline_eval._retrieval_relevance([chunk], reference)
+        cited_ref = {**chunk, "source": chunk["filename"]}
+        del cited_ref["filename"]
+        citation, _ = run_offline_eval._citation_validity(
+            False,
+            {"cited_evidence_refs": [cited_ref], "cited_files": ["docs/novo.md"]},
+            reference,
+        )
+        self.assertTrue(relevance)
+        self.assertTrue(citation)
+
+        wrong_revision = [{**reference[0], "document_revision": 1}]
+        wrong_section = [{**reference[0], "section_key": "outra-secao"}]
+        for invalid in (wrong_revision, wrong_section):
+            self.assertFalse(run_offline_eval._retrieval_relevance([chunk], invalid)[0])
+            self.assertFalse(run_offline_eval._citation_validity(
+                False,
+                {"cited_evidence_refs": [cited_ref], "cited_files": ["docs/novo.md"]},
+                invalid,
+            )[0])
+
+    def test_alias_without_canonical_identity_and_basename_do_not_match(self):
+        chunks = [
+            {
+                "filename": "docs/novo-a.md",
+                "canonical_id": "10000000-0000-4000-8000-000000000001",
+                "aliases": ["antigo.md"],
+                "content": "alfa",
+            },
+            {
+                "filename": "docs/novo-b.md",
+                "canonical_id": "10000000-0000-4000-8000-000000000002",
+                "aliases": ["antigo.md"],
+                "content": "beta",
+            },
+        ]
+        self.assertFalse(run_offline_eval._retrieval_relevance(
+            chunks, ["antigo.md"]
+        )[0])
+        self.assertFalse(run_offline_eval._retrieval_relevance(
+            [{"filename": "docs/legado.md", "content": "alfa"}],
+            ["legado.md"],
+        )[0])
+
     def test_ndcg_uses_explicit_qrels_and_judged_pool(self):
         evidence = [{"source": "a.md", "contains": ["alfa"]}]
         judgments = {
@@ -498,7 +588,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(metrics["ndcg_at_10"], 0.7896)
         self.assertEqual(details["ndcg_at_10"]["judged_universe_id"], "pool-v1")
         self.assertEqual(details["ndcg_at_10"]["judged_count"], 3)
-        self.assertEqual(details["ndcg_at_10"]["definition_version"], 2)
+        self.assertEqual(details["ndcg_at_10"]["definition_version"], 3)
         self.assertEqual(metrics["evidence_discounted_coverage_at_10"], 0.6309)
 
         ideal_metrics, _ = run_offline_eval._retrieval_metrics(
