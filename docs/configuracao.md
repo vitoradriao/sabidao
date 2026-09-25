@@ -56,10 +56,9 @@ O bot valida providers, credenciais, modelos e URLs antes de iniciar. As
 mensagens de erro citam apenas o nome da configuração inválida; secrets não são
 incluídos nos avisos ou erros de validação.
 
-## Cliente TypeSafe/Jev (issue #89, entrega pendente nesta branch)
+## Cliente TypeSafe/Jev (issue #89)
 
-Esta seção descreve a entrega JEV-01 presente nesta branch para revisão e
-integração. Ela não anuncia publicação na `master`. O cliente é opcional: a
+O cliente JEV-01 está presente na `master` e é opcional: a
 política de cada consumidor define quando uma decisão Jev é necessária; não há
 modo *shadow* nem uma flag global adicional nesta entrega.
 
@@ -169,6 +168,59 @@ reverter a entrega, remova o módulo e as configurações da issue #89 junto com
 as referências consumidoras correspondentes. O rollback não exige migração de
 banco, alteração de schema, reindexação, recálculo de embeddings ou
 reingestão.
+
+## Reranking Jev (issue #91, entrega pendente nesta branch)
+
+O perfil padrão mantém `RAG_RERANK_PROVIDER=existing` e o reranker atual.
+Para usar Jev diretamente no caminho de resposta, configure
+`RAG_ENABLE_RERANKING=true`, `RAG_RERANK_PROVIDER=jev` e uma
+`TYPESAFE_API_KEY` válida. Com `RAG_ENABLE_RERANKING=false`, nenhum reranker
+é chamado. A opção `jev` altera a ordem dos candidatos usados para montar o
+contexto do gerador; ela não ativa um período de observação e não muda a
+recuperação, a geração nem as regras de abstenção.
+
+Perfil de ensaio ativo, após disponibilizar a chave no ambiente seguro da
+instalação:
+
+```dotenv
+RAG_ENABLE_RERANKING=true
+RAG_RERANK_PROVIDER=jev
+JEV_MODEL=jev-1.13.0
+```
+
+| Variável | Default | Finalidade |
+| --- | ---: | --- |
+| `RAG_RERANK_PROVIDER` | `existing` | Seleciona `existing` ou `jev`; qualquer outro valor é inválido. |
+| `JEV_RERANK_MAX_CANDIDATES` | `20` | Limita a avaliação aos primeiros candidatos recuperados; aceita `2` a `40`. |
+| `JEV_MAX_STATE_ESTIMATED_TOKENS` | `24000` | Teto conservador para o `state` e a pergunta enviados em cada decisão; aceita `1` a `24000`. |
+
+Jev classifica a relevância de cada candidato selecionado com uma pergunta
+Noul. A pontuação apenas reordena: nenhum candidato é removido por limiar, e
+os que excedem o limite de quantidade permanecem na cauda original. O
+conteúdo selecionado é enviado por inteiro; se exceder o orçamento estimado,
+a etapa Jev é descartada sem truncamento silencioso. O limite usa um
+estimador local e não garante a contagem exata do provider.
+Os candidatos reordenados recebem `jev.state_sha256`, hash do `state`
+efetivamente enviado, para referência pelo avaliador. O hash não inclui a
+posição de recuperação e não expõe o conteúdo no `ASK_TRACE`.
+
+Uma ordem Jev só é aplicada se todas as decisões selecionadas forem válidas.
+Em falha, o fluxo tenta o reranker `existing` apenas quando a condição
+original dele e a reserva do prazo ainda permitem; caso contrário conserva
+a ordem recuperada. `ASK_TRACE` registra provider solicitado e efetivo,
+aplicação, contagens, motivo de fallback, versão do prompt, latência e custo
+conhecido, sem copiar pergunta, conteúdo, credencial ou resposta bruta.
+Cada candidato gera uma chamada distinta com `attempt=1`; não é retry.
+Se a busca global de fallback for acionada depois do primeiro contexto, o
+pipeline pode executar uma segunda passagem de reranking sobre os candidatos
+combinados; o limite de candidatos vale para cada passagem. O custo total e
+os dois registros ficam associados à mesma pergunta.
+
+Para voltar ao comportamento anterior, configure
+`RAG_RERANK_PROVIDER=existing` ou desabilite `RAG_ENABLE_RERANKING`. O
+rollback não exige migração, reindexação nem recálculo de embeddings. A
+comparação operacional ativa depende do runner da issue #90 e da rodada da
+issue #93; os testes sintéticos desta entrega não demonstram ganho real.
 
 ## Compatibilidade com nomes antigos
 
