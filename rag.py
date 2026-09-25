@@ -3667,6 +3667,211 @@ def _reformulate_query_with_history(
 
 
 # -- Re-ranking com LLM (P1.1) -------------------------------------------------
+JEV_RERANK_PROMPT_VERSION = "jev-rerank-pt-v1"
+_JEV_RERANK_QUESTION = {
+    "relevance": {
+        "type": "noul",
+        "instructions": (
+            "Este trecho documental e relevante para responder a pergunta de suporte? "
+            "Considere instrucoes, campos, telas, erros e procedimentos especificos. "
+            "A probabilidade da resposta sim serve apenas para ordenar; nao descarte trechos."
+        ),
+    }
+}
+
+
+def _jev_candidate_id(chunk: dict) -> str:
+    metadata = _chunk_meta(chunk)
+    identity = (
+        metadata.get("snapshot_id") or metadata.get("corpus_snapshot_id")
+        or _chunk_analytical_value(chunk, "document_revision", "")
+        or ""
+    )
+    fields = [
+        str(identity),
+        str(chunk.get("id") or ""),
+        str(chunk.get("document_id") or chunk.get("filename") or ""),
+        str(chunk.get("filename") or ""),
+        str(chunk.get("section_id") or ""),
+        str(_chunk_index_value(chunk)),
+        hashlib.sha256(str(chunk.get("content") or "").encode("utf-8")).hexdigest(),
+    ]
+    return hashlib.sha256(json.dumps(fields, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _rerank_chunks_with_jev(
+    query: str,
+    chunks: list[dict],
+    *,
+    request_id: str | None = None,
+    model_calls: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict], dict[str, Any]]:
+    """Aplica uma passagem Jev completa ou devolve a entrada sem alteracao."""
+    started_at = _time.monotonic()
+    config.validate_jev_config(active=True)
+    deduped_chunks = _dedupe_chunks(chunks)
+    candidates = deduped_chunks[: int(config.JEV_RERANK_MAX_CANDIDATES)]
+    summary: dict[str, Any] = {
+        "requested_provider": "jev",
+        "effective_provider": "retrieval",
+        "applied": False,
+        "candidate_count": len(candidates),
+        "candidate_pool_count": len(deduped_chunks),
+        "excluded_by_cap_count": len(deduped_chunks) - len(candidates),
+        "decisions_completed": 0,
+        "fallback_reason": None,
+        "prompt_version": JEV_RERANK_PROMPT_VERSION,
+        "model_requested": config.JEV_MODEL,
+        "model_effective": None,
+        "estimated_cost_usd": 0.0,
+        "cost_complete": True,
+        "latency_ms": 0,
+    }
+
+    def fallback(reason: str) -> tuple[list[dict], dict[str, Any]]:
+        summary["fallback_reason"] = reason
+        summary["latency_ms"] = int((_time.monotonic() - started_at) * 1000)
+        return chunks, summary
+
+    if len(candidates) < 2:
+        return fallback("insufficient_candidates")
+
+    deadline = _request_deadline.get()
+    if deadline is not None and deadline - started_at <= config.JEV_MIN_REMAINING_SECONDS:
+        return fallback("deadline_reserve")
+
+    states: list[dict[str, str]] = []
+    for chunk in candidates:
+        state = {
+            "pergunta": query,
+            "trecho_documental": str(chunk.get("content") or ""),
+            "titulo": str(_chunk_analytical_value(chunk, "heading_path", "") or ""),
+            "fonte": str(chunk.get("filename") or ""),
+        }
+        estimate, _ = _count_context_text(
+            json.dumps(state, ensure_ascii=False) + json.dumps(_JEV_RERANK_QUESTION),
+            provider="typesafe",
+            model=config.JEV_MODEL,
+        )
+        if estimate > config.JEV_MAX_STATE_ESTIMATED_TOKENS:
+            return fallback("state_limit")
+        states.append(state)
+
+    scores: list[float] = []
+    effective_models: list[str] = []
+    client = None
+    try:
+        client = jev.TypeSafeClient()
+        for chunk, state in zip(candidates, states):
+            remaining = config.JEV_STAGE_TIMEOUT_SECONDS - (_time.monotonic() - started_at)
+            if remaining <= 0:
+                return fallback("stage_budget_exhausted")
+            result = client.decide(
+                state,
+                _JEV_RERANK_QUESTION,
+                stage="rerank",
+                request_id=request_id,
+                candidate_id=_jev_candidate_id(chunk),
+                deadline=deadline,
+                stage_budget_seconds=remaining,
+            )
+            _record_jev_decision(model_calls, result=result, stage="rerank")
+            summary["model_effective"] = result.model_effective or result.model_requested
+            if result.estimated_cost_usd is None:
+                summary["cost_complete"] = False
+                summary["estimated_cost_usd"] = None
+            elif summary["estimated_cost_usd"] is not None:
+                summary["estimated_cost_usd"] += result.estimated_cost_usd
+            if not result.ok:
+                return fallback(result.status)
+            answer = result.answers.get("relevance")
+            score = answer.get("noul") if isinstance(answer, dict) else None
+            if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score) or not 0 <= score <= 1:
+                return fallback("invalid_response")
+            scores.append(float(score))
+            effective_models.append(result.model_effective or result.model_requested)
+            summary["decisions_completed"] += 1
+    except jev.JevConfigurationError:
+        raise
+    except Exception as exc:
+        logger.warning("Erro no re-ranking Jev (%s).", type(exc).__name__)
+        return fallback("client_error")
+    finally:
+        if client is not None:
+            client.close()
+
+    order = sorted(range(len(candidates)), key=lambda index: (-scores[index], index))
+    reranked: list[dict] = []
+    for new_rank, index in enumerate(order, start=1):
+        chunk = dict(candidates[index])
+        state_hash = hashlib.sha256(
+            json.dumps(states[index], ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        chunk["jev"] = {
+            "relevance": scores[index],
+            "model_effective": effective_models[index],
+            "prompt_version": JEV_RERANK_PROMPT_VERSION,
+            "state_sha256": state_hash,
+            "status": "ok",
+            "original_rank": index + 1,
+            "reranked_rank": new_rank,
+        }
+        reranked.append(chunk)
+    reranked.extend(deduped_chunks[len(candidates):])
+    summary["effective_provider"] = "jev"
+    summary["applied"] = True
+    summary["fallback_reason"] = None
+    summary["latency_ms"] = int((_time.monotonic() - started_at) * 1000)
+    return reranked, summary
+
+
+def _rerank_chunks(
+    query: str,
+    chunks: list[dict],
+    *,
+    request_id: str | None = None,
+    model_calls: list[dict[str, Any]] | None = None,
+    trace: dict[str, Any] | None = None,
+) -> list[dict]:
+    """Seleciona provider preservando o fluxo existente como fallback."""
+    if not config.RAG_ENABLE_RERANKING or config.RAG_RERANK_PROVIDER == "existing":
+        result = _rerank_chunks_with_llm(query, chunks, request_id=request_id, model_calls=model_calls)
+        if trace is not None:
+            trace.setdefault("rerank", []).append({
+                "requested_provider": config.RAG_RERANK_PROVIDER,
+                "effective_provider": "existing" if result is not chunks else "retrieval",
+                "applied": result is not chunks,
+                "candidate_count": None,
+                "fallback_reason": None,
+            })
+        return result
+
+    result, summary = _rerank_chunks_with_jev(query, chunks, request_id=request_id, model_calls=model_calls)
+    if not summary["applied"]:
+        deadline = _request_deadline.get()
+        remaining = float("inf") if deadline is None else deadline - _time.monotonic()
+        if remaining > config.JEV_MIN_REMAINING_SECONDS and _should_rerank_chunks(chunks):
+            token = None
+            if deadline is not None:
+                token = _request_deadline.set(deadline - config.JEV_MIN_REMAINING_SECONDS)
+            try:
+                result = _rerank_chunks_with_llm(
+                    query, chunks, request_id=request_id, model_calls=model_calls
+                )
+                if deadline is not None:
+                    _ensure_request_active("rerank")
+            except RequestDeadlineExceeded:
+                result = chunks
+            finally:
+                if token is not None:
+                    _request_deadline.reset(token)
+            summary["effective_provider"] = "existing" if result is not chunks else "retrieval"
+            summary["applied"] = result is not chunks
+    if trace is not None:
+        trace.setdefault("rerank", []).append(summary)
+    return result
+
+
 def _rerank_chunks_with_llm(
     query: str,
     chunks: list[dict],
@@ -4347,11 +4552,12 @@ def _ask_impl(
 
     _ensure_request_active("rerank")
     stage_started_at = _time.monotonic()
-    ranked_chunks = _rerank_chunks_with_llm(
+    ranked_chunks = _rerank_chunks(
         search_query,
         merged_chunks,
         request_id=query_id,
         model_calls=trace["model_calls"],
+        trace=trace,
     )
     evaluation_chunks = ranked_chunks[:20]
     chunks = _limit_chunk_diversity(
@@ -4421,11 +4627,12 @@ def _ask_impl(
                 additional_searches + 1
             )
             combined_chunks = _dedupe_chunks(chunks + broad_merged)
-            fallback_ranked_chunks = _rerank_chunks_with_llm(
+            fallback_ranked_chunks = _rerank_chunks(
                 search_query,
                 combined_chunks,
                 request_id=query_id,
                 model_calls=trace["model_calls"],
+                trace=trace,
             )
             fallback_chunks = _limit_chunk_diversity(
                 fallback_ranked_chunks,
