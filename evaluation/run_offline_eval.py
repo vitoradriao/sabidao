@@ -5,6 +5,8 @@ Runs offline end-to-end evaluation against the current RAG pipeline and stores r
 from __future__ import annotations
 
 import argparse
+import copy
+from contextlib import ExitStack
 import hashlib
 import json
 import math
@@ -16,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sys
 from typing import Any, Callable, Mapping
+from unittest.mock import patch
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -49,6 +52,11 @@ RETRIEVAL_STAGE_NAMES = (
 COMPARISON_VIEWS = (
     "ranking_ablation_same_pool",
     "end_to_end_same_snapshot",
+)
+PAIRED_EXPERIMENTAL_VARIABLES = (
+    "comparison.variant_id",
+    "rag_config.RAG_RERANK_PROVIDER",
+    "rag_config.RAG_ENABLE_RERANKING",
 )
 
 
@@ -193,11 +201,12 @@ _CONFIG_FIELDS = (
     "RAG_PROVIDER_MAX_RETRIES",
     "RAG_RETRY_BASE_SECONDS",
     "JEV_MODEL",
-    "JEV_RERANK_MAX_CANDIDATES",
     "JEV_MAX_CONCURRENCY",
     "JEV_REQUEST_TIMEOUT_SECONDS",
     "JEV_STAGE_TIMEOUT_SECONDS",
     "JEV_MIN_REMAINING_SECONDS",
+    "JEV_RERANK_MAX_CANDIDATES",
+    "JEV_MAX_STATE_ESTIMATED_TOKENS",
 )
 
 AnswerProvider = Callable[[str, dict[str, Any]], tuple[str, list[dict], dict[str, Any]]]
@@ -250,14 +259,9 @@ def _invoke_comparison_provider(
     variant_id: str,
     mode: str,
     candidate_pool: list[dict] | None,
-    frozen_query: str | None = None,
-    query_capture: list[str] | None = None,
 ) -> tuple[str, list[dict], dict[str, Any]]:
     if provider is None:
-        return _active_comparison_provider(
-            case, scope, variant_id=variant_id, mode=mode, candidate_pool=candidate_pool,
-            frozen_query=frozen_query, query_capture=query_capture,
-        )
+        raise VariantUnavailableError(f"provider ausente para variante: {variant_id}")
     question = str(case.get("question") or "").strip()
     try:
         import inspect
@@ -288,69 +292,6 @@ def _invoke_comparison_provider(
         raise VariantConfigurationError(
             f"provider inválido para variante {variant_id}: {type(exc).__name__}"
         ) from exc
-
-
-def _active_comparison_provider(
-    case: dict[str, Any],
-    scope: dict[str, Any],
-    *,
-    variant_id: str,
-    mode: str,
-    candidate_pool: list[dict] | None,
-    frozen_query: str | None = None,
-    query_capture: list[str] | None = None,
-) -> tuple[str, list[dict], dict[str, Any]]:
-    if variant_id == VARIANT_JEV_RERANK_GATE:
-        raise VariantUnavailableError("O evidence gate da #92 não está implementado.")
-    provider = "jev" if variant_id == VARIANT_JEV_RERANK else "existing"
-    provider_token = rag._offline_eval_rerank_provider.set(provider)
-    pool_token = rag._offline_eval_candidate_pool.set(
-        candidate_pool if mode == "ranking_ablation" else None
-    )
-    ablation_token = rag._offline_eval_same_pool_ablation.set(
-        mode == "ranking_ablation"
-    )
-    query_token = rag._offline_eval_search_query.set(
-        frozen_query if mode == "ranking_ablation" else None
-    )
-    capture_token = rag._offline_eval_query_capture.set(query_capture)
-    try:
-        history = case.get("conversation_history")
-        answer, chunks, trace = rag.ask(
-            str(case.get("question") or "").strip(),
-            conversation_history=history if isinstance(history, list) else None,
-            images=None,
-            system_prompt=None,
-            platform="offline_eval",
-            scope=scope,
-        )
-    finally:
-        rag._offline_eval_query_capture.reset(capture_token)
-        rag._offline_eval_search_query.reset(query_token)
-        rag._offline_eval_same_pool_ablation.reset(ablation_token)
-        rag._offline_eval_candidate_pool.reset(pool_token)
-        rag._offline_eval_rerank_provider.reset(provider_token)
-    if variant_id == VARIANT_JEV_RERANK and not trace.get("rerank"):
-        trace.setdefault("comparison", {}).update({
-            "effective_variant": VARIANT_EXISTING,
-            "fallback_stage": "rerank",
-            "fallback_reason": "jev_not_reached",
-        })
-    expected_identity = scope.get("_comparison_experiment_identity")
-    if isinstance(expected_identity, dict):
-        expected_database = expected_identity.get("database")
-        current_database = _database_identity()
-        if (
-            not isinstance(expected_database, dict)
-            or expected_database.get("status") != "verified"
-            or current_database != expected_database
-        ):
-            raise VariantConfigurationError(
-                "snapshot do banco diverge da identidade pareada verificada."
-            )
-        trace["snapshot_id"] = scope["_comparison_snapshot_id"]
-        trace["experiment_identity"] = expected_identity
-    return answer, chunks, trace
 
 
 def _load_dataset(path: Path) -> list[dict[str, Any]]:
@@ -479,6 +420,15 @@ def _comparison_profile(baseline_config: dict[str, Any] | None) -> dict[str, Any
         raise VariantConfigurationError(
             "controls.evidence_window não corresponde ao construtor ou expõe texto bruto."
         )
+    reranker_window = controls.get("reranker_input_window")
+    if not isinstance(reranker_window, dict) or reranker_window != {
+        "existing": "up_to_500_characters_per_candidate",
+        "jev_rerank": "full_candidate_text_subject_to_state_cap",
+        "model_only_gain_attribution": "unavailable_until_equalized",
+    }:
+        raise VariantConfigurationError(
+            "controls.reranker_input_window deve declarar a diferença A/B de entrada."
+        )
     return {
         **profile,
         "variants": normalized_variants,
@@ -524,13 +474,120 @@ def _validate_variant_execution(
         raise VariantUnavailableError(
             f"A variante {variant_id} está indisponível: {reason}."
         )
-    if variant_id == VARIANT_JEV_RERANK_GATE and answer_provider is None:
+    if variant_id == VARIANT_JEV_RERANK and answer_provider is None:
+        config.validate_jev_config(active=True)
+    if not definition["available_without_provider"] and answer_provider is None:
         requirements = ", ".join(definition["requires"])
         raise VariantUnavailableError(
             f"A variante {variant_id} ainda não possui caminho ativo no rag.ask; "
             f"integre {requirements} ou forneça um provider fake explícito."
         )
     return definition
+
+
+def _live_comparison_provider(
+    question: str,
+    scope: dict[str, Any],
+    *,
+    variant_id: str,
+    mode: str,
+    candidate_pool: list[dict] | None,
+    conversation_history: list[dict] | None,
+    frozen_query: str | None = None,
+    query_capture: list[str] | None = None,
+) -> tuple[str, list[dict], dict[str, Any]]:
+    """Executa rag.ask; a ablação B reutiliza pool e consulta efetiva de A."""
+    observed_queries = query_capture if query_capture is not None else []
+    with ExitStack() as patches:
+        reformulate = rag._reformulate_query_with_history
+
+        def _capture_reformulated_query(
+            question: str,
+            history: list[dict] | None,
+            **kwargs: Any,
+        ) -> str:
+            effective_query = (
+                frozen_query
+                if frozen_query is not None
+                else reformulate(question, history, **kwargs)
+            )
+            observed_queries.append(effective_query)
+            return effective_query
+
+        patches.enter_context(
+            patch.object(
+                rag,
+                "_reformulate_query_with_history",
+                side_effect=_capture_reformulated_query,
+            )
+        )
+        patches.enter_context(
+            patch.object(
+                config,
+                "RAG_RERANK_PROVIDER",
+                "jev" if variant_id == VARIANT_JEV_RERANK else "existing",
+            )
+        )
+        if variant_id == VARIANT_JEV_RERANK:
+            patches.enter_context(patch.object(config, "RAG_ENABLE_RERANKING", True))
+        if mode == "ranking_ablation" and variant_id != VARIANT_EXISTING:
+            if candidate_pool is None:
+                raise VariantConfigurationError(
+                    "A ablação Jev exige candidate_pool capturado da variante existing."
+                )
+            frozen_pool = copy.deepcopy(candidate_pool)
+
+            def replay_retrieval(
+                _query: str,
+                *,
+                query_plan: dict | None,
+                scope: dict | None,
+                retrieval_trace: dict[str, Any] | None = None,
+            ) -> tuple[list[dict], list[dict], list[dict]]:
+                if retrieval_trace is not None:
+                    retrieval_trace["candidate_pool_replay"] = True
+                return copy.deepcopy(frozen_pool), [], copy.deepcopy(frozen_pool)
+
+            patches.enter_context(
+                patch.object(rag, "retrieve_chunks_with_feedback", replay_retrieval)
+            )
+            patches.enter_context(
+                patch.object(rag, "_MAX_ADDITIONAL_DATABASE_SEARCHES_PER_REQUEST", 0)
+            )
+        answer, chunks, trace = rag.ask(
+            question,
+            conversation_history=conversation_history,
+            images=None,
+            system_prompt=None,
+            platform="offline_eval",
+            scope=scope,
+        )
+    reranks = trace.get("rerank") or []
+    rerank = reranks[-1] if reranks and isinstance(reranks[-1], dict) else {}
+    jev_applied = (
+        variant_id == VARIANT_JEV_RERANK
+        and rerank.get("requested_provider") == "jev"
+        and rerank.get("effective_provider") == "jev"
+        and rerank.get("applied") is True
+    )
+    trace["comparison"] = {
+        "effective_variant": (
+            VARIANT_JEV_RERANK if jev_applied else VARIANT_EXISTING
+        ),
+        "fallback_stage": (
+            "rerank" if variant_id == VARIANT_JEV_RERANK and not jev_applied else None
+        ),
+        "fallback_reason": (
+            rerank.get("fallback_reason") or "jev_not_applied"
+            if variant_id == VARIANT_JEV_RERANK and not jev_applied
+            else None
+        ),
+        "effective_reranker_provider": rerank.get("effective_provider", "retrieval"),
+        "effective_reranker_model": rerank.get("model_effective"),
+    }
+    trace["snapshot_id"] = scope.get("_comparison_snapshot_id")
+    trace["experiment_identity"] = scope.get("_comparison_experiment_identity")
+    return answer, chunks, trace
 
 
 def _comparison_metadata(
@@ -553,7 +610,6 @@ def _comparison_metadata(
         "snapshot_id": snapshot_id,
         "view": view,
         "requested_variant": variant_id,
-        "rerank_provider": "jev" if variant_id == VARIANT_JEV_RERANK else "existing",
         "effective_variant": variant_id,
         "fallback_stage": None,
         "fallback_reason": None,
@@ -1866,7 +1922,6 @@ def _experiment_identity(
             for key in (
                 "profile_version",
                 "variant_id",
-                "rerank_provider",
                 "pair_id",
                 "snapshot_id",
                 "view",
@@ -2299,29 +2354,6 @@ def _trace_for_report(
     safe_trace = _sanitize_evaluation_metadata({**trace, "comparison": comparison})
     if not isinstance(safe_trace, dict):
         return {"comparison": comparison}
-    evidence = trace.get("jev_evidence")
-    safe_trace["jev_evidence"] = [
-        {
-            "candidate_id": (
-                item["candidate_id"]
-                if re.fullmatch(r"[0-9a-f]{64}", str(item["candidate_id"]))
-                else _opaque_report_id(item["candidate_id"])
-            ),
-            "state_sha256": item["state_sha256"],
-            "status": item["status"],
-        }
-        for item in (evidence if isinstance(evidence, list) else [])
-        if isinstance(item, dict)
-        and re.fullmatch(r"[0-9a-f]{64}", str(item.get("state_sha256") or ""))
-        and re.fullmatch(r"[a-z0-9_]{1,40}", str(item.get("status") or ""))
-        and item.get("candidate_id")
-    ]
-    if isinstance(safe_trace.get("rerank"), list):
-        safe_trace["rerank"] = [
-            {key: value for key, value in item.items() if key != "evidence"}
-            for item in safe_trace["rerank"]
-            if isinstance(item, dict)
-        ]
     stages = safe_trace.get("retrieval_stages")
     if isinstance(stages, dict):
         safe_trace["retrieval_stages"] = {
@@ -2410,11 +2442,28 @@ def run_evaluation(
         raise ValueError(f"Dataset has no cases for split: {split}")
 
     started_at = datetime.now(timezone.utc).isoformat()
-    runtime_metadata = _runtime_metadata(
-        dataset,
-        baseline_config,
-        comparison=comparison,
-    )
+    with ExitStack() as variant_config:
+        variant_config.enter_context(patch.object(
+            config,
+            "RAG_RERANK_PROVIDER",
+            "jev" if variant_id == VARIANT_JEV_RERANK else "existing",
+        ))
+        if variant_id == VARIANT_JEV_RERANK:
+            variant_config.enter_context(patch.object(config, "RAG_ENABLE_RERANKING", True))
+        runtime_metadata = _runtime_metadata(
+            dataset,
+            baseline_config,
+            comparison=comparison,
+        )
+    if (pair_id is not None or snapshot_id is not None) and (
+        runtime_metadata["experiment_identity"]["database"].get("status") != "verified"
+        or _has_identity_status(
+            runtime_metadata["experiment_identity"], {"unknown", "mismatch"}
+        )
+    ):
+        raise VariantConfigurationError(
+            "A execução pareada exige identidade verificada do banco e do índice."
+        )
     runtime_metadata["selection"] = {
         "split": split,
         "limit": limit,
@@ -2432,6 +2481,14 @@ def run_evaluation(
         if reference_runtime is not None
         else None
     )
+    if (
+        (pair_id is not None or snapshot_id is not None)
+        and runtime_comparison is not None
+        and not runtime_comparison["compatible"]
+    ):
+        raise VariantConfigurationError(
+            "A identidade do runtime diverge entre as variantes pareadas."
+        )
     run_id = "DRY_RUN"
     if not dry_run:
         run_id = _insert_run(
@@ -2467,12 +2524,13 @@ def run_evaluation(
 
         t0 = time.perf_counter()
         if answer_provider is None:
-            answer, chunks, trace = _active_comparison_provider(
-                case,
+            answer, chunks, trace = _live_comparison_provider(
+                question,
                 provider_scope,
                 variant_id=variant_id,
                 mode="end_to_end",
                 candidate_pool=None,
+                conversation_history=conversation_history,
             )
         else:
             answer, chunks, trace = answer_provider(question, provider_scope)
@@ -2519,6 +2577,7 @@ def run_evaluation(
                 "fallback",
                 "effective_reranker_provider",
                 "effective_reranker_model",
+                "same_rerank_query",
                 "evidence_window",
             ):
                 if key in provider_comparison:
@@ -2532,29 +2591,6 @@ def run_evaluation(
             if provider_reranker.get("model") is not None:
                 trace_comparison["effective_reranker_model"] = str(
                     provider_reranker["model"]
-                )
-        rerank_stages = trace.get("rerank")
-        if variant_id == VARIANT_JEV_RERANK and isinstance(rerank_stages, list):
-            failures = [
-                stage for stage in rerank_stages
-                if isinstance(stage, dict)
-                and (stage.get("effective_provider") != "jev" or not stage.get("applied"))
-            ]
-            if failures or not rerank_stages:
-                failure = failures[0] if failures else {}
-                trace_comparison["effective_variant"] = VARIANT_EXISTING
-                trace_comparison["fallback_stage"] = "rerank"
-                trace_comparison["fallback_reason"] = str(
-                    failure.get("fallback_reason") or "jev_not_applied"
-                )
-            else:
-                trace_comparison["effective_variant"] = VARIANT_JEV_RERANK
-            if rerank_stages and isinstance(rerank_stages[-1], dict):
-                trace_comparison["effective_reranker_provider"] = rerank_stages[-1].get(
-                    "effective_provider"
-                )
-                trace_comparison["effective_reranker_model"] = rerank_stages[-1].get(
-                    "model_effective"
                 )
         if "context_envelope" not in trace and isinstance(
             trace.get("context_selection"), dict
@@ -2987,11 +3023,16 @@ def _paired_view(
             for variant_id in variant_ids
         )
     ]
+    missing_query_cases: list[str] = []
+    mismatched_query_cases: list[str] = []
     for case_id in case_ids:
         reference = reference_cases[case_id]
         row: dict[str, Any] = {"case_id": case_id, "variants": {reference_id: {}}}
         for variant_id in variant_ids:
             result = _case_map(summaries[variant_id])[case_id]
+            same_query = ((result.get("trace") or {}).get("comparison") or {}).get(
+                "same_rerank_query"
+            )
             row["variants"][variant_id] = {
                 "outcome": result.get("outcome"),
                 "score": result.get("score"),
@@ -3004,7 +3045,18 @@ def _paired_view(
                 "candidate_pool_ids": _stage_ids(result, "candidate_pool"),
                 "post_rerank_ids": _stage_ids(result, "post_rerank"),
                 "final_context_ids": _stage_ids(result, "final_context"),
+                "same_rerank_query": same_query,
             }
+        if view == "ranking_ablation_same_pool":
+            query_matches = [
+                row["variants"][variant_id]["same_rerank_query"]
+                for variant_id in variant_ids
+            ]
+            if any(value is None for value in query_matches):
+                missing_query_cases.append(case_id)
+            elif not all(query_matches):
+                mismatched_query_cases.append(case_id)
+            row["same_rerank_query"] = bool(query_matches) and all(query_matches)
         row["same_candidate_pool"] = all(
             row["variants"][variant_id]["candidate_pool_ids"]
             == row["variants"][reference_id]["candidate_pool_ids"]
@@ -3018,11 +3070,20 @@ def _paired_view(
         )
         rows.append(row)
 
+    fallback_cases = [
+        row["case_id"]
+        for row in rows
+        if any(
+            row["variants"][variant_id]["effective_variant"] != variant_id
+            for variant_id in variant_ids
+        )
+    ]
     if view == "ranking_ablation_same_pool":
         incompatible = [row["case_id"] for row in rows if not row["same_candidate_pool"]]
         status = (
             "complete"
             if rows and not incompatible and not missing_count and not missing_stage_cases
+            and not fallback_cases and not missing_query_cases and not mismatched_query_cases
             else "incomplete"
         )
         return {
@@ -3033,21 +3094,20 @@ def _paired_view(
             "missing_result_count": missing_count,
             "missing_stage_contract_cases": missing_stage_cases,
             "incompatible_pool_cases": incompatible,
+            "fallback_cases": fallback_cases,
+            "missing_rerank_query_cases": missing_query_cases,
+            "mismatched_rerank_query_cases": mismatched_query_cases,
             "ranking_changed_cases": [
                 row["case_id"] for row in rows if row["ranking_order_changed"]
             ],
             "cases": rows,
         }
 
-    fallback_cases = [
-        row["case_id"]
-        for row in rows
-        if any(
-            row["variants"][variant_id]["effective_variant"] != variant_id
-            for variant_id in variant_ids
-        )
-    ]
-    status = "complete" if rows and not missing_count and not missing_stage_cases else "incomplete"
+    status = (
+        "complete"
+        if rows and not missing_count and not missing_stage_cases and not fallback_cases
+        else "incomplete"
+    )
     return {
         "status": status,
         "view": view,
@@ -3118,21 +3178,10 @@ def run_paired_comparison(
         raise VariantConfigurationError(
             "A comparação pareada exige perguntas únicas no recorte selecionado."
         )
-    if any(providers.get(variant_id) is None for variant_id in selected_variants):
-        database = _database_identity()
-        if (
-            database.get("status") != "verified"
-            or not (database.get("corpus") or {}).get("sha256")
-            or not (database.get("feedback") or {}).get("sha256")
-        ):
-            raise VariantConfigurationError(
-                "A comparação ativa exige identidade verificável do corpus e feedback antes de chamar providers."
-            )
 
     def _run_mode(mode: str, view: str) -> dict[str, dict[str, Any]]:
         captured_pools: dict[str, list[dict]] = {}
         captured_queries: dict[str, str] = {}
-        captured_query_hashes: dict[str, str] = {}
         mode_summaries: dict[str, dict[str, Any]] = {}
         for variant_id in selected_variants:
             provider = providers.get(variant_id)
@@ -3156,15 +3205,51 @@ def run_paired_comparison(
                     else None
                 )
                 query_capture: list[str] = []
-                answer, chunks, trace = _invoke_comparison_provider(
-                    _provider,
-                    case=case,
-                    scope=scope,
-                    variant_id=_variant_id,
-                    mode=mode,
-                    candidate_pool=candidate_pool,
-                    frozen_query=captured_queries.get(case_id) if mode == "ranking_ablation" else None,
-                    query_capture=query_capture if mode == "ranking_ablation" else None,
+                if _provider is None:
+                    answer, chunks, trace = _live_comparison_provider(
+                        question,
+                        scope,
+                        variant_id=_variant_id,
+                        mode=mode,
+                        candidate_pool=candidate_pool,
+                        frozen_query=(
+                            captured_queries.get(case_id)
+                            if mode == "ranking_ablation"
+                            and _variant_id != VARIANT_EXISTING
+                            else None
+                        ),
+                        query_capture=query_capture,
+                        conversation_history=(
+                            case.get("conversation_history")
+                            if isinstance(case.get("conversation_history"), list)
+                            else None
+                        ),
+                    )
+                else:
+                    answer, chunks, trace = _invoke_comparison_provider(
+                        _provider,
+                        case=case,
+                        scope=scope,
+                        variant_id=_variant_id,
+                        mode=mode,
+                        candidate_pool=candidate_pool,
+                    )
+                provider_comparison = trace.get("comparison")
+                if provider_comparison is not None and not isinstance(
+                    provider_comparison, dict
+                ):
+                    raise VariantConfigurationError(
+                        "O trace pareado exige um objeto comparison."
+                    )
+                comparison_trace = dict(provider_comparison or {})
+                trace["comparison"] = comparison_trace
+                supplied_query_identity = comparison_trace.pop(
+                    "rerank_query_sha256", None
+                )
+                effective_query = (
+                    query_capture[-1]
+                    if query_capture
+                    else supplied_query_identity or question
                 )
                 if _variant_id == VARIANT_EXISTING:
                     pool_chunks = (
@@ -3178,19 +3263,18 @@ def run_paired_comparison(
                         raise VariantConfigurationError(
                             "A ablação pareada exige chunks do candidate_pool no trace da variante existing."
                         )
-                    captured_pools[case_id] = list(pool_chunks)
+                    captured_pools[case_id] = copy.deepcopy(pool_chunks)
                     if mode == "ranking_ablation":
-                        if query_capture:
-                            captured_queries[case_id] = query_capture[0]
-                        if trace.get("search_query_sha256"):
-                            captured_query_hashes[case_id] = str(trace["search_query_sha256"])
-                elif mode == "ranking_ablation":
-                    expected_query_hash = captured_query_hashes.get(case_id)
-                    observed_query_hash = trace.get("search_query_sha256")
-                    if expected_query_hash and observed_query_hash != expected_query_hash:
-                        raise VariantConfigurationError(
-                            "A ablação pareada usou search_query diferente da variante A."
+                        captured_queries[case_id] = (
+                            effective_query
                         )
+                        comparison_trace["same_rerank_query"] = True
+                elif mode == "ranking_ablation":
+                    comparison_trace["same_rerank_query"] = (
+                        captured_queries.get(case_id) == effective_query
+                        if case_id in captured_queries
+                        else None
+                    )
                     expected_pool = [
                         _comparison_chunk_id(chunk)
                         for chunk in (candidate_pool or [])
@@ -3201,19 +3285,6 @@ def run_paired_comparison(
                     if observed_pool != expected_pool:
                         raise VariantConfigurationError(
                             "A variante pareada alterou ou omitiu o candidate_pool da ablação."
-                        )
-                    stages = trace.get("retrieval_stages") or {}
-                    if (stages.get("candidate_pool") or {}).get("expansions"):
-                        raise VariantConfigurationError(
-                            "A ablação pareada expandiu o candidate_pool após a recuperação inicial."
-                        )
-                    allowed_ids = set(expected_pool)
-                    if any(
-                        not set(_comparison_stage_ids(trace, stage_name)).issubset(allowed_ids)
-                        for stage_name in ("post_rerank", "final_context")
-                    ):
-                        raise VariantConfigurationError(
-                            "A ablação pareada usou evidência fora do candidate_pool de A."
                         )
                 return answer, chunks, trace
 
@@ -3230,7 +3301,17 @@ def run_paired_comparison(
                 snapshot_id=resolved_snapshot_id,
                 comparison_view=view,
                 comparison_profile=profile,
+                reference_runtime=(
+                    mode_summaries[selected_variants[0]]["runtime"]
+                    if variant_id != selected_variants[0]
+                    else None
+                ),
+                experimental_variables=list(PAIRED_EXPERIMENTAL_VARIABLES),
             )
+            if _database_identity() != mode_summaries[variant_id]["runtime"]["experiment_identity"]["database"]:
+                raise VariantConfigurationError(
+                    "A identidade do banco mudou durante a execução da variante pareada."
+                )
         return mode_summaries
 
     ranking_summaries = _run_mode(
@@ -3274,7 +3355,7 @@ def run_paired_comparison(
         variant_id: _compare_runtime_identities(
             summaries[variant_id]["runtime"],
             summaries[reference_variant]["runtime"],
-            experimental_variables=["comparison.variant_id", "comparison.rerank_provider"],
+            experimental_variables=list(PAIRED_EXPERIMENTAL_VARIABLES),
         )
         for variant_id in selected_variants[1:]
     }
@@ -3333,6 +3414,11 @@ def run_paired_comparison(
             "status": "not_evaluated",
             "reason": "A decisão operacional pertence às issues #53, #93 e #96.",
         },
+        "gain_attribution": {
+            "status": "unavailable",
+            "reason": "reranker_input_window_differs",
+            "controls": profile["controls"].get("reranker_input_window"),
+        },
         "summaries": summaries,
         "mode_summaries": view_summaries,
         "limitations": [
@@ -3387,10 +3473,8 @@ def prepare_comparison(
             blockers.append(
                 f"{variant_id}_unavailable:{unavailable.get('reason') or unavailable.get('unavailable_reason')}"
             )
-        elif variant_id == VARIANT_JEV_RERANK_GATE:
-            blockers.append(
-                f"{variant_id}_requires_active_path:{','.join(definition['requires'])}"
-            )
+        elif variant_id == VARIANT_JEV_RERANK and not config.TYPESAFE_API_KEY:
+            blockers.append("jev_rerank_requires_TYPESAFE_API_KEY")
     canonical_dataset = json.dumps(
         dataset,
         ensure_ascii=False,
