@@ -7,6 +7,40 @@
     "development": "Pode ser usado para calibrar a politica antes da comparacao.",
     "holdout": "Executar sem ajustar prompts, limiares, fatos ou evidencias a partir dos resultados."
   },
+  "comparison": {
+    "profile_version": 1,
+    "pair_id": "jev-paired-v1",
+    "snapshot_id": null,
+    "variants": ["existing", "jev_rerank"],
+    "unavailable_variants": {
+      "jev_rerank+evidence_gate": {
+        "status": "unavailable",
+        "reason": "evidence_gate_not_implemented",
+        "requires": ["#92"]
+      }
+    },
+    "views": ["ranking_ablation_same_pool", "end_to_end_same_snapshot"],
+    "controls": {
+      "same_dataset": true,
+      "same_snapshot": true,
+      "same_retrieval_pool_for_ranking_ablation": true,
+      "same_context_builder": "context-selection-v1",
+      "same_evidence_window": true,
+      "evidence_window": {
+        "policy": "equalized_to_final_context",
+        "builder": "context-selection-v1",
+        "budget": "same_as_generation_context_budget",
+        "raw_text_persisted": false
+      },
+      "same_generation_and_embedding_configuration": true
+    },
+    "requirements": {
+      "active_variant_path": "#91",
+      "human_and_operational_validation": "#53",
+      "adoption_decision": "#93/#96",
+      "prepare_only_has_no_external_calls": true
+    }
+  },
   "decision_policy": {
     "version": "v1",
     "calibration_split": "development",

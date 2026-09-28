@@ -1,0 +1,264 @@
+[
+  {
+    "id": "paired-ranking-inversion",
+    "split": "development",
+    "question": "Qual parâmetro habilita o recurso?",
+    "answerability": "answerable",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "expected_facts": ["O valor S habilita o recurso"],
+    "reference_evidence": [
+      {"source": "parametros.md", "contains": ["valor S"]}
+    ],
+    "ranking_judgments": {
+      "schema_version": 1,
+      "universe_id": "paired-fixture-v1",
+      "corpus_fingerprint": "paired-fixture-corpus-v1",
+      "qrels": [
+        {"candidate_id": "parametros-s", "relevance": 3},
+        {"candidate_id": "parametros-n", "relevance": 0}
+      ]
+    },
+    "fixture_variants": {
+      "existing": {
+        "answer": "O valor N habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "parametros-n",
+            "filename": "parametros.md",
+            "content": "Use o valor N para habilitar o recurso.",
+            "similarity": 0.9
+          },
+          {
+            "candidate_id": "parametros-s",
+            "filename": "parametros.md",
+            "content": "Use o valor S para habilitar o recurso.",
+            "similarity": 0.8
+          }
+        ],
+        "trace": {
+          "query_plan": {"intent": "configuration"},
+          "abstained": false,
+          "cited_files": ["parametros.md"],
+          "grounding_errors": [],
+          "retrieval_stages": {
+            "sections": {"status": "available", "ids": ["sec-parametros"]},
+            "candidate_pool": {
+              "status": "available",
+              "ids": ["parametros-n", "parametros-s"],
+              "order": ["parametros-n", "parametros-s"],
+              "count": 2,
+              "chunks": [
+                {"candidate_id": "parametros-n", "filename": "parametros.md", "content": "Use o valor N para habilitar o recurso."},
+                {"candidate_id": "parametros-s", "filename": "parametros.md", "content": "Use o valor S para habilitar o recurso."}
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": ["parametros-n", "parametros-s"],
+              "order": ["parametros-n", "parametros-s"],
+              "count": 2,
+              "chunks": [
+                {"candidate_id": "parametros-n", "filename": "parametros.md", "content": "Use o valor N para habilitar o recurso."},
+                {"candidate_id": "parametros-s", "filename": "parametros.md", "content": "Use o valor S para habilitar o recurso."}
+              ]
+            },
+            "post_gate": {
+              "status": "not_applicable",
+              "ids": [],
+              "order": [],
+              "count": 0,
+              "reason": "evidence_gate_not_implemented"
+            },
+            "final_context": {
+              "status": "available",
+              "ids": ["parametros-n"],
+              "order": ["parametros-n"],
+              "count": 1
+            }
+          },
+          "comparison": {
+            "effective_variant": "existing"
+          }
+        }
+      },
+      "jev_rerank": {
+        "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "parametros-s",
+            "filename": "parametros.md",
+            "content": "Use o valor S para habilitar o recurso.",
+            "similarity": 0.8
+          },
+          {
+            "candidate_id": "parametros-n",
+            "filename": "parametros.md",
+            "content": "Use o valor N para habilitar o recurso.",
+            "similarity": 0.9
+          }
+        ],
+        "trace": {
+          "query_plan": {"intent": "configuration"},
+          "abstained": false,
+          "cited_files": ["parametros.md"],
+          "grounding_errors": [],
+          "retrieval_stages": {
+            "sections": {"status": "available", "ids": ["sec-parametros"]},
+            "candidate_pool": {
+              "status": "available",
+              "ids": ["parametros-n", "parametros-s"],
+              "order": ["parametros-n", "parametros-s"],
+              "count": 2,
+              "chunks": [
+                {"candidate_id": "parametros-n", "filename": "parametros.md", "content": "Use o valor N para habilitar o recurso."},
+                {"candidate_id": "parametros-s", "filename": "parametros.md", "content": "Use o valor S para habilitar o recurso."}
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": ["parametros-s", "parametros-n"],
+              "order": ["parametros-s", "parametros-n"],
+              "count": 2,
+              "chunks": [
+                {"candidate_id": "parametros-s", "filename": "parametros.md", "content": "Use o valor S para habilitar o recurso."},
+                {"candidate_id": "parametros-n", "filename": "parametros.md", "content": "Use o valor N para habilitar o recurso."}
+              ]
+            },
+            "post_gate": {
+              "status": "not_applicable",
+              "ids": [],
+              "order": [],
+              "count": 0,
+              "reason": "evidence_gate_not_implemented"
+            },
+            "final_context": {
+              "status": "available",
+              "ids": ["parametros-s"],
+              "order": ["parametros-s"],
+              "count": 1
+            }
+          },
+          "comparison": {
+            "effective_variant": "jev_rerank",
+            "fallback_stage": null,
+            "fallback_reason": null
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "paired-budget-removes-top20-evidence",
+    "split": "development",
+    "question": "Qual é o código da evidência tardia?",
+    "answerability": "answerable",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "general",
+    "expected_facts": ["código T21"],
+    "reference_evidence": [{"source": "orcamento.md", "contains": ["código T21"]}],
+    "fixture_variants": {
+      "existing": {
+        "answer": "Não há evidência suficiente.",
+        "chunks": [
+          {"candidate_id": "budget-01", "filename": "orcamento.md", "content": "ruído T01"},
+          {"candidate_id": "budget-02", "filename": "orcamento.md", "content": "ruído T02"},
+          {"candidate_id": "budget-03", "filename": "orcamento.md", "content": "ruído T03"},
+          {"candidate_id": "budget-04", "filename": "orcamento.md", "content": "ruído T04"},
+          {"candidate_id": "budget-05", "filename": "orcamento.md", "content": "ruído T05"},
+          {"candidate_id": "budget-06", "filename": "orcamento.md", "content": "ruído T06"},
+          {"candidate_id": "budget-07", "filename": "orcamento.md", "content": "ruído T07"},
+          {"candidate_id": "budget-08", "filename": "orcamento.md", "content": "ruído T08"},
+          {"candidate_id": "budget-09", "filename": "orcamento.md", "content": "ruído T09"},
+          {"candidate_id": "budget-10", "filename": "orcamento.md", "content": "ruído T10"},
+          {"candidate_id": "budget-11", "filename": "orcamento.md", "content": "ruído T11"},
+          {"candidate_id": "budget-12", "filename": "orcamento.md", "content": "ruído T12"},
+          {"candidate_id": "budget-13", "filename": "orcamento.md", "content": "ruído T13"},
+          {"candidate_id": "budget-14", "filename": "orcamento.md", "content": "ruído T14"},
+          {"candidate_id": "budget-15", "filename": "orcamento.md", "content": "ruído T15"},
+          {"candidate_id": "budget-16", "filename": "orcamento.md", "content": "ruído T16"},
+          {"candidate_id": "budget-17", "filename": "orcamento.md", "content": "ruído T17"},
+          {"candidate_id": "budget-18", "filename": "orcamento.md", "content": "ruído T18"},
+          {"candidate_id": "budget-19", "filename": "orcamento.md", "content": "ruído T19"},
+          {"candidate_id": "budget-20", "filename": "orcamento.md", "content": "ruído T20"}
+        ],
+        "trace": {
+          "query_plan": {"intent": "general"},
+          "abstained": true,
+          "retrieval_stages": {
+            "sections": {"status": "available", "ids": ["sec-orcamento"]},
+            "candidate_pool": {
+              "status": "available", "count": 21,
+              "ids": ["budget-01", "budget-02", "budget-03", "budget-04", "budget-05", "budget-06", "budget-07", "budget-08", "budget-09", "budget-10", "budget-11", "budget-12", "budget-13", "budget-14", "budget-15", "budget-16", "budget-17", "budget-18", "budget-19", "budget-20", "budget-21"],
+              "chunks": [
+                {"candidate_id": "budget-01", "filename": "orcamento.md", "content": "ruído T01"},
+                {"candidate_id": "budget-02", "filename": "orcamento.md", "content": "ruído T02"},
+                {"candidate_id": "budget-03", "filename": "orcamento.md", "content": "ruído T03"},
+                {"candidate_id": "budget-04", "filename": "orcamento.md", "content": "ruído T04"},
+                {"candidate_id": "budget-05", "filename": "orcamento.md", "content": "ruído T05"},
+                {"candidate_id": "budget-06", "filename": "orcamento.md", "content": "ruído T06"},
+                {"candidate_id": "budget-07", "filename": "orcamento.md", "content": "ruído T07"},
+                {"candidate_id": "budget-08", "filename": "orcamento.md", "content": "ruído T08"},
+                {"candidate_id": "budget-09", "filename": "orcamento.md", "content": "ruído T09"},
+                {"candidate_id": "budget-10", "filename": "orcamento.md", "content": "ruído T10"},
+                {"candidate_id": "budget-11", "filename": "orcamento.md", "content": "ruído T11"},
+                {"candidate_id": "budget-12", "filename": "orcamento.md", "content": "ruído T12"},
+                {"candidate_id": "budget-13", "filename": "orcamento.md", "content": "ruído T13"},
+                {"candidate_id": "budget-14", "filename": "orcamento.md", "content": "ruído T14"},
+                {"candidate_id": "budget-15", "filename": "orcamento.md", "content": "ruído T15"},
+                {"candidate_id": "budget-16", "filename": "orcamento.md", "content": "ruído T16"},
+                {"candidate_id": "budget-17", "filename": "orcamento.md", "content": "ruído T17"},
+                {"candidate_id": "budget-18", "filename": "orcamento.md", "content": "ruído T18"},
+                {"candidate_id": "budget-19", "filename": "orcamento.md", "content": "ruído T19"},
+                {"candidate_id": "budget-20", "filename": "orcamento.md", "content": "ruído T20"},
+                {"candidate_id": "budget-21", "filename": "orcamento.md", "content": "código T21"}
+              ]
+            },
+            "post_rerank": {"status": "available", "count": 21, "ids": ["budget-01", "budget-02", "budget-03", "budget-04", "budget-05", "budget-06", "budget-07", "budget-08", "budget-09", "budget-10", "budget-11", "budget-12", "budget-13", "budget-14", "budget-15", "budget-16", "budget-17", "budget-18", "budget-19", "budget-20", "budget-21"]},
+            "post_gate": {"status": "not_applicable", "reason": "evidence_gate_not_implemented"},
+            "final_context": {"status": "available", "count": 20, "ids": ["budget-01", "budget-02", "budget-03", "budget-04", "budget-05", "budget-06", "budget-07", "budget-08", "budget-09", "budget-10", "budget-11", "budget-12", "budget-13", "budget-14", "budget-15", "budget-16", "budget-17", "budget-18", "budget-19", "budget-20"]}
+          }
+        }
+      },
+      "jev_rerank": {
+        "answer": "Não há evidência suficiente.",
+        "chunks": [],
+        "trace": {
+          "query_plan": {"intent": "general"},
+          "abstained": true,
+          "retrieval_stages": {
+            "candidate_pool": {"status": "available", "ids": ["budget-01", "budget-02", "budget-03", "budget-04", "budget-05", "budget-06", "budget-07", "budget-08", "budget-09", "budget-10", "budget-11", "budget-12", "budget-13", "budget-14", "budget-15", "budget-16", "budget-17", "budget-18", "budget-19", "budget-20", "budget-21"]},
+            "post_rerank": {"status": "available", "ids": ["budget-21", "budget-01", "budget-02", "budget-03", "budget-04", "budget-05", "budget-06", "budget-07", "budget-08", "budget-09", "budget-10", "budget-11", "budget-12", "budget-13", "budget-14", "budget-15", "budget-16", "budget-17", "budget-18", "budget-19", "budget-20"]},
+            "post_gate": {"status": "not_applicable", "reason": "evidence_gate_not_implemented"},
+            "final_context": {"status": "available", "ids": ["budget-21"]}
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "paired-multiple-references-one-chunk",
+    "split": "development",
+    "question": "Quais marcadores confirmam a rotina?",
+    "answerability": "answerable",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "general",
+    "expected_facts": ["alfa", "beta"],
+    "reference_evidence": [
+      {"source": "marcadores.md", "contains": ["alfa"]},
+      {"source": "marcadores.md", "contains": ["beta"]}
+    ],
+    "fixture_variants": {
+      "existing": {
+        "answer": "Os marcadores alfa e beta confirmam a rotina. [Fonte: marcadores.md]",
+        "chunks": [{"candidate_id": "markers-1", "filename": "marcadores.md", "content": "A rotina usa alfa e beta."}],
+        "trace": {"query_plan": {"intent": "general"}, "abstained": false, "cited_files": ["marcadores.md"], "grounding_errors": [], "retrieval_stages": {"candidate_pool": {"status": "available", "chunks": [{"candidate_id": "markers-1", "filename": "marcadores.md", "content": "A rotina usa alfa e beta."}]}, "post_rerank": {"status": "available", "chunks": [{"candidate_id": "markers-1", "filename": "marcadores.md", "content": "A rotina usa alfa e beta."}]}, "post_gate": {"status": "not_applicable", "reason": "evidence_gate_not_implemented"}, "final_context": {"status": "available", "ids": ["markers-1"]}}}
+      },
+      "jev_rerank": {
+        "answer": "Os marcadores alfa e beta confirmam a rotina. [Fonte: marcadores.md]",
+        "chunks": [{"candidate_id": "markers-1", "filename": "marcadores.md", "content": "A rotina usa alfa e beta."}],
+        "trace": {"query_plan": {"intent": "general"}, "abstained": false, "cited_files": ["marcadores.md"], "grounding_errors": [], "retrieval_stages": {"candidate_pool": {"status": "available", "ids": ["markers-1"]}, "post_rerank": {"status": "available", "ids": ["markers-1"]}, "post_gate": {"status": "not_applicable", "reason": "evidence_gate_not_implemented"}, "final_context": {"status": "available", "ids": ["markers-1"]}}}
+      }
+    }
+  }
+]

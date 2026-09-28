@@ -1,5 +1,7 @@
 import unittest
 import tempfile
+import hashlib
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -204,6 +206,32 @@ class TestStrictAbstain(unittest.TestCase):
         self.assertEqual(trace["top_similarity"], 0.20)
         self.assertEqual(trace["top_fusion_score"], 0.99)
         self.assertEqual(trace["top_feedback_priority"], 2.0)
+
+    def test_offline_stage_keeps_chunks_but_log_strips_content(self):
+        chunks = [
+            {
+                "id": "candidate-1",
+                "filename": "sensitive.md",
+                "content": "conteudo que nao pode ir para o log",
+            }
+        ]
+
+        stage = rag._summarize_retrieval_stage(chunks, include_chunks=True)
+        logged = rag._sanitize_trace_for_log(
+            {
+                "retrieval_stages": {"candidate_pool": stage},
+                "context_selection": {
+                    "retained_evidence": [
+                        {"source": "cliente-secreto.md", "spans": []}
+                    ],
+                    "allowed_sources": ["cliente-secreto.md"],
+                },
+            }
+        )
+
+        self.assertEqual(stage["chunks"][0]["content"], chunks[0]["content"])
+        self.assertNotIn("conteudo que nao pode ir para o log", str(logged))
+        self.assertNotIn("cliente-secreto.md", str(logged))
 
 
 class TestCitationValidation(unittest.TestCase):
@@ -972,6 +1000,99 @@ class TestDatabaseValidation(unittest.TestCase):
         with patch.dict("os.environ", {}, clear=True):
             with self.assertRaises(EnvironmentError):
                 db.validate_database_config()
+
+
+class TestOfflineJevEvidence(unittest.TestCase):
+    def test_same_pool_ablation_a_skips_global_retrieval_after_abstention(self):
+        pool = [{"id": "a", "filename": "doc.md", "content": "Trecho A", "similarity": 0.2}]
+        token = rag._offline_eval_same_pool_ablation.set(True)
+        try:
+            with patch.object(config, "FULL_CONTEXT_ENABLED", False), patch.object(
+                rag, "_classify_query_intent",
+                return_value={"intent": "configuration", "modules": ["module"], "doc_types": []},
+            ), patch.object(rag, "_rerank_chunks", return_value=pool), patch.object(
+                rag, "_should_strict_abstain", return_value=(True, "few_chunks")
+            ), patch.object(
+                rag, "retrieve_chunks_with_feedback", return_value=(pool, [], pool)
+            ) as retrieve, patch.object(rag, "_log_ask_trace"):
+                _answer, _chunks, trace = rag.ask("Pergunta", platform="offline_eval")
+        finally:
+            rag._offline_eval_same_pool_ablation.reset(token)
+
+        retrieve.assert_called_once()
+        self.assertTrue(trace["abstained"])
+        self.assertEqual(trace["query_plan_fallback"], "skipped_paired_pool")
+        self.assertEqual(trace["retrieval_stages"]["candidate_pool"]["count"], 1)
+        self.assertNotIn("expansions", trace["retrieval_stages"]["candidate_pool"])
+
+    def test_paired_pool_abstention_skips_global_retrieval(self):
+        pool = [{"id": "a", "filename": "doc.md", "content": "Trecho A", "similarity": 0.2}]
+        token = rag._offline_eval_candidate_pool.set(pool)
+        try:
+            with patch.object(config, "FULL_CONTEXT_ENABLED", False), patch.object(
+                rag, "_classify_query_intent",
+                return_value={"intent": "configuration", "modules": ["module"], "doc_types": []},
+            ), patch.object(rag, "_rerank_chunks", return_value=pool), patch.object(
+                rag, "_should_strict_abstain", return_value=(True, "few_chunks")
+            ), patch.object(rag, "retrieve_chunks_with_feedback") as retrieve, patch.object(
+                rag, "_log_ask_trace"
+            ):
+                _answer, _chunks, trace = rag.ask("Pergunta", platform="offline_eval")
+        finally:
+            rag._offline_eval_candidate_pool.reset(token)
+
+        retrieve.assert_not_called()
+        self.assertTrue(trace["abstained"])
+        self.assertEqual(trace["query_plan_fallback"], "skipped_paired_pool")
+        self.assertEqual(trace["retrieval_stages"]["candidate_pool"]["count"], 1)
+        self.assertNotIn("expansions", trace["retrieval_stages"]["candidate_pool"])
+
+    def test_partial_jev_attempt_keeps_state_hashes_without_claiming_success(self):
+        chunks = [
+            {"id": str(index), "filename": "doc.md", "content": f"Trecho {index}", "similarity": 0.7}
+            for index in range(2)
+        ]
+        states = []
+        candidate_ids = []
+
+        class FakeClient:
+            def decide(self, state, _questions, **kwargs):
+                states.append(state)
+                candidate_ids.append(kwargs["candidate_id"])
+                if len(states) == 2:
+                    raise TimeoutError("timeout sintético")
+                return rag.jev.DecisionResult(
+                    status="ok", model_requested="jev-1.13.0", model_effective="jev-1.13.0",
+                    answers={"relevance": {"type": "noul", "noul": 0.8}},
+                    usage={"input_tokens": 10, "output_tokens": 0}, latency_ms=1,
+                    error_code=None, request_id="test", call_id="call-1",
+                    candidate_id=kwargs["candidate_id"], estimated_cost_usd=0.0, cost_status="estimated",
+                )
+
+            def close(self):
+                pass
+
+        trace = {}
+        with patch.multiple(
+            config, RAG_ENABLE_RERANKING=True, RAG_RERANK_PROVIDER="jev",
+            JEV_RERANK_MAX_CANDIDATES=2, JEV_MAX_STATE_ESTIMATED_TOKENS=24000,
+            JEV_STAGE_TIMEOUT_SECONDS=8.0, JEV_MIN_REMAINING_SECONDS=1.0,
+            TYPESAFE_API_KEY="fake-test-key",
+        ), patch.object(rag.jev, "TypeSafeClient", return_value=FakeClient()), patch.object(
+            rag, "_rerank_chunks_with_llm", return_value=chunks
+        ):
+            ranked = rag._rerank_chunks("Pergunta", chunks, trace=trace)
+
+        self.assertIs(ranked, chunks)
+        self.assertEqual(trace["rerank"][0]["fallback_reason"], "client_error")
+        self.assertEqual([item["status"] for item in trace["jev_evidence"]], ["ok", "attempted"])
+        self.assertEqual([item["candidate_id"] for item in trace["jev_evidence"]], candidate_ids)
+        for state, evidence in zip(states, trace["jev_evidence"]):
+            expected = hashlib.sha256(
+                json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            self.assertEqual(evidence["state_sha256"], expected)
+            self.assertNotIn("Trecho", str(evidence))
 
 
 if __name__ == "__main__":
