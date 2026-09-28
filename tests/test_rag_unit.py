@@ -1003,6 +1003,28 @@ class TestDatabaseValidation(unittest.TestCase):
 
 
 class TestOfflineJevEvidence(unittest.TestCase):
+    def test_same_pool_ablation_a_skips_global_retrieval_after_abstention(self):
+        pool = [{"id": "a", "filename": "doc.md", "content": "Trecho A", "similarity": 0.2}]
+        token = rag._offline_eval_same_pool_ablation.set(True)
+        try:
+            with patch.object(config, "FULL_CONTEXT_ENABLED", False), patch.object(
+                rag, "_classify_query_intent",
+                return_value={"intent": "configuration", "modules": ["module"], "doc_types": []},
+            ), patch.object(rag, "_rerank_chunks", return_value=pool), patch.object(
+                rag, "_should_strict_abstain", return_value=(True, "few_chunks")
+            ), patch.object(
+                rag, "retrieve_chunks_with_feedback", return_value=(pool, [], pool)
+            ) as retrieve, patch.object(rag, "_log_ask_trace"):
+                _answer, _chunks, trace = rag.ask("Pergunta", platform="offline_eval")
+        finally:
+            rag._offline_eval_same_pool_ablation.reset(token)
+
+        retrieve.assert_called_once()
+        self.assertTrue(trace["abstained"])
+        self.assertEqual(trace["query_plan_fallback"], "skipped_paired_pool")
+        self.assertEqual(trace["retrieval_stages"]["candidate_pool"]["count"], 1)
+        self.assertNotIn("expansions", trace["retrieval_stages"]["candidate_pool"])
+
     def test_paired_pool_abstention_skips_global_retrieval(self):
         pool = [{"id": "a", "filename": "doc.md", "content": "Trecho A", "similarity": 0.2}]
         token = rag._offline_eval_candidate_pool.set(pool)

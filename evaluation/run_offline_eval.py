@@ -307,6 +307,9 @@ def _active_comparison_provider(
     pool_token = rag._offline_eval_candidate_pool.set(
         candidate_pool if mode == "ranking_ablation" else None
     )
+    ablation_token = rag._offline_eval_same_pool_ablation.set(
+        mode == "ranking_ablation"
+    )
     query_token = rag._offline_eval_search_query.set(
         frozen_query if mode == "ranking_ablation" else None
     )
@@ -324,6 +327,7 @@ def _active_comparison_provider(
     finally:
         rag._offline_eval_query_capture.reset(capture_token)
         rag._offline_eval_search_query.reset(query_token)
+        rag._offline_eval_same_pool_ablation.reset(ablation_token)
         rag._offline_eval_candidate_pool.reset(pool_token)
         rag._offline_eval_rerank_provider.reset(provider_token)
     if variant_id == VARIANT_JEV_RERANK and not trace.get("rerank"):

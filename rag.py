@@ -58,6 +58,9 @@ _offline_eval_rerank_provider: contextvars.ContextVar[str | None] = contextvars.
 _offline_eval_candidate_pool: contextvars.ContextVar[list[dict] | None] = contextvars.ContextVar(
     "rag_offline_eval_candidate_pool", default=None
 )
+_offline_eval_same_pool_ablation: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "rag_offline_eval_same_pool_ablation", default=False
+)
 _offline_eval_search_query: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "rag_offline_eval_search_query", default=None
 )
@@ -4857,9 +4860,12 @@ def _ask_impl(
         )
 
     should_abstain, abstain_reason = _should_strict_abstain(question, chunks)
-    if should_abstain and comparison_pool is not None:
+    same_pool_ablation = (
+        platform == "offline_eval" and _offline_eval_same_pool_ablation.get()
+    )
+    if should_abstain and (comparison_pool is not None or same_pool_ablation):
         trace["query_plan_fallback"] = "skipped_paired_pool"
-    if should_abstain and comparison_pool is None and query_plan and (
+    if should_abstain and comparison_pool is None and not same_pool_ablation and query_plan and (
         (query_plan.get("modules") or query_plan.get("doc_types"))
         and abstain_reason in {"no_chunks", "few_chunks", "low_similarity", "low_similarity_operational"}
     ):
