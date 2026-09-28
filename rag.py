@@ -27,6 +27,7 @@ from google import genai
 from google.genai import types as _gtypes
 
 import config
+import evidence_gate
 import jev
 from canonical_docs import (
     DEFAULT_MANIFEST,
@@ -4490,6 +4491,73 @@ def _apply_grounding_regeneration(
     return best_answer, revised_errors, revised_citations, regeneration_attempts
 
 
+def _evaluate_evidence_gate(
+    query: str,
+    selection: ContextSelection,
+    *,
+    policy: dict,
+    business_rules: str = "",
+    request_id: str,
+    model_calls: list[dict],
+) -> dict:
+    """Uma decisão sobre o texto retido inteiro, sem truncar ou dividir o conjunto."""
+    started_at = _time.monotonic()
+    _ensure_request_active("evidence_gate")
+    state = {
+        "pergunta": query,
+        "contexto_documental": selection.rendered_text,
+        "regras_negocio": business_rules,
+    }
+    summary = evidence_gate.empty_result("not_evaluated", policy=policy)
+    summary["evidence_fingerprint"] = evidence_gate.fingerprint({
+        "contexto_documental": selection.rendered_text, "regras_negocio": business_rules,
+    })
+    summary["state_sha256"] = evidence_gate.fingerprint(state)
+
+    def unavailable(reason: str) -> dict:
+        summary.update(status="unavailable", reason=reason)
+        summary["latency_ms"] = int((_time.monotonic() - started_at) * 1000)
+        return summary
+
+    deadline = _request_deadline.get()
+    if deadline is not None and deadline - started_at <= config.JEV_MIN_REMAINING_SECONDS:
+        return unavailable("deadline_reserve")
+    estimate, _ = _count_context_text(
+        json.dumps(state, ensure_ascii=False) + json.dumps(evidence_gate.QUESTIONS),
+        provider="typesafe", model=config.JEV_MODEL,
+    )
+    if estimate > config.JEV_MAX_STATE_ESTIMATED_TOKENS:
+        return unavailable("state_limit")
+    remaining = config.JEV_STAGE_TIMEOUT_SECONDS - (_time.monotonic() - started_at)
+    if remaining <= 0:
+        return unavailable("stage_budget_exhausted")
+    client = jev.TypeSafeClient()
+    try:
+        result = client.decide(
+            state, evidence_gate.QUESTIONS, stage="evidence_gate", request_id=request_id,
+            deadline=deadline, stage_budget_seconds=remaining,
+        )
+        _record_jev_decision(model_calls, result=result, stage="evidence_gate")
+    finally:
+        client.close()
+    _ensure_request_active("evidence_gate_result")
+    summary.update(
+        latency_ms=int((_time.monotonic() - started_at) * 1000),
+        estimated_cost_usd=result.estimated_cost_usd,
+        cost_complete=result.estimated_cost_usd is not None,
+        model_effective=result.model_effective,
+    )
+    if not result.ok:
+        return unavailable(result.status)
+    answer = result.answers["sufficiency"]
+    status, reason = evidence_gate.apply_policy(answer, policy)
+    summary.update(
+        status=status, reason=reason, decision=answer["choice"],
+        confidence=answer["confidence"], probabilities=answer["probabilities"],
+    )
+    return summary
+
+
 def ask(
     question: str,
     conversation_history: list[dict] = None,
@@ -4532,6 +4600,13 @@ def _ask_impl(
     Retorno: (answer, retrieved_chunks, trace)
     """
     t0 = _time.monotonic()
+    gate_policy = None
+    if config.JEV_EVIDENCE_GATE_ENABLED:
+        development_run_id = (
+            (scope or {}).get("_evidence_gate_development_run_id")
+            if platform == "offline_eval" else None
+        )
+        gate_policy = config.validate_evidence_gate_config(development_run_id=development_run_id)
     query_id = _new_query_id()
     external_calls = _request_external_calls.get()
     trace: dict[str, Any] = {
@@ -4579,6 +4654,9 @@ def _ask_impl(
             )
         },
         "model_calls": [],
+        "evidence_gate": evidence_gate.empty_result(
+            "stage_not_reached" if gate_policy else "disabled", policy=gate_policy,
+        ),
         "external_calls": external_calls if external_calls is not None else [],
     }
     history_provider = _active_llm_provider()
@@ -4795,7 +4873,7 @@ def _ask_impl(
     )
     trace["retrieval_stages"]["post_gate"] = _summarize_retrieval_stage(
         status="not_applicable",
-        reason="evidence_gate_not_implemented",
+        reason="evidence_gate_pending" if gate_policy else "evidence_gate_disabled",
     )
     evaluation_chunks = ranked_chunks[:20]
     chunks = _limit_chunk_diversity(
@@ -4931,6 +5009,7 @@ def _ask_impl(
     )
 
     if should_abstain:
+        trace["evidence_gate"]["reason"] = "strict_abstain" if gate_policy else "disabled"
         trace["retrieval_stages"]["final_context"] = _summarize_retrieval_stage(
             status="unavailable", reason="strict_abstain_before_context"
         )
@@ -5103,6 +5182,35 @@ def _ask_impl(
         trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
         _log_ask_trace(trace)
         return answer, _returned_chunks(chunks), trace
+
+    if gate_policy:
+        stage_started_at = _time.monotonic()
+        gate = _evaluate_evidence_gate(
+            search_query, selection, policy=gate_policy, business_rules=business_rules,
+            request_id=query_id, model_calls=trace["model_calls"],
+        )
+        trace["evidence_gate"] = gate
+        _mark_stage("evidence_gate", stage_started_at)
+        trace["retrieval_stages"]["post_gate"] = _summarize_retrieval_stage(
+            chunks=chunks, include_chunks=platform == "offline_eval",
+            reason=gate["reason"],
+        )
+        if gate["status"] == "applied" and gate["decision"] in evidence_gate.NEGATIVE_DECISIONS:
+            clarification = gate["decision"] == "clarification_needed"
+            trace["abstained"] = not clarification
+            trace["abstention_reason"] = None if clarification else "semantic_insufficient_evidence"
+            trace["context_envelope"]["status"] = "blocked_by_evidence_gate"
+            trace["retrieval_stages"]["final_context"] = _summarize_retrieval_stage(
+                status="not_applicable", reason="generation_blocked_by_evidence_gate",
+            )
+            _set_response_state(
+                trace, "clarification_needed" if clarification else "insufficient_evidence",
+                citation_syntax="not_applicable", semantic_support="insufficient_evidence",
+            )
+            answer = evidence_gate.CLARIFICATION_RESPONSE if clarification else _build_abstain_response(question)
+            trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)
+            _log_ask_trace(trace)
+            return answer, _returned_chunks(chunks), trace
 
     system = _system_with_context(
         system + _context_source_block(allowed_sources),

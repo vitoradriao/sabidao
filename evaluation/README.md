@@ -206,8 +206,9 @@ baseline registra as variantes com identificadores estáveis:
 
 - `existing` (A): pipeline atual;
 - `jev_rerank` (B): reranking Jev ativo implementado na issue #91;
-- `jev_rerank+evidence_gate` (C): variante registrada, mas explicitamente
-  indisponível enquanto o gate da issue #92 não existir.
+- `jev_rerank+evidence_gate` (C): B com o gate de suficiência da issue #92;
+  exige política explícita. O perfil padrão mantém C indisponível por falta
+  dessa política, sem bloquear o primeiro A/B.
 
 O perfil também congela `pair_id`, `snapshot_id`, as políticas de identidade, a
 janela de evidência e o construtor de contexto. Uma variante indisponível falha
@@ -216,7 +217,7 @@ variante A. O relatório registra `effective_variant`, fallback e motivo, e um
 fallback para `existing` não conta como sucesso de Jev.
 
 Antes de executar providers, valide a preparação local. `--prepare-only` acessa
-somente o dataset, o `baseline_config.json` e o relatório local; não chama banco,
+somente o dataset, o perfil, a política local quando C for solicitada e o relatório local; não chama banco,
 modelo, embeddings, rede ou escreve tabelas:
 
 ```sh
@@ -247,8 +248,8 @@ runner confere a identidade observada antes e depois de cada variante. O
 responsável pelo ensaio deve manter corpus e feedback estáveis durante a rodada.
 
 O harness produz duas visões do mesmo recorte: `ranking_ablation_same_pool`,
-que reutiliza o mesmo conjunto de candidatos e a mesma consulta reformulada de A
-para isolar a ordenação, e
+que reutiliza o mesmo conjunto de candidatos e a mesma consulta reformulada da primeira variante
+para controlar a entrada (A em A/B; B em B/C), e
 `end_to_end_same_snapshot`, que executa cada caminho independentemente no mesmo
 snapshot. Cada resposta registra os estágios `sections`, `candidate_pool`,
 `post_rerank`, `post_gate` e `final_context`, com ordem, contagem, exclusões,
@@ -267,6 +268,50 @@ O resultado desta issue não aprova adoção, custo ou operação. Revisão huma
 ensaio operacional, orçamento e decisão de adoção continuam nas issues #53,
 #93 e #96. A variante B deve registrar a aplicação efetiva do Jev e o hash opaco
 do `state` enviado; fallback para `existing` não conta como sucesso de Jev.
+
+### Comparação B/C com política explícita
+
+Em uma cópia do perfil, configure `comparison.variants` como
+`["jev_rerank", "jev_rerank+evidence_gate"]` e remova C de
+`comparison.unavailable_variants`. Preserve os controles, corpus, modelos,
+budgets e strict. A variante B desliga o gate e C o ativa, independentemente
+da flag no ambiente. O formato da política obrigatória em `JEV_POLICY_FILE`
+está no [guia de configuração](../docs/configuracao.md#gate-de-suficiência-jev-issue-92).
+
+Para política `provisional`, use `--split development` e registre
+`comparison.evidence_gate.development_run_id` igual ao valor da política.
+`--split holdout` e `--split all` exigem `frozen`. A validação ocorre antes de
+chamar qualquer variante, inclusive B. O hash integral da política participa
+da identidade de ambos os braços; a flag ativa é o fator experimental. Cada
+resultado C deve registrar a mesma política da identidade da execução.
+
+```sh
+python evaluation/run_offline_eval.py --prepare-only --split development \
+  --baseline-config evaluation/perfil-jev-bc.json \
+  --output-report evaluation/reports/jev-bc-prepare.json
+```
+
+O perfil do exemplo deve ser preparado pelo responsável; ele não é fornecido
+com limiares inventados. Após autorização dos dados e orçamento na #93, use o
+mesmo perfil com `--paired`, `--snapshot-id` e `--pair-id` para executar. A
+preparação não executa a comparação paga.
+
+O schema do avaliador passa a 8 e o da comparação a 2. `evidence_gate` agrega
+contagens por status, decisão aplicada e motivo. O trace por caso conserva a
+política, a decisão e seu custo na etapa `evidence_gate`. Gate inconclusivo ou
+indisponível é fallback, não sucesso C; se o reranker falhar mas o gate atuar,
+a variante efetiva é `existing+evidence_gate`. Uma negativa aceita conserva a
+evidência de `post_gate`, mas não a contabiliza como enviada ao gerador.
+`unsupported_claims` continua não avaliado na abstenção ou esclarecimento.
+
+Fixtures da integração completa B/C, com transportes simulados:
+
+```sh
+python -m unittest tests.test_jev_evidence_gate tests.test_offline_eval
+```
+
+Esses testes verificam execução e contratos. Não demonstram qualidade semântica,
+calibração em português ou resistência a injeção; essas medidas pertencem à #93.
 
 ## Conteúdo do relatório
 

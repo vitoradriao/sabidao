@@ -193,6 +193,8 @@ EMBEDDING_DIMENSIONS = _env_int("EMBEDDING_DIMENSIONS", 1536)
 # TypeSafe/Jev e opcional. O endpoint nao e configuravel por dados de usuario.
 TYPESAFE_API_KEY = _env_setting("TYPESAFE_API_KEY")
 JEV_MODEL = _env_setting("JEV_MODEL", "jev-1.13.0")
+JEV_EVIDENCE_GATE_ENABLED = _env_bool("JEV_EVIDENCE_GATE_ENABLED", False)
+JEV_POLICY_FILE = _env_setting("JEV_POLICY_FILE", "")
 JEV_MAX_CONCURRENCY = _env_int("JEV_MAX_CONCURRENCY", 4)
 JEV_REQUEST_TIMEOUT_SECONDS = _env_float("JEV_REQUEST_TIMEOUT_SECONDS", 2.0)
 JEV_STAGE_TIMEOUT_SECONDS = _env_float("JEV_STAGE_TIMEOUT_SECONDS", 8.0)
@@ -439,6 +441,15 @@ def _validate_http_endpoint(name: str, value: str | None) -> None:
         )
 
 
+def validate_evidence_gate_config(*, development_run_id: str | None = None) -> dict:
+    from evidence_gate import load_policy
+
+    validate_jev_config(active=True)
+    if FULL_CONTEXT_ENABLED:
+        raise EnvironmentError("Gate Jev exige FULL_CONTEXT_ENABLED=false até unificação do caminho full-context.")
+    return load_policy(JEV_POLICY_FILE, model=JEV_MODEL, development_run_id=development_run_id)
+
+
 def validate_jev_config(*, active: bool = False) -> None:
     """Valida Jev somente quando um consumidor realmente o habilita."""
     if not active:
@@ -571,7 +582,10 @@ def validate():
         raise EnvironmentError("RAG_RERANK_PROVIDER deve ser existing ou jev.")
     _check_range("JEV_RERANK_MAX_CANDIDATES", JEV_RERANK_MAX_CANDIDATES, min_val=2, max_val=40)
     _check_range("JEV_MAX_STATE_ESTIMATED_TOKENS", JEV_MAX_STATE_ESTIMATED_TOKENS, min_val=1, max_val=24000)
-    validate_jev_config(active=RAG_ENABLE_RERANKING and RAG_RERANK_PROVIDER == "jev")
+    if JEV_EVIDENCE_GATE_ENABLED:
+        validate_evidence_gate_config()
+    else:
+        validate_jev_config(active=RAG_ENABLE_RERANKING and RAG_RERANK_PROVIDER == "jev")
     _check_range("RERANKER_MIN_TRIGGER_SIM", RERANKER_MIN_TRIGGER_SIM, min_val=0.0, max_val=1.0)
     _check_range("RERANKER_MAX_TRIGGER_SIM", RERANKER_MAX_TRIGGER_SIM, min_val=0.0, max_val=1.0)
     _check_range("BUSINESS_RULES_MAX_CHARS", BUSINESS_RULES_MAX_CHARS, min_val=500, max_val=200000)
