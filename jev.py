@@ -381,6 +381,8 @@ def _validated_answers(
             total += probability
         if not math.isclose(total, 1.0, rel_tol=1e-6, abs_tol=1e-6):
             raise ValueError("probabilities nao somam 1")
+        if checked_probabilities[choice] < max(checked_probabilities.values()):
+            raise ValueError("choice diverge da maior probabilidade")
         confidence = _finite_number(answer.get("confidence"), name="confidence")
         if not 0 <= confidence <= 1:
             raise ValueError("confidence fora do intervalo")

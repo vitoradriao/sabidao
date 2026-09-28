@@ -15,8 +15,8 @@
     "unavailable_variants": {
       "jev_rerank+evidence_gate": {
         "status": "unavailable",
-        "reason": "evidence_gate_not_implemented",
-        "requires": ["#92"]
+        "reason": "evidence_gate_policy_not_configured",
+        "requires": ["JEV_POLICY_FILE", "#93"]
       }
     },
     "views": ["ranking_ablation_same_pool", "end_to_end_same_snapshot"],

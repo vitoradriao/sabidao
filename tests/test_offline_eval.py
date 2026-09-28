@@ -371,7 +371,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIn("factual_correctness", summary["metric_definitions"])
         self.assertIn("evidence_discounted_coverage_at_10", summary["metric_definitions"])
         self.assertEqual(summary["metric_definitions_version"], 3)
-        self.assertEqual(summary["evaluator_schema_version"], 7)
+        self.assertEqual(summary["evaluator_schema_version"], 8)
         self.assertEqual(summary["score_evaluated"], 4)
 
     def test_false_absence_claim_is_measured_only_for_expected_answers(self):
@@ -1078,7 +1078,7 @@ class TestOfflineEvaluator(unittest.TestCase):
                 for name in run_offline_eval.RETRIEVAL_STAGE_NAMES
             }
             stages["final_context"]["chunks"] = ranked[:1]
-            stages["post_gate"] = {"status": "not_applicable", "reason": "evidence_gate_not_implemented"}
+            stages["post_gate"] = {"status": "not_applicable", "reason": "evidence_gate_disabled"}
             return (
                 run_offline_eval.config.NO_ANSWER_PHRASE,
                 ranked[:1],

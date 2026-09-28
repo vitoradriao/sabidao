@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+from collections import Counter
 from contextlib import ExitStack
 import hashlib
 import json
@@ -25,15 +26,16 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 import config
+import evidence_gate
 import jev
 import rag
 from bot_common import normalize_text
 
 
-EVALUATOR_SCHEMA_VERSION = 7
+EVALUATOR_SCHEMA_VERSION = 8
 METRIC_DEFINITIONS_VERSION = 3
 COMPARISON_PROFILE_VERSION = 1
-COMPARISON_SCHEMA_VERSION = 1
+COMPARISON_SCHEMA_VERSION = 2
 VARIANT_EXISTING = "existing"
 VARIANT_JEV_RERANK = "jev_rerank"
 VARIANT_JEV_RERANK_GATE = "jev_rerank+evidence_gate"
@@ -57,6 +59,7 @@ PAIRED_EXPERIMENTAL_VARIABLES = (
     "comparison.variant_id",
     "rag_config.RAG_RERANK_PROVIDER",
     "rag_config.RAG_ENABLE_RERANKING",
+    "rag_config.JEV_EVIDENCE_GATE_ENABLED",
 )
 
 
@@ -81,7 +84,7 @@ _VARIANT_DEFINITIONS = {
     },
     VARIANT_JEV_RERANK_GATE: {
         "label": "C — jev_rerank+evidence_gate",
-        "available_without_provider": False,
+        "available_without_provider": True,
         "requires": ["#91", "#92"],
     },
 }
@@ -201,6 +204,7 @@ _CONFIG_FIELDS = (
     "RAG_PROVIDER_MAX_RETRIES",
     "RAG_RETRY_BASE_SECONDS",
     "JEV_MODEL",
+    "JEV_EVIDENCE_GATE_ENABLED",
     "JEV_MAX_CONCURRENCY",
     "JEV_REQUEST_TIMEOUT_SECONDS",
     "JEV_STAGE_TIMEOUT_SECONDS",
@@ -382,11 +386,6 @@ def _comparison_profile(baseline_config: dict[str, Any] | None) -> dict[str, Any
         raise VariantConfigurationError(
             f"Visões de comparação desconhecidas: {', '.join(map(str, unknown_views))}."
         )
-    gate_declaration = unavailable.get(VARIANT_JEV_RERANK_GATE)
-    if gate_declaration is None:
-        raise VariantConfigurationError(
-            "evidence_gate deve permanecer explicitamente indisponível no perfil."
-        )
     controls = profile.get("controls")
     if not isinstance(controls, dict):
         raise VariantConfigurationError(
@@ -439,6 +438,22 @@ def _comparison_profile(baseline_config: dict[str, Any] | None) -> dict[str, Any
     }
 
 
+def _validate_gate_profile(profile: dict, *, variants: list, split: str) -> str | None:
+    if VARIANT_JEV_RERANK_GATE not in variants:
+        return None
+    declaration = profile.get("evidence_gate") or {}
+    if not isinstance(declaration, dict):
+        raise VariantConfigurationError("comparison.evidence_gate deve ser objeto.")
+    development_run_id = declaration.get("development_run_id") if split == "development" else None
+    if config.FULL_CONTEXT_ENABLED:
+        raise VariantConfigurationError("Variante C exige FULL_CONTEXT_ENABLED=false.")
+    evidence_gate.load_policy(
+        config.JEV_POLICY_FILE, model=config.JEV_MODEL,
+        development_run_id=development_run_id,
+    )
+    return development_run_id
+
+
 def _comparison_identifiers(
     profile: dict[str, Any],
     *,
@@ -459,6 +474,23 @@ def _comparison_identifiers(
     return resolved_pair_id, resolved_snapshot_id or None
 
 
+def _summarize_evidence_gates(results: list[dict]) -> dict:
+    statuses, decisions, reasons = Counter(), Counter(), Counter()
+    for result in results:
+        gate = (result.get("trace") or {}).get("evidence_gate") or {}
+        if gate.get("status"):
+            statuses[gate["status"]] += 1
+        if gate.get("status") == "applied":
+            decisions[gate["decision"]] += 1
+        if gate.get("reason"):
+            reasons[gate["reason"]] += 1
+    return {
+        "statuses": {status: statuses[status] for status in ("applied", "inconclusive", "unavailable", "skipped")},
+        "applied_decisions": {label: decisions[label] for label in evidence_gate.QUESTIONS["sufficiency"]["criteria"]},
+        "reasons": dict(reasons),
+    }
+
+
 def _validate_variant_execution(
     variant_id: str,
     *,
@@ -474,7 +506,7 @@ def _validate_variant_execution(
         raise VariantUnavailableError(
             f"A variante {variant_id} está indisponível: {reason}."
         )
-    if variant_id == VARIANT_JEV_RERANK and answer_provider is None:
+    if variant_id in {VARIANT_JEV_RERANK, VARIANT_JEV_RERANK_GATE} and answer_provider is None:
         config.validate_jev_config(active=True)
     if not definition["available_without_provider"] and answer_provider is None:
         requirements = ", ".join(definition["requires"])
@@ -496,9 +528,10 @@ def _live_comparison_provider(
     frozen_query: str | None = None,
     query_capture: list[str] | None = None,
 ) -> tuple[str, list[dict], dict[str, Any]]:
-    """Executa rag.ask; a ablação B reutiliza pool e consulta efetiva de A."""
+    """Executa rag.ask; a ablação reutiliza pool e consulta da primeira variante."""
     observed_queries = query_capture if query_capture is not None else []
     with ExitStack() as patches:
+        patches.enter_context(patch.object(config, "JEV_EVIDENCE_GATE_ENABLED", variant_id == VARIANT_JEV_RERANK_GATE))
         reformulate = rag._reformulate_query_with_history
 
         def _capture_reformulated_query(
@@ -525,16 +558,12 @@ def _live_comparison_provider(
             patch.object(
                 config,
                 "RAG_RERANK_PROVIDER",
-                "jev" if variant_id == VARIANT_JEV_RERANK else "existing",
+                "jev" if variant_id in {VARIANT_JEV_RERANK, VARIANT_JEV_RERANK_GATE} else "existing",
             )
         )
-        if variant_id == VARIANT_JEV_RERANK:
+        if variant_id in {VARIANT_JEV_RERANK, VARIANT_JEV_RERANK_GATE}:
             patches.enter_context(patch.object(config, "RAG_ENABLE_RERANKING", True))
-        if mode == "ranking_ablation" and variant_id != VARIANT_EXISTING:
-            if candidate_pool is None:
-                raise VariantConfigurationError(
-                    "A ablação Jev exige candidate_pool capturado da variante existing."
-                )
+        if mode == "ranking_ablation" and candidate_pool is not None:
             frozen_pool = copy.deepcopy(candidate_pool)
 
             def replay_retrieval(
@@ -565,23 +594,31 @@ def _live_comparison_provider(
     reranks = trace.get("rerank") or []
     rerank = reranks[-1] if reranks and isinstance(reranks[-1], dict) else {}
     jev_applied = (
-        variant_id == VARIANT_JEV_RERANK
+        variant_id in {VARIANT_JEV_RERANK, VARIANT_JEV_RERANK_GATE}
         and rerank.get("requested_provider") == "jev"
         and rerank.get("effective_provider") == "jev"
         and rerank.get("applied") is True
     )
+    gate = trace.get("evidence_gate") or {}
+    gate_applied = gate.get("status") == "applied"
+    effective_variant = VARIANT_JEV_RERANK if jev_applied else VARIANT_EXISTING
+    fallback_stage = None
+    fallback_reason = None
+    if variant_id != VARIANT_EXISTING and not jev_applied:
+        fallback_stage = "rerank"
+        fallback_reason = rerank.get("fallback_reason") or "jev_not_applied"
+    if variant_id == VARIANT_JEV_RERANK_GATE:
+        if gate_applied and jev_applied:
+            effective_variant = VARIANT_JEV_RERANK_GATE
+        elif gate_applied:
+            effective_variant = "existing+evidence_gate"
+        elif fallback_stage is None:
+            fallback_stage = "evidence_gate"
+            fallback_reason = gate.get("reason") or "gate_not_applied"
     trace["comparison"] = {
-        "effective_variant": (
-            VARIANT_JEV_RERANK if jev_applied else VARIANT_EXISTING
-        ),
-        "fallback_stage": (
-            "rerank" if variant_id == VARIANT_JEV_RERANK and not jev_applied else None
-        ),
-        "fallback_reason": (
-            rerank.get("fallback_reason") or "jev_not_applied"
-            if variant_id == VARIANT_JEV_RERANK and not jev_applied
-            else None
-        ),
+        "effective_variant": effective_variant,
+        "fallback_stage": fallback_stage,
+        "fallback_reason": fallback_reason,
         "effective_reranker_provider": rerank.get("effective_provider", "retrieval"),
         "effective_reranker_model": rerank.get("model_effective"),
     }
@@ -1417,7 +1454,7 @@ def _evaluate_retrieval_stages(
     for stage_name in RETRIEVAL_STAGE_NAMES:
         raw_stage = declared.get(stage_name)
         stage = raw_stage if isinstance(raw_stage, dict) else {}
-        if stage_name == "final_context":
+        if stage_name in {"final_context", "post_gate"}:
             stage_chunks = _rendered_context_chunks(final_chunks, trace)
         else:
             stage_chunks = stage.get("chunks")
@@ -1863,6 +1900,14 @@ def _jev_identity() -> dict[str, Any]:
     }
     return {
         "configured": bool(config.TYPESAFE_API_KEY),
+        "evidence_gate_prompt": {
+            "version": evidence_gate.PROMPT_VERSION,
+            "sha256": evidence_gate.fingerprint(evidence_gate.QUESTIONS),
+        },
+        "evidence_gate_policy": (
+            _canonical_sha256(json.loads(Path(config.JEV_POLICY_FILE).read_text(encoding="utf-8")))
+            if config.JEV_POLICY_FILE else None
+        ),
         "endpoint": jev.ENDPOINT,
         "model": config.JEV_MODEL,
         "contract_version": jev.CONTRACT_VERSION,
@@ -2422,6 +2467,7 @@ def run_evaluation(
         answer_provider=answer_provider,
         profile=profile if isinstance(profile, dict) else None,
     )
+    development_run_id = _validate_gate_profile(profile or {}, variants=[variant_id], split=split)
     comparison = _comparison_metadata(
         variant_id=variant_id,
         pair_id=pair_id,
@@ -2443,12 +2489,13 @@ def run_evaluation(
 
     started_at = datetime.now(timezone.utc).isoformat()
     with ExitStack() as variant_config:
+        variant_config.enter_context(patch.object(config, "JEV_EVIDENCE_GATE_ENABLED", variant_id == VARIANT_JEV_RERANK_GATE))
         variant_config.enter_context(patch.object(
             config,
             "RAG_RERANK_PROVIDER",
-            "jev" if variant_id == VARIANT_JEV_RERANK else "existing",
+            "jev" if variant_id in {VARIANT_JEV_RERANK, VARIANT_JEV_RERANK_GATE} else "existing",
         ))
-        if variant_id == VARIANT_JEV_RERANK:
+        if variant_id in {VARIANT_JEV_RERANK, VARIANT_JEV_RERANK_GATE}:
             variant_config.enter_context(patch.object(config, "RAG_ENABLE_RERANKING", True))
         runtime_metadata = _runtime_metadata(
             dataset,
@@ -2515,7 +2562,7 @@ def run_evaluation(
             if isinstance(case.get("conversation_history"), list)
             else None
         )
-        provider_scope = dict(scope)
+        provider_scope = {**scope, "_evidence_gate_development_run_id": development_run_id}
         if paired_execution:
             provider_scope["_comparison_snapshot_id"] = snapshot_id
             provider_scope["_comparison_experiment_identity"] = runtime_metadata[
@@ -2536,6 +2583,11 @@ def run_evaluation(
             answer, chunks, trace = answer_provider(question, provider_scope)
         if not isinstance(trace, dict):
             raise ValueError("O provider de avaliação deve retornar um trace objeto.")
+        if variant_id == VARIANT_JEV_RERANK_GATE:
+            observed_policy = (trace.get("evidence_gate") or {}).get("policy_version")
+            expected_policy = runtime_metadata["experiment_identity"]["jev"]["evidence_gate_policy"]
+            if observed_policy != expected_policy:
+                raise VariantConfigurationError("Política efetiva do gate diverge da identidade da execução.")
         observed_snapshot = trace.get("snapshot_id")
         if paired_execution:
             if observed_snapshot is None:
@@ -2790,6 +2842,7 @@ def run_evaluation(
             expected_holdout_cases=sum(case.get("split") == "holdout" for case in dataset),
         ),
         "stage_metrics": _summarize_stage_metrics(results),
+        "evidence_gate": _summarize_evidence_gates(results),
         "model_usage": _summarize_model_usage(results),
         "limitations": [
             "Os intervalos de 95% usam Wilson e amostras pequenas permanecem incertas.",
@@ -3136,8 +3189,9 @@ def run_paired_comparison(
     profile = _comparison_profile(baseline_config)
     configured_variants = [str(value) for value in profile["variants"]]
     selected_variants = list(variants or configured_variants)
+    development_run_id = _validate_gate_profile(profile, variants=selected_variants, split=split)
     if len(selected_variants) < 2:
-        raise VariantConfigurationError("Uma comparação pareada exige pelo menos A e B.")
+        raise VariantConfigurationError("Uma comparação pareada exige pelo menos duas variantes.")
     if len(set(selected_variants)) != len(selected_variants):
         raise VariantConfigurationError("A comparação não pode repetir variantes.")
     registered_variants = set(configured_variants) | set(
@@ -3201,11 +3255,12 @@ def run_paired_comparison(
                 case_id = str(case.get("id") or "")
                 candidate_pool = (
                     captured_pools.get(case_id)
-                    if mode == "ranking_ablation" and _variant_id != VARIANT_EXISTING
+                    if mode == "ranking_ablation" and _variant_id != selected_variants[0]
                     else None
                 )
                 query_capture: list[str] = []
                 if _provider is None:
+                    scope = {**scope, "_evidence_gate_development_run_id": development_run_id}
                     answer, chunks, trace = _live_comparison_provider(
                         question,
                         scope,
@@ -3215,7 +3270,7 @@ def run_paired_comparison(
                         frozen_query=(
                             captured_queries.get(case_id)
                             if mode == "ranking_ablation"
-                            and _variant_id != VARIANT_EXISTING
+                            and _variant_id != selected_variants[0]
                             else None
                         ),
                         query_capture=query_capture,
@@ -3251,7 +3306,7 @@ def run_paired_comparison(
                     if query_capture
                     else supplied_query_identity or question
                 )
-                if _variant_id == VARIANT_EXISTING:
+                if _variant_id == selected_variants[0]:
                     pool_chunks = (
                         ((trace.get("retrieval_stages") or {}).get("candidate_pool") or {}).get(
                             "chunks"
@@ -3261,7 +3316,7 @@ def run_paired_comparison(
                     )
                     if not isinstance(pool_chunks, list):
                         raise VariantConfigurationError(
-                            "A ablação pareada exige chunks do candidate_pool no trace da variante existing."
+                            "A ablação pareada exige chunks do candidate_pool no trace da primeira variante."
                         )
                     captured_pools[case_id] = copy.deepcopy(pool_chunks)
                     if mode == "ranking_ablation":
@@ -3443,6 +3498,7 @@ def prepare_comparison(
     profile = _comparison_profile(baseline_config)
     configured_variants = [str(value) for value in profile["variants"]]
     selected_variants = list(variants or configured_variants)
+    _validate_gate_profile(profile, variants=selected_variants, split=split)
     registered_variants = set(configured_variants) | set(
         (profile.get("unavailable_variants") or {}).keys()
     )
@@ -3473,7 +3529,7 @@ def prepare_comparison(
             blockers.append(
                 f"{variant_id}_unavailable:{unavailable.get('reason') or unavailable.get('unavailable_reason')}"
             )
-        elif variant_id == VARIANT_JEV_RERANK and not config.TYPESAFE_API_KEY:
+        elif variant_id in {VARIANT_JEV_RERANK, VARIANT_JEV_RERANK_GATE} and not config.TYPESAFE_API_KEY:
             blockers.append("jev_rerank_requires_TYPESAFE_API_KEY")
     canonical_dataset = json.dumps(
         dataset,

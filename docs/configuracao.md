@@ -222,6 +222,58 @@ rollback não exige migração, reindexação nem recálculo de embeddings. A
 comparação operacional ativa depende do runner da issue #90 e da rodada da
 issue #93; os testes sintéticos desta entrega não demonstram ganho real.
 
+## Gate de suficiência Jev (issue #92)
+
+Este contrato acompanha a entrega da #92. O padrão é
+`JEV_EVIDENCE_GATE_ENABLED=false`. A ativação exige `JEV_POLICY_FILE` apontando
+para uma política JSON válida e a credencial TypeSafe. O gate é independente de
+`RAG_RERANK_PROVIDER`: desligá-lo preserva a escolha do reranker.
+
+A política contém `schema_version=1`, `model` igual a `JEV_MODEL`,
+`prompt_version=jev-evidence-gate-pt-v1`, `development_run_id` não vazio,
+`status` (`provisional` ou `frozen`) e `thresholds` com duas entradas:
+`insufficient` e `clarification_needed`. Cada entrada exige `min_confidence`
+e `min_probability_margin`, números finitos entre 0 e 1. Não há valores
+semânticos padrão. Defina-os no development da #93; os valores sintéticos dos
+testes não são uma calibração. `policy_version` no trace é o SHA-256 do JSON
+canônico inteiro, incluindo limiares, modelo, prompt e origem da calibração.
+
+Políticas `provisional` são aceitas somente pelo avaliador no split development,
+com `comparison.evidence_gate.development_run_id` igual ao da política. O bot e
+o holdout exigem `frozen`. Política inválida impede o modo solicitado antes de
+qualquer chamada. Até a unificação da #17, a combinação com
+`FULL_CONTEXT_ENABLED=true` é rejeitada explicitamente.
+
+Depois do strict e do orçamento de contexto, uma única Choice avalia o texto
+exato retido, com separação de fontes, e as regras de negócio efetivamente
+incluídas no prompt. Não divide o conjunto, remove candidatos nem busca novas
+fontes. A instrução inclui evidência complementar, negações e correção de
+premissa falsa; conteúdo documental é tratado como dado, sem garantia de
+resistência semântica a injeção por causa da delimitação.
+
+- `sufficient` preserva o fluxo; não certifica a resposta futura.
+- `insufficient`, com confiança e margem aceitas, retorna a abstenção existente
+  com motivo `semantic_insufficient_evidence`, sem geração.
+- `clarification_needed`, com a mesma validação da política, pede que o usuário
+  detalhe o cenário, sem inventar um identificador ausente ou gerar texto pago.
+- Confiança ou margem insuficiente preserva o fluxo com `inconclusive`.
+
+O strict continua soberano e sua negativa evita a chamada do gate. O limite de
+state, a reserva para geração, o prazo e a concorrência reutilizam as opções
+Jev. Falha operacional ou contexto grande produz `unavailable` e preserva o
+fluxo enquanto houver prazo; o deadline global mantém o erro vigente. Respostas
+diretas de feedback no bot continuam fora deste caminho RAG.
+
+O trace registra decisão, status, probabilidades, confiança, hash da política,
+fingerprint da evidência, latência e custo conhecido/completo; nunca o state.
+`post_gate` identifica o conjunto avaliado. Quando uma negativa impede geração,
+`final_context` fica indisponível com motivo explícito e o envelope recebe
+`blocked_by_evidence_gate`, para não contabilizar texto como enviado ao gerador.
+
+Rollback: `JEV_EVIDENCE_GATE_ENABLED=false`. Não exige migração ou reindexação.
+A entrega é de implementação com fixtures; calibração, ensaio real, revisão
+humana e adoção permanecem na #93.
+
 ## Compatibilidade com nomes antigos
 
 Instalações existentes continuam funcionando com os nomes abaixo enquanto a
