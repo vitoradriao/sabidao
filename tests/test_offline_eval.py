@@ -951,6 +951,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         with (
             patch.object(run_offline_eval.rag, "ask") as ask,
             patch.object(run_offline_eval, "_database_identity") as identity,
+            patch.object(run_offline_eval.config, "TYPESAFE_API_KEY", ""),
         ):
             prepared = run_offline_eval.prepare_comparison(
                 dataset=dataset,
@@ -962,9 +963,25 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(prepared["external_calls"], 0)
         self.assertEqual(prepared["database_writes"], 0)
         self.assertIn("snapshot_id_required_before_execution", prepared["blockers"])
-        self.assertNotIn("jev_rerank_requires_active_path:#91", prepared["blockers"])
+        self.assertIn("jev_rerank_requires_TYPESAFE_API_KEY", prepared["blockers"])
         ask.assert_not_called()
         identity.assert_not_called()
+
+    def test_prepare_rejects_ambiguous_reranker_input_window(self):
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(encoding="utf-8")
+        )
+        baseline_config["comparison"]["controls"]["reranker_input_window"] = {
+            "existing": "same_as_jev"
+        }
+        with self.assertRaisesRegex(
+            run_offline_eval.VariantConfigurationError, "reranker_input_window"
+        ):
+            run_offline_eval.prepare_comparison(
+                dataset=[{"id": "case", "question": "q"}],
+                dataset_name="invalid-window",
+                baseline_config=baseline_config,
+            )
 
     def test_paired_comparison_keeps_same_pool_and_distinguishes_active_paths(self):
         fixture_path = ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
@@ -1026,6 +1043,159 @@ class TestOfflineEvaluator(unittest.TestCase):
             "jev_rerank",
         )
 
+    def test_live_paired_path_replays_pool_restores_hooks_and_reports_jev_hash(self):
+        dataset = [{
+            "id": "live-fake",
+            "question": "Qual documento?",
+            "split": "development",
+            "expected_behavior": "no_answer",
+            "expected_intent": "general",
+        }]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(encoding="utf-8")
+        )
+        pool = [
+            {"id": name, "filename": f"{name}.md", "content": f"trecho {name}", "similarity": 0.7}
+            for name in ("a", "b", "c")
+        ]
+        observed = []
+
+        def retrieval(_query, *, query_plan, scope, retrieval_trace=None):
+            return [dict(chunk) for chunk in pool], [], [dict(chunk) for chunk in pool]
+
+        def fake_ask(_question, *, scope, **_kwargs):
+            search_query = run_offline_eval.rag._reformulate_query_with_history(
+                _question, [{"role": "user", "content": "histórico"}]
+            )
+            candidates, _, _ = run_offline_eval.rag.retrieve_chunks_with_feedback(
+                _question, query_plan={}, scope=scope, retrieval_trace={}
+            )
+            provider = run_offline_eval.config.RAG_RERANK_PROVIDER
+            observed.append((provider, [chunk["id"] for chunk in candidates], search_query))
+            ranked = list(reversed(candidates)) if provider == "jev" else candidates
+            stages = {
+                name: {"status": "available", "chunks": ranked if name == "post_rerank" else candidates}
+                for name in run_offline_eval.RETRIEVAL_STAGE_NAMES
+            }
+            stages["final_context"]["chunks"] = ranked[:1]
+            stages["post_gate"] = {"status": "not_applicable", "reason": "evidence_gate_not_implemented"}
+            return (
+                run_offline_eval.config.NO_ANSWER_PHRASE,
+                ranked[:1],
+                {
+                    "abstained": True,
+                    "query_plan": {"intent": "general"},
+                    "retrieval_stages": stages,
+                    "rerank": [{
+                        "requested_provider": provider,
+                        "effective_provider": provider,
+                        "applied": True,
+                        "model_effective": "jev-1.13.0" if provider == "jev" else None,
+                        "decisions": [{
+                            "candidate_id": run_offline_eval.rag._evaluation_candidate_id(ranked[0]),
+                            "state_sha256": "a" * 64,
+                        }] if provider == "jev" else [],
+                    }],
+                },
+            )
+
+        original_provider = run_offline_eval.config.RAG_RERANK_PROVIDER
+        def reformulate_by_variant(_question, _history, **_kwargs):
+            return (
+                "consulta existente"
+                if run_offline_eval.config.RAG_RERANK_PROVIDER == "existing"
+                else "consulta Jev"
+            )
+
+        with patch.object(run_offline_eval.config, "TYPESAFE_API_KEY", "fake-test-key"), patch.object(
+            run_offline_eval, "_database_identity", return_value=self._verified_database_identity()
+        ), patch.object(
+            run_offline_eval.rag, "retrieve_chunks_with_feedback", side_effect=retrieval
+        ) as original_retrieval, patch.object(
+            run_offline_eval.rag, "ask", side_effect=fake_ask
+        ), patch.object(
+            run_offline_eval.rag,
+            "_reformulate_query_with_history",
+            side_effect=reformulate_by_variant,
+        ):
+            comparison = run_offline_eval.run_paired_comparison(
+                dataset=dataset,
+                dataset_name="live-fake",
+                dry_run=True,
+                limit=None,
+                baseline_config=baseline_config,
+                pair_id="live-fake-pair",
+                snapshot_id="live-fake-snapshot",
+            )
+            self.assertIs(run_offline_eval.rag.retrieve_chunks_with_feedback, original_retrieval)
+
+        self.assertEqual(run_offline_eval.config.RAG_RERANK_PROVIDER, original_provider)
+        self.assertEqual(
+            [provider for provider, _, _ in observed],
+            ["existing", "jev", "existing", "jev"],
+        )
+        self.assertTrue(all(ids == ["a", "b", "c"] for _, ids, _ in observed))
+        self.assertEqual(
+            [query for _, _, query in observed],
+            ["consulta existente", "consulta existente", "consulta existente", "consulta Jev"],
+        )
+        self.assertEqual(original_retrieval.call_count, 3)
+        self.assertEqual(comparison["status"], "complete")
+        identities = comparison["experiment_identity"]
+        self.assertEqual(
+            identities["existing"]["rag_config"]["RAG_RERANK_PROVIDER"],
+            "existing",
+        )
+        self.assertEqual(
+            identities["jev_rerank"]["rag_config"]["RAG_RERANK_PROVIDER"],
+            "jev",
+        )
+        self.assertNotEqual(
+            identities["existing"]["fingerprint_sha256"],
+            identities["jev_rerank"]["fingerprint_sha256"],
+        )
+        ranking_case = comparison["views"]["ranking_ablation_same_pool"]["cases"][0]
+        self.assertTrue(ranking_case["same_rerank_query"])
+        self.assertNotIn("rerank_query_sha256", json.dumps(comparison))
+        self.assertNotIn("consulta existente", json.dumps(comparison))
+        result = comparison["summaries"]["jev_rerank"]["results"][0]
+        self.assertEqual(result["comparison"]["effective_reranker_provider"], "jev")
+        self.assertEqual(result["trace"]["rerank"][0]["decisions"][0]["state_sha256"], "a" * 64)
+        self.assertNotIn("trecho a", json.dumps(result["trace"], ensure_ascii=False))
+        self.assertEqual(comparison["gain_attribution"]["status"], "unavailable")
+
+    def test_partial_holdout_does_not_approve_paired_result(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )[:2]
+        for case in dataset:
+            case["split"] = "holdout"
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(encoding="utf-8")
+        )
+
+        def provider(variant):
+            def answer_provider(question, scope):
+                case = next(item for item in dataset if item["question"] == question)
+                return _paired_fixture_response(case["fixture_variants"][variant], scope)
+            return answer_provider
+
+        with patch.object(
+            run_offline_eval, "_database_identity", return_value=self._verified_database_identity()
+        ):
+            comparison = run_offline_eval.run_paired_comparison(
+                dataset=dataset,
+                dataset_name="partial-holdout",
+                dry_run=True,
+                limit=1,
+                baseline_config=baseline_config,
+                answer_providers={variant: provider(variant) for variant in ("existing", "jev_rerank")},
+                pair_id="partial-holdout-pair",
+                snapshot_id="partial-holdout-snapshot",
+            )
+        self.assertEqual(comparison["status"], "incomplete")
+        self.assertEqual(comparison["approval"]["status"], "not_evaluated")
+
     def test_paired_comparison_marks_fallback_without_calling_it_jev_success(self):
         dataset = run_offline_eval._load_dataset(
             ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
@@ -1073,11 +1243,13 @@ class TestOfflineEvaluator(unittest.TestCase):
 
         view = comparison["views"]["end_to_end_same_snapshot"]
         self.assertEqual(view["fallback_cases"], ["paired-ranking-inversion"])
+        self.assertEqual(view["status"], "incomplete")
+        self.assertEqual(comparison["status"], "incomplete")
         result = comparison["summaries"]["jev_rerank"]["results"][0]
         self.assertEqual(result["comparison"]["effective_variant"], "existing")
         self.assertEqual(result["comparison"]["fallback_reason"], "provider_error")
 
-    def test_jev_variant_uses_active_rag_path(self):
+    def test_jev_variant_requires_key_before_rag_call(self):
         dataset = [
             {
                 "id": "one",
@@ -1086,100 +1258,18 @@ class TestOfflineEvaluator(unittest.TestCase):
                 "expected_intent": "general",
             }
         ]
-        observed = []
-
-        def fake_ask(*_args, **_kwargs):
-            observed.append(run_offline_eval.rag._offline_eval_rerank_provider.get())
-            return "Sem resposta.", [], {"abstained": True, "rerank": [{
-                "effective_provider": "retrieval", "applied": False,
-                "fallback_reason": "insufficient_candidates",
-            }]}
-
-        with patch.object(run_offline_eval.rag, "ask", side_effect=fake_ask):
-            result = run_offline_eval.run_evaluation(
-                dataset=dataset, dataset_name="active", dry_run=True, limit=None,
-                variant_id="jev_rerank",
-            )
-        self.assertEqual(observed, ["jev"])
-        self.assertEqual(result["results"][0]["comparison"]["effective_variant"], "existing")
-        self.assertFalse(result["results"][0]["variant_success"])
-        self.assertIsNone(run_offline_eval.rag._offline_eval_rerank_provider.get())
-
-    def test_paired_cli_path_selects_providers_and_reuses_a_pool(self):
-        dataset = run_offline_eval._load_dataset(
-            ROOT_DIR / "evaluation/datasets/jev_paired_synthetic_fixture.json"
-        )[:1]
-        baseline_config = json.loads(
-            (ROOT_DIR / "evaluation/baseline_config.json").read_text(encoding="utf-8")
-        )
-        observed = []
-
-        def fake_ask(question, **_kwargs):
-            variant = run_offline_eval.rag._offline_eval_rerank_provider.get()
-            pool = run_offline_eval.rag._offline_eval_candidate_pool.get()
-            observed.append((variant, pool is not None))
-            response = dataset[0]["fixture_variants"][
-                "jev_rerank" if variant == "jev" else "existing"
-            ]
-            trace = dict(response["trace"])
-            if variant == "jev":
-                trace["rerank"] = [{"effective_provider": "jev", "applied": True}]
-            return response["answer"], response["chunks"], trace
-
-        with patch.object(run_offline_eval, "_database_identity", return_value=self._verified_database_identity()), patch.object(
-            run_offline_eval.rag, "ask", side_effect=fake_ask
-        ):
-            report = run_offline_eval.run_paired_comparison(
-                dataset=dataset, dataset_name="active-pair", dry_run=True, limit=None,
-                baseline_config=baseline_config, snapshot_id="snapshot-1",
-            )
-        self.assertEqual(observed, [("existing", False), ("jev", True), ("existing", False), ("jev", False)])
-        self.assertEqual(report["status"], "complete")
-        self.assertTrue(report["identity_comparisons"]["jev_rerank"]["compatible"])
-        self.assertEqual(report["summaries"]["jev_rerank"]["results"][0]["comparison"]["rerank_provider"], "jev")
-        self.assertTrue(report["summaries"]["jev_rerank"]["results"][0]["variant_success"])
-
-    def test_active_provider_rejects_database_snapshot_drift(self):
-        expected = self._verified_database_identity()
-        changed = self._verified_database_identity(corpus_sha256="changed")
-        scope = {
-            "_comparison_snapshot_id": "snapshot-1",
-            "_comparison_experiment_identity": {"database": expected},
-        }
-        with patch.object(run_offline_eval, "_database_identity", return_value=changed), patch.object(
-            run_offline_eval.rag, "ask", return_value=("", [], {})
-        ):
-            with self.assertRaisesRegex(run_offline_eval.VariantConfigurationError, "snapshot do banco diverge"):
-                run_offline_eval._active_comparison_provider(
-                    {"question": "q"}, scope, variant_id="existing", mode="end_to_end", candidate_pool=None
-                )
-
-    def test_active_pair_rejects_unknown_database_before_provider_calls(self):
-        dataset = run_offline_eval._load_dataset(
-            ROOT_DIR / "evaluation/datasets/jev_paired_synthetic_fixture.json"
-        )[:1]
-        baseline_config = json.loads(
-            (ROOT_DIR / "evaluation/baseline_config.json").read_text(encoding="utf-8")
-        )
-        with patch.object(run_offline_eval, "_database_identity", return_value={"status": "unknown"}), patch.object(
+        with patch.object(run_offline_eval.config, "TYPESAFE_API_KEY", ""), patch.object(
             run_offline_eval.rag, "ask"
         ) as ask:
-            with self.assertRaisesRegex(run_offline_eval.VariantConfigurationError, "identidade verificável"):
-                run_offline_eval.run_paired_comparison(
-                    dataset=dataset, dataset_name="active-pair", dry_run=True, limit=None,
-                    baseline_config=baseline_config, snapshot_id="snapshot-1",
+            with self.assertRaisesRegex(EnvironmentError, "TYPESAFE_API_KEY"):
+                run_offline_eval.run_evaluation(
+                    dataset=dataset,
+                    dataset_name="unavailable",
+                    dry_run=True,
+                    limit=None,
+                    variant_id="jev_rerank",
                 )
         ask.assert_not_called()
-
-    def test_jev_evidence_report_keeps_only_opaque_id_hash_and_status(self):
-        trace = {"jev_evidence": [{
-            "candidate_id": "private-id", "state_sha256": "a" * 64,
-            "status": "attempted", "state": {"trecho_documental": "private text"},
-        }], "rerank": [{"effective_provider": "jev", "evidence": [{"state": "private text"}]}]}
-        safe = run_offline_eval._trace_for_report(trace, {})
-        self.assertEqual(safe["jev_evidence"][0]["state_sha256"], "a" * 64)
-        self.assertTrue(safe["jev_evidence"][0]["candidate_id"].startswith("candidate-"))
-        self.assertNotIn("private", json.dumps(safe))
 
     def test_paired_provider_without_snapshot_or_identity_is_rejected(self):
         dataset = run_offline_eval._load_dataset(
@@ -1523,6 +1613,39 @@ class TestOfflineEvaluator(unittest.TestCase):
                     pair_id="fixture-pair-divergent-v1",
                     snapshot_id="fixture-snapshot-v1",
                 )
+
+    def test_database_drift_stops_pair_before_jev_variant(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_paired_synthetic_fixture.json"
+        )[:1]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(encoding="utf-8")
+        )
+        calls = []
+
+        def provider(variant):
+            def answer_provider(question, scope):
+                calls.append(variant)
+                return _paired_fixture_response(dataset[0]["fixture_variants"][variant], scope)
+            return answer_provider
+
+        identities = iter((
+            self._verified_database_identity(corpus_sha256="before"),
+            self._verified_database_identity(corpus_sha256="after"),
+        ))
+        with patch.object(run_offline_eval, "_database_identity", side_effect=lambda: next(identities)):
+            with self.assertRaisesRegex(run_offline_eval.VariantConfigurationError, "identidade do banco mudou"):
+                run_offline_eval.run_paired_comparison(
+                    dataset=dataset,
+                    dataset_name="drift",
+                    dry_run=True,
+                    limit=None,
+                    baseline_config=baseline_config,
+                    answer_providers={variant: provider(variant) for variant in ("existing", "jev_rerank")},
+                    pair_id="drift-pair",
+                    snapshot_id="drift-snapshot",
+                )
+        self.assertEqual(calls, ["existing"])
 
 
 if __name__ == "__main__":

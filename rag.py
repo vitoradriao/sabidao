@@ -52,21 +52,6 @@ _request_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar
 _request_external_calls: contextvars.ContextVar[list[dict[str, Any]] | None] = (
     contextvars.ContextVar("rag_request_external_calls", default=None)
 )
-_offline_eval_rerank_provider: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "rag_offline_eval_rerank_provider", default=None
-)
-_offline_eval_candidate_pool: contextvars.ContextVar[list[dict] | None] = contextvars.ContextVar(
-    "rag_offline_eval_candidate_pool", default=None
-)
-_offline_eval_same_pool_ablation: contextvars.ContextVar[bool] = contextvars.ContextVar(
-    "rag_offline_eval_same_pool_ablation", default=False
-)
-_offline_eval_search_query: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "rag_offline_eval_search_query", default=None
-)
-_offline_eval_query_capture: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
-    "rag_offline_eval_query_capture", default=None
-)
 
 
 class RequestDeadlineExceeded(TimeoutError):
@@ -3906,7 +3891,7 @@ def _rerank_chunks_with_jev(
         "candidate_pool_count": len(deduped_chunks),
         "excluded_by_cap_count": len(deduped_chunks) - len(candidates),
         "decisions_completed": 0,
-        "evidence": [],
+        "decisions": [],
         "fallback_reason": None,
         "prompt_version": JEV_RERANK_PROMPT_VERSION,
         "model_requested": config.JEV_MODEL,
@@ -3944,36 +3929,38 @@ def _rerank_chunks_with_jev(
         if estimate > config.JEV_MAX_STATE_ESTIMATED_TOKENS:
             return fallback("state_limit")
         states.append(state)
+    state_hashes = [
+        hashlib.sha256(
+            json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        for state in states
+    ]
 
     scores: list[float] = []
     effective_models: list[str] = []
     client = None
     try:
         client = jev.TypeSafeClient()
-        for chunk, state in zip(candidates, states):
+        for chunk, state, state_hash in zip(candidates, states, state_hashes):
             remaining = config.JEV_STAGE_TIMEOUT_SECONDS - (_time.monotonic() - started_at)
             if remaining <= 0:
                 return fallback("stage_budget_exhausted")
-            candidate_id = _jev_candidate_id(chunk)
-            evidence = {
-                "candidate_id": candidate_id,
-                "state_sha256": hashlib.sha256(
-                    json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-                ).hexdigest(),
-                "status": "attempted",
-            }
-            summary["evidence"].append(evidence)
             result = client.decide(
                 state,
                 _JEV_RERANK_QUESTION,
                 stage="rerank",
                 request_id=request_id,
-                candidate_id=candidate_id,
+                candidate_id=_jev_candidate_id(chunk),
                 deadline=deadline,
                 stage_budget_seconds=remaining,
             )
             _record_jev_decision(model_calls, result=result, stage="rerank")
-            evidence["status"] = result.status
+            summary["decisions"].append({
+                "candidate_id": _evaluation_candidate_id(chunk),
+                "state_sha256": state_hash,
+                "status": result.status,
+                "model_effective": result.model_effective,
+            })
             summary["model_effective"] = result.model_effective or result.model_requested
             if result.estimated_cost_usd is None:
                 summary["cost_complete"] = False
@@ -4002,12 +3989,11 @@ def _rerank_chunks_with_jev(
     reranked: list[dict] = []
     for new_rank, index in enumerate(order, start=1):
         chunk = dict(candidates[index])
-        state_hash = summary["evidence"][index]["state_sha256"]
         chunk["jev"] = {
             "relevance": scores[index],
             "model_effective": effective_models[index],
             "prompt_version": JEV_RERANK_PROMPT_VERSION,
-            "state_sha256": state_hash,
+            "state_sha256": state_hashes[index],
             "status": "ok",
             "original_rank": index + 1,
             "reranked_rank": new_rank,
@@ -4030,12 +4016,11 @@ def _rerank_chunks(
     trace: dict[str, Any] | None = None,
 ) -> list[dict]:
     """Seleciona provider preservando o fluxo existente como fallback."""
-    requested_provider = _offline_eval_rerank_provider.get() or config.RAG_RERANK_PROVIDER
-    if not config.RAG_ENABLE_RERANKING or requested_provider == "existing":
+    if not config.RAG_ENABLE_RERANKING or config.RAG_RERANK_PROVIDER == "existing":
         result = _rerank_chunks_with_llm(query, chunks, request_id=request_id, model_calls=model_calls)
         if trace is not None:
             trace.setdefault("rerank", []).append({
-                "requested_provider": requested_provider,
+                "requested_provider": config.RAG_RERANK_PROVIDER,
                 "effective_provider": "existing" if result is not chunks else "retrieval",
                 "applied": result is not chunks,
                 "candidate_count": None,
@@ -4065,7 +4050,6 @@ def _rerank_chunks(
             summary["effective_provider"] = "existing" if result is not chunks else "retrieval"
             summary["applied"] = result is not chunks
     if trace is not None:
-        trace.setdefault("jev_evidence", []).extend(summary["evidence"])
         trace.setdefault("rerank", []).append(summary)
     return result
 
@@ -4620,18 +4604,12 @@ def _ask_impl(
 
     _ensure_request_active("reformulation")
     stage_started_at = _time.monotonic()
-    frozen_query = _offline_eval_search_query.get() if platform == "offline_eval" else None
-    search_query = frozen_query if frozen_query is not None else _reformulate_query_with_history(
+    search_query = _reformulate_query_with_history(
         question,
         conversation_history,
         request_id=query_id,
         model_calls=trace["model_calls"],
     )
-    if platform == "offline_eval":
-        trace["search_query_sha256"] = hashlib.sha256(search_query.encode("utf-8")).hexdigest()
-        capture = _offline_eval_query_capture.get()
-        if capture is not None:
-            capture.append(search_query)
     _mark_stage("reformulation", stage_started_at)
     base_system = system_prompt or config.SYSTEM_PROMPT
 
@@ -4781,19 +4759,12 @@ def _ask_impl(
     _ensure_request_active("retrieval")
     stage_started_at = _time.monotonic()
     retrieval_scope_trace: dict[str, Any] = {}
-    comparison_pool = _offline_eval_candidate_pool.get() if platform == "offline_eval" else None
-    if comparison_pool is None:
-        merged_chunks, scoped_feedback_chunks, kb_chunks = retrieve_chunks_with_feedback(
-            search_query,
-            query_plan=query_plan,
-            scope=scope,
-            retrieval_trace=retrieval_scope_trace,
-        )
-    else:
-        merged_chunks = [dict(chunk) for chunk in comparison_pool]
-        scoped_feedback_chunks = []
-        kb_chunks = merged_chunks
-        retrieval_scope_trace["status"] = "paired_candidate_pool_reused"
+    merged_chunks, scoped_feedback_chunks, kb_chunks = retrieve_chunks_with_feedback(
+        search_query,
+        query_plan=query_plan,
+        scope=scope,
+        retrieval_trace=retrieval_scope_trace,
+    )
     _mark_stage("retrieval", stage_started_at)
     trace["retrieval_stages"]["sections"] = _summarize_section_stage(
         merged_chunks,
@@ -4860,12 +4831,7 @@ def _ask_impl(
         )
 
     should_abstain, abstain_reason = _should_strict_abstain(question, chunks)
-    same_pool_ablation = (
-        platform == "offline_eval" and _offline_eval_same_pool_ablation.get()
-    )
-    if should_abstain and (comparison_pool is not None or same_pool_ablation):
-        trace["query_plan_fallback"] = "skipped_paired_pool"
-    if should_abstain and comparison_pool is None and not same_pool_ablation and query_plan and (
+    if should_abstain and query_plan and (
         (query_plan.get("modules") or query_plan.get("doc_types"))
         and abstain_reason in {"no_chunks", "few_chunks", "low_similarity", "low_similarity_operational"}
     ):
@@ -4899,15 +4865,18 @@ def _ask_impl(
                 additional_searches + 1
             )
             combined_chunks = _dedupe_chunks(chunks + broad_merged)
-            trace["retrieval_stages"]["candidate_pool"].setdefault(
-                "expansions", []
-            ).append(
+            pool_stage = _summarize_retrieval_stage(
+                combined_chunks, include_chunks=platform == "offline_eval"
+            )
+            pool_stage["expansions"] = [
+                *trace["retrieval_stages"]["candidate_pool"].get("expansions", []),
                 {
                     "reason": "global_unfiltered",
                     "added_count": len(combined_chunks) - len(chunks),
                     "candidate_count": len(combined_chunks),
-                }
-            )
+                },
+            ]
+            trace["retrieval_stages"]["candidate_pool"] = pool_stage
             fallback_ranked_chunks = _rerank_chunks(
                 search_query,
                 combined_chunks,

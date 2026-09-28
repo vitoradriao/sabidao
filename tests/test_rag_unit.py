@@ -1,8 +1,7 @@
 import unittest
 import tempfile
-import hashlib
-import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import config
@@ -681,6 +680,77 @@ class TestCanonicalRetrievalProvenance(unittest.TestCase):
 
 
 class TestRerankPolicy(unittest.TestCase):
+    def test_global_fallback_trace_exposes_combined_candidate_pool(self):
+        first = {"id": "initial", "section_id": "s1", "filename": "first.md", "content": "texto inicial", "similarity": 0.4}
+        broad = {"id": "broad", "section_id": "s2", "filename": "broad.md", "content": "texto amplo", "similarity": 0.9}
+        retrievals = iter((([first], [], [first]), ([broad], [], [broad])))
+        abstentions = iter(((True, "low_similarity"), (False, None)))
+
+        with patch.multiple(
+            config,
+            MAX_CONTEXT_CHUNKS=2,
+            RAG_ENABLE_QUERY_REFORMULATION=False,
+            RAG_ENABLE_BUSINESS_RULES=False,
+            RAG_ENABLE_GROUNDING_VALIDATION=False,
+            FULL_CONTEXT_ENABLED=False,
+        ), patch.object(
+            rag, "_classify_query_intent",
+            return_value={"intent": "general", "modules": ["modulo"], "doc_types": []},
+        ), patch.object(
+            rag, "retrieve_chunks_with_feedback", side_effect=lambda *_args, **_kwargs: next(retrievals)
+        ), patch.object(
+            rag, "_should_strict_abstain", side_effect=lambda *_args: next(abstentions)
+        ), patch.object(
+            rag, "_rerank_chunks", side_effect=lambda _query, chunks, **_kwargs: chunks
+        ), patch.object(
+            rag, "_ask_model", return_value=config.NO_ANSWER_PHRASE
+        ), patch.object(
+            rag, "_apply_grounding_regeneration", side_effect=lambda **kwargs: (kwargs["answer"], [], set(), 0)
+        ):
+            _, _, trace = rag.ask("Pergunta", platform="offline_eval")
+
+        pool = trace["retrieval_stages"]["candidate_pool"]
+        self.assertEqual([chunk["id"] for chunk in pool["chunks"]], ["initial", "broad"])
+        self.assertEqual(pool["count"], 2)
+        self.assertEqual(pool["expansions"][0]["reason"], "global_unfiltered")
+
+    def test_jev_trace_exposes_state_hash_without_raw_input(self):
+        chunks = [
+            {"id": name, "filename": f"{name}.md", "content": f"texto reservado {name}", "similarity": 0.7}
+            for name in ("a", "b")
+        ]
+
+        class FakeClient:
+            def __init__(self):
+                self.scores = iter((0.1, 0.9))
+
+            def decide(self, *_args, **_kwargs):
+                return SimpleNamespace(
+                    ok=True, status="ok", model_requested="jev-1.13.0",
+                    model_effective="jev-1.13.0", estimated_cost_usd=0.0001,
+                    answers={"relevance": {"noul": next(self.scores)}},
+                )
+
+            def close(self):
+                pass
+
+        trace = {}
+        with patch.multiple(
+            config, RAG_ENABLE_RERANKING=True, RAG_RERANK_PROVIDER="jev",
+            JEV_RERANK_MAX_CANDIDATES=2,
+        ), patch.object(config, "validate_jev_config"), patch.object(
+            rag.jev, "TypeSafeClient", return_value=FakeClient()
+        ):
+            ranked = rag._rerank_chunks("Pergunta reservada", chunks, trace=trace)
+
+        self.assertEqual([chunk["id"] for chunk in ranked], ["b", "a"])
+        decisions = trace["rerank"][0]["decisions"]
+        self.assertEqual(len(decisions), 2)
+        self.assertEqual(decisions[1]["state_sha256"], ranked[0]["jev"]["state_sha256"])
+        self.assertEqual(len(decisions[0]["state_sha256"]), 64)
+        self.assertNotIn("Pergunta reservada", str(rag._sanitize_trace_for_log(trace)))
+        self.assertNotIn("texto reservado", str(rag._sanitize_trace_for_log(trace)))
+
     def test_should_rerank_only_inside_gray_zone(self):
         chunks = [
             {"id": "1", "document_id": "doc-1", "section_id": "s-1", "filename": "a.md", "similarity": 0.70},
@@ -1000,99 +1070,6 @@ class TestDatabaseValidation(unittest.TestCase):
         with patch.dict("os.environ", {}, clear=True):
             with self.assertRaises(EnvironmentError):
                 db.validate_database_config()
-
-
-class TestOfflineJevEvidence(unittest.TestCase):
-    def test_same_pool_ablation_a_skips_global_retrieval_after_abstention(self):
-        pool = [{"id": "a", "filename": "doc.md", "content": "Trecho A", "similarity": 0.2}]
-        token = rag._offline_eval_same_pool_ablation.set(True)
-        try:
-            with patch.object(config, "FULL_CONTEXT_ENABLED", False), patch.object(
-                rag, "_classify_query_intent",
-                return_value={"intent": "configuration", "modules": ["module"], "doc_types": []},
-            ), patch.object(rag, "_rerank_chunks", return_value=pool), patch.object(
-                rag, "_should_strict_abstain", return_value=(True, "few_chunks")
-            ), patch.object(
-                rag, "retrieve_chunks_with_feedback", return_value=(pool, [], pool)
-            ) as retrieve, patch.object(rag, "_log_ask_trace"):
-                _answer, _chunks, trace = rag.ask("Pergunta", platform="offline_eval")
-        finally:
-            rag._offline_eval_same_pool_ablation.reset(token)
-
-        retrieve.assert_called_once()
-        self.assertTrue(trace["abstained"])
-        self.assertEqual(trace["query_plan_fallback"], "skipped_paired_pool")
-        self.assertEqual(trace["retrieval_stages"]["candidate_pool"]["count"], 1)
-        self.assertNotIn("expansions", trace["retrieval_stages"]["candidate_pool"])
-
-    def test_paired_pool_abstention_skips_global_retrieval(self):
-        pool = [{"id": "a", "filename": "doc.md", "content": "Trecho A", "similarity": 0.2}]
-        token = rag._offline_eval_candidate_pool.set(pool)
-        try:
-            with patch.object(config, "FULL_CONTEXT_ENABLED", False), patch.object(
-                rag, "_classify_query_intent",
-                return_value={"intent": "configuration", "modules": ["module"], "doc_types": []},
-            ), patch.object(rag, "_rerank_chunks", return_value=pool), patch.object(
-                rag, "_should_strict_abstain", return_value=(True, "few_chunks")
-            ), patch.object(rag, "retrieve_chunks_with_feedback") as retrieve, patch.object(
-                rag, "_log_ask_trace"
-            ):
-                _answer, _chunks, trace = rag.ask("Pergunta", platform="offline_eval")
-        finally:
-            rag._offline_eval_candidate_pool.reset(token)
-
-        retrieve.assert_not_called()
-        self.assertTrue(trace["abstained"])
-        self.assertEqual(trace["query_plan_fallback"], "skipped_paired_pool")
-        self.assertEqual(trace["retrieval_stages"]["candidate_pool"]["count"], 1)
-        self.assertNotIn("expansions", trace["retrieval_stages"]["candidate_pool"])
-
-    def test_partial_jev_attempt_keeps_state_hashes_without_claiming_success(self):
-        chunks = [
-            {"id": str(index), "filename": "doc.md", "content": f"Trecho {index}", "similarity": 0.7}
-            for index in range(2)
-        ]
-        states = []
-        candidate_ids = []
-
-        class FakeClient:
-            def decide(self, state, _questions, **kwargs):
-                states.append(state)
-                candidate_ids.append(kwargs["candidate_id"])
-                if len(states) == 2:
-                    raise TimeoutError("timeout sintético")
-                return rag.jev.DecisionResult(
-                    status="ok", model_requested="jev-1.13.0", model_effective="jev-1.13.0",
-                    answers={"relevance": {"type": "noul", "noul": 0.8}},
-                    usage={"input_tokens": 10, "output_tokens": 0}, latency_ms=1,
-                    error_code=None, request_id="test", call_id="call-1",
-                    candidate_id=kwargs["candidate_id"], estimated_cost_usd=0.0, cost_status="estimated",
-                )
-
-            def close(self):
-                pass
-
-        trace = {}
-        with patch.multiple(
-            config, RAG_ENABLE_RERANKING=True, RAG_RERANK_PROVIDER="jev",
-            JEV_RERANK_MAX_CANDIDATES=2, JEV_MAX_STATE_ESTIMATED_TOKENS=24000,
-            JEV_STAGE_TIMEOUT_SECONDS=8.0, JEV_MIN_REMAINING_SECONDS=1.0,
-            TYPESAFE_API_KEY="fake-test-key",
-        ), patch.object(rag.jev, "TypeSafeClient", return_value=FakeClient()), patch.object(
-            rag, "_rerank_chunks_with_llm", return_value=chunks
-        ):
-            ranked = rag._rerank_chunks("Pergunta", chunks, trace=trace)
-
-        self.assertIs(ranked, chunks)
-        self.assertEqual(trace["rerank"][0]["fallback_reason"], "client_error")
-        self.assertEqual([item["status"] for item in trace["jev_evidence"]], ["ok", "attempted"])
-        self.assertEqual([item["candidate_id"] for item in trace["jev_evidence"]], candidate_ids)
-        for state, evidence in zip(states, trace["jev_evidence"]):
-            expected = hashlib.sha256(
-                json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            ).hexdigest()
-            self.assertEqual(evidence["state_sha256"], expected)
-            self.assertNotIn("Trecho", str(evidence))
 
 
 if __name__ == "__main__":

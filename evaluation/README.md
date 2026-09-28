@@ -201,11 +201,11 @@ necessárias antes de tratar o resultado como um baseline de produção.
 
 ## Comparação pareada com Jev
 
-A issue #90 entrega somente o contrato e o harness para a comparação ativa. O
+A issue #90 entrega o contrato e o runner para a comparação ativa. O
 baseline registra as variantes com identificadores estáveis:
 
 - `existing` (A): pipeline atual;
-- `jev_rerank` (B): reranking ativo com Jev, integrado pela issue #91;
+- `jev_rerank` (B): reranking Jev ativo implementado na issue #91;
 - `jev_rerank+evidence_gate` (C): variante registrada, mas explicitamente
   indisponível enquanto o gate da issue #92 não existir.
 
@@ -224,12 +224,12 @@ python evaluation/run_offline_eval.py --prepare-only \
   --output-report evaluation/reports/jev-prepare.json
 ```
 
-O status `blocked` é esperado enquanto o snapshot não estiver registrado. A
-opção legada `--dry-run` tem outro significado: impede apenas a escrita das
-tabelas e ainda pode chamar banco e providers pagos.
+O status `blocked` é esperado enquanto o snapshot não estiver registrado.
+`--dry-run` tem outro significado: impede apenas a escrita das tabelas e ainda
+pode chamar banco e providers pagos.
 
-Com o caminho ativo da issue #91, execute o par informando explicitamente o
-snapshot. Essa execução pode chamar Jev, o gerador, embeddings e banco:
+Com um perfil de teste isolado e a credencial TypeSafe configurada, execute o par
+informando explicitamente o snapshot:
 
 ```sh
 python evaluation/run_offline_eval.py --paired \
@@ -238,33 +238,35 @@ python evaluation/run_offline_eval.py --paired \
   --dry-run --output-report evaluation/reports/jev-paired.json
 ```
 
-O caminho ativo verifica no banco a identidade de corpus, feedback e índices
-antes e depois de cada resposta. Só então o adapter acrescenta ao trace o
-`snapshot_id` e a `experiment_identity`, incluindo `fingerprint_sha256`.
-Providers simulados precisam devolver esses campos explicitamente; o runner
-rejeita respostas que não os comprovem. As fixtures sintéticas exercitam o
-runner com providers fake, sem chamadas pagas.
+O runner transmite o `snapshot_id` informado e a `experiment_identity` observada
+ao provider pareado, depois rejeita retorno com identidade ou snapshot divergente.
+As fixtures sintéticas exercitam o runner com providers fake, sem chamadas pagas.
+A execução real exige dados permitidos, perfil e orçamento definidos para a #93.
+`snapshot_id` identifica o par, mas não cria uma transação de banco congelada: o
+runner confere a identidade observada antes e depois de cada variante. O
+responsável pelo ensaio deve manter corpus e feedback estáveis durante a rodada.
 
 O harness produz duas visões do mesmo recorte: `ranking_ablation_same_pool`,
-que reutiliza o mesmo conjunto de candidatos para isolar a ordenação, e
+que reutiliza o mesmo conjunto de candidatos e a mesma consulta reformulada de A
+para isolar a ordenação, e
 `end_to_end_same_snapshot`, que executa cada caminho independentemente no mesmo
 snapshot. Cada resposta registra os estágios `sections`, `candidate_pool`,
 `post_rerank`, `post_gate` e `final_context`, com ordem, contagem, exclusões,
 IDs opacos e métricas com denominador e motivo de indisponibilidade. O envelope
 final preserva hashes, fontes e spans, sem texto bruto nos traces persistidos ou
 no `ASK_TRACE`.
+Na ablação, o relatório guarda somente `same_rerank_query`; o texto e seu hash
+não são publicados.
 
-Para cada tentativa de reranking Jev, `jev_evidence` registra o ID opaco, o
-SHA-256 do estado passado ao cliente e o status da decisão. O estado inclui a
-pergunta, o trecho documental, o título e a fonte; seu texto não entra no
-relatório. O status `attempted` não comprova recebimento remoto. Tentativas sem
-decisão válida continuam identificáveis quando o fallback restaura a ordem
-anterior.
+O reranker existente recebe uma janela menor do texto do candidato que o Jev.
+O perfil registra essa diferença e o relatório deixa `gain_attribution` como
+`unavailable`; um eventual ganho de B não pode ser atribuído apenas ao modelo
+sem um controle de janela equivalente.
 
 O resultado desta issue não aprova adoção, custo ou operação. Revisão humana,
 ensaio operacional, orçamento e decisão de adoção continuam nas issues #53,
-#93 e #96. O código da #91 está integrado; isso não constitui validação
-operacional de Jev.
+#93 e #96. A variante B deve registrar a aplicação efetiva do Jev e o hash opaco
+do `state` enviado; fallback para `existing` não conta como sucesso de Jev.
 
 ## Conteúdo do relatório
 
