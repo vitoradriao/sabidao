@@ -116,7 +116,14 @@ RETURNS TABLE (
     retrieval_origin TEXT,
     retrieval_rank INTEGER,
     is_neighbor BOOLEAN,
-    seed_chunk_id UUID
+    seed_chunk_id UUID,
+    canonical_id UUID,
+    document_revision INTEGER,
+    schema_version TEXT,
+    section_key TEXT,
+    locator JSONB,
+    source_refs JSONB,
+    aliases JSONB
 )
 LANGUAGE plpgsql
 AS $$
@@ -244,8 +251,17 @@ BEGIN
         CASE WHEN ec.is_neighbor THEN 'neighbor' ELSE 'vector' END AS retrieval_origin,
         ec.retrieval_rank,
         ec.is_neighbor,
-        ec.seed_chunk_id
+        ec.seed_chunk_id,
+        d.canonical_id,
+        d.document_revision,
+        d.schema_version,
+        COALESCE(ds.section_key, ec.metadata->>'section_key') AS section_key,
+        COALESCE(ec.metadata->'source_refs', ds.metadata->'source_refs') -> 0 -> 'locator' AS locator,
+        COALESCE(ec.metadata->'source_refs', ds.metadata->'source_refs') AS source_refs,
+        d.metadata->'canonical'->'aliases' AS aliases
     FROM expanded_candidates ec
+    JOIN documents d ON d.id = ec.document_id
+    LEFT JOIN document_sections ds ON ds.id = ec.section_id
     WHERE ec.expansion_choice = 1
     ORDER BY
         ec.retrieval_rank ASC,
@@ -288,7 +304,14 @@ RETURNS TABLE (
     retrieval_origin TEXT,
     retrieval_rank INTEGER,
     is_neighbor BOOLEAN,
-    seed_chunk_id UUID
+    seed_chunk_id UUID,
+    canonical_id UUID,
+    document_revision INTEGER,
+    schema_version TEXT,
+    section_key TEXT,
+    locator JSONB,
+    source_refs JSONB,
+    aliases JSONB
 )
 LANGUAGE plpgsql
 AS $$
@@ -475,8 +498,17 @@ BEGIN
         ec.retrieval_origin,
         ec.retrieval_rank,
         ec.is_neighbor,
-        ec.seed_chunk_id
+        ec.seed_chunk_id,
+        d.canonical_id,
+        d.document_revision,
+        d.schema_version,
+        COALESCE(ds.section_key, ec.metadata->>'section_key') AS section_key,
+        COALESCE(ec.metadata->'source_refs', ds.metadata->'source_refs') -> 0 -> 'locator' AS locator,
+        COALESCE(ec.metadata->'source_refs', ds.metadata->'source_refs') AS source_refs,
+        d.metadata->'canonical'->'aliases' AS aliases
     FROM expanded_candidates ec
+    JOIN documents d ON d.id = ec.document_id
+    LEFT JOIN document_sections ds ON ds.id = ec.section_id
     WHERE ec.expansion_choice = 1
     ORDER BY
         ec.retrieval_rank ASC,
@@ -516,7 +548,14 @@ RETURNS TABLE (
     lexical_score FLOAT,
     fusion_score FLOAT,
     retrieval_origin TEXT,
-    retrieval_rank INTEGER
+    retrieval_rank INTEGER,
+    canonical_id UUID,
+    document_revision INTEGER,
+    schema_version TEXT,
+    section_key TEXT,
+    locator JSONB,
+    source_refs JSONB,
+    aliases JSONB
 )
 LANGUAGE plpgsql
 AS $$
@@ -647,9 +686,18 @@ BEGIN
         rm.fts_rank AS lexical_score,
         rm.rrf_score AS fusion_score,
         rm.retrieval_origin,
-        rm.retrieval_rank
+        rm.retrieval_rank,
+        d.canonical_id,
+        d.document_revision,
+        d.schema_version,
+        ds.section_key,
+        ds.metadata->'source_refs'->0->'locator' AS locator,
+        ds.metadata->'source_refs' AS source_refs,
+        d.metadata->'canonical'->'aliases' AS aliases
     FROM ranked_matches rm
     JOIN base_sections bs ON bs.id = rm.section_id
+    JOIN document_sections ds ON ds.id = bs.id
+    JOIN documents d ON d.id = bs.document_id
     ORDER BY rm.retrieval_rank
     LIMIT match_count;
 END;

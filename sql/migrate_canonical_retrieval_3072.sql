@@ -1,96 +1,6 @@
--- Section-aware retrieval layer for 1536-dimensional embeddings.
--- Extends analytical context with:
--- - retrieval_text/embedding/fts in document_sections
--- - indexable retrieval columns in document_chunks
--- - section-aware RPCs with fetch_limit and optional section filtering
-
-CREATE EXTENSION IF NOT EXISTS vector;
-
-ALTER TABLE documents
-ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 5;
-
-ALTER TABLE document_sections
-ADD COLUMN IF NOT EXISTS retrieval_text TEXT;
-
-ALTER TABLE document_sections
-ADD COLUMN IF NOT EXISTS embedding VECTOR(1536);
-
-ALTER TABLE document_sections
-ADD COLUMN IF NOT EXISTS fts tsvector GENERATED ALWAYS AS (
-    to_tsvector('portuguese', COALESCE(retrieval_text, ''))
-) STORED;
-
-CREATE INDEX IF NOT EXISTS document_sections_embedding_hnsw_idx
-ON document_sections
-USING hnsw (embedding vector_cosine_ops)
-WITH (m = 24, ef_construction = 128);
-
-CREATE INDEX IF NOT EXISTS document_sections_fts_idx
-ON document_sections USING gin(fts);
-
-ALTER TABLE document_chunks
-ADD COLUMN IF NOT EXISTS module TEXT;
-
-ALTER TABLE document_chunks
-ADD COLUMN IF NOT EXISTS doc_type TEXT;
-
-ALTER TABLE document_chunks
-ADD COLUMN IF NOT EXISTS source_type TEXT;
-
-ALTER TABLE document_chunks
-ADD COLUMN IF NOT EXISTS doc_priority INTEGER;
-
-ALTER TABLE document_chunks
-ADD COLUMN IF NOT EXISTS retrieval_text TEXT;
-
-ALTER TABLE document_chunks
-ADD COLUMN IF NOT EXISTS contextualization_version TEXT;
-
-UPDATE document_chunks
-SET retrieval_text = content
-WHERE retrieval_text IS NULL;
-
-ALTER TABLE document_chunks
-ADD COLUMN IF NOT EXISTS retrieval_fts tsvector GENERATED ALWAYS AS (
-    to_tsvector('portuguese', COALESCE(retrieval_text, content))
-) STORED;
-
-UPDATE document_chunks dc
-SET
-    module = COALESCE(dc.module, dc.metadata->>'module'),
-    doc_type = COALESCE(dc.doc_type, d.doc_type, dc.metadata->>'doc_type'),
-    source_type = COALESCE(dc.source_type, dc.metadata->>'source_type'),
-    doc_priority = COALESCE(
-        dc.doc_priority,
-        CASE
-            WHEN COALESCE(dc.metadata->>'doc_priority', '') ~ '^-?[0-9]+$'
-                THEN (dc.metadata->>'doc_priority')::INTEGER
-            ELSE NULL
-        END,
-        d.priority,
-        5
-    )
-FROM documents d
-WHERE d.id = dc.document_id;
-
-CREATE INDEX IF NOT EXISTS document_chunks_module_idx
-ON document_chunks(module);
-
-CREATE INDEX IF NOT EXISTS document_chunks_doc_type_idx
-ON document_chunks(doc_type);
-
-CREATE INDEX IF NOT EXISTS document_chunks_source_type_idx
-ON document_chunks(source_type);
-
-CREATE INDEX IF NOT EXISTS document_chunks_doc_priority_idx
-ON document_chunks(doc_priority DESC);
-
-CREATE INDEX IF NOT EXISTS document_chunks_section_doc_chunk_idx
-ON document_chunks(section_id, document_id, chunk_index);
-
-CREATE INDEX IF NOT EXISTS document_chunks_retrieval_fts_idx
-ON document_chunks USING gin(retrieval_fts);
-
+-- Projecao canonica nas RPCs de retrieval; sem alteracao de dados ou embeddings.
+-- Execute apos migrate_canonical_identity.sql e add_section_retrieval correspondente.
+BEGIN;
 DROP FUNCTION IF EXISTS public.match_chunks(vector, integer, double precision, text[], text[], uuid[], integer);
 DROP FUNCTION IF EXISTS public.match_chunks(vector, integer, real, text[], text[], uuid[], integer);
 DROP FUNCTION IF EXISTS public.match_chunks(vector, integer, double precision);
@@ -107,7 +17,7 @@ DROP FUNCTION IF EXISTS public.hybrid_match_sections(vector, text, integer, doub
 DROP FUNCTION IF EXISTS public.hybrid_match_sections(vector, text, integer, real, real, real, text[], text[], integer);
 
 CREATE OR REPLACE FUNCTION public.match_chunks(
-    query_embedding VECTOR(1536),
+    query_embedding VECTOR(3072),
     match_count INT DEFAULT 8,
     match_threshold FLOAT DEFAULT 0.55,
     filter_doc_types TEXT[] DEFAULT NULL,
@@ -292,7 +202,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.hybrid_match_chunks(
-    query_embedding VECTOR(1536),
+    query_embedding VECTOR(3072),
     query_text TEXT,
     match_count INT DEFAULT 8,
     match_threshold FLOAT DEFAULT 0.55,
@@ -358,7 +268,7 @@ BEGIN
             dc.chunk_index,
             dc.metadata,
             dc.embedding,
-            dc.retrieval_fts AS fts,
+            dc.fts,
             d.filename,
             dc.section_id,
             COALESCE(dc.heading_path, ds.heading_path, dc.metadata->>'heading_path', '') AS heading_path,
@@ -539,7 +449,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.hybrid_match_sections(
-    query_embedding VECTOR(1536),
+    query_embedding VECTOR(3072),
     query_text TEXT,
     match_count INT DEFAULT 12,
     match_threshold FLOAT DEFAULT 0.55,
@@ -722,3 +632,4 @@ END;
 $$;
 
 NOTIFY pgrst, 'reload schema';
+COMMIT;

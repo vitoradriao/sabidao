@@ -1,6 +1,6 @@
 {
-  "vocabulary_version": "fixture_v1",
-  "scope": "Vocabulário mínimo para exemplos e fixtures do contrato; a taxonomia definitiva pertence à issue #31.",
+  "vocabulary_version": "taxonomy_v1",
+  "scope": "Taxonomia canônica v1 para documentos e seções; ver docs/taxonomia.md para significados, precedência e compatibilidade com a busca legada.",
   "products": [
     "maxpedido",
     "maxmotorista",

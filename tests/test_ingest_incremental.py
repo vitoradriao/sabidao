@@ -135,6 +135,7 @@ class TestIncrementalIngest(unittest.TestCase):
                 return_value=([], cloned_chunks),
             ),
             patch.object(ingest, "_document_sections_supported", return_value=False),
+            patch.object(ingest, "ensure_embedding_index_identity"),
             patch.object(ingest, "_prepare_chunk_rows") as prepare_chunks,
             patch.object(ingest, "_replace_document_atomically", return_value=True),
             patch.object(ingest, "_save_failed_report_entry"),

@@ -109,6 +109,30 @@ class TestOfflineEvaluator(unittest.TestCase):
                 changed["fingerprint_sha256"],
             )
 
+    def test_experiment_fingerprint_tracks_manifest_eligibility(self):
+        database = self._verified_database_identity()
+        with (
+            patch.object(run_offline_eval, "_database_identity", return_value=database),
+            patch.object(
+                run_offline_eval,
+                "_canonical_manifest_identity",
+                return_value={"status": "available", "sha256": "manifesto-a"},
+            ),
+        ):
+            baseline = run_offline_eval._experiment_identity(None)
+        with (
+            patch.object(run_offline_eval, "_database_identity", return_value=database),
+            patch.object(
+                run_offline_eval,
+                "_canonical_manifest_identity",
+                return_value={"status": "available", "sha256": "manifesto-b"},
+            ),
+        ):
+            changed = run_offline_eval._experiment_identity(None)
+        self.assertNotEqual(
+            baseline["fingerprint_sha256"], changed["fingerprint_sha256"]
+        )
+
     def test_experiment_identity_inclui_contrato_jev_sem_chave(self):
         database = self._verified_database_identity()
         with patch.object(run_offline_eval, "_database_identity", return_value=database):
@@ -346,7 +370,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIsNotNone(summary["p95_latency_ms"])
         self.assertIn("factual_correctness", summary["metric_definitions"])
         self.assertIn("evidence_discounted_coverage_at_10", summary["metric_definitions"])
-        self.assertEqual(summary["metric_definitions_version"], 2)
+        self.assertEqual(summary["metric_definitions_version"], 3)
         self.assertEqual(summary["evaluator_schema_version"], 7)
         self.assertEqual(summary["score_evaluated"], 4)
 
@@ -483,6 +507,72 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(details["ndcg_at_10"]["unavailable_reason"], "missing_qrels")
         self.assertEqual(details["retrieved_depth"], 15)
 
+    def test_canonical_reference_requires_revision_section_and_locator(self):
+        canonical_id = "10000000-0000-4000-8000-000000000001"
+        locator = {"kind": "line_range", "start": 10, "end": 12}
+        chunk = {
+            "filename": "docs/novo.md",
+            "aliases": ["docs/antigo.md"],
+            "canonical_id": canonical_id,
+            "document_revision": 2,
+            "section_key": "conta-corrente",
+            "source_refs": [{"source_id": "manual", "locator": locator}],
+            "content": "Passos confirmados para conta corrente",
+        }
+        reference = [{
+            "source": "docs/antigo.md",
+            "canonical_id": canonical_id,
+            "document_revision": 2,
+            "section_key": "conta-corrente",
+            "source_id": "manual",
+            "locator": locator,
+            "contains": ["Passos confirmados"],
+        }]
+
+        relevance, _ = run_offline_eval._retrieval_relevance([chunk], reference)
+        cited_ref = {**chunk, "source": chunk["filename"]}
+        del cited_ref["filename"]
+        citation, _ = run_offline_eval._citation_validity(
+            False,
+            {"cited_evidence_refs": [cited_ref], "cited_files": ["docs/novo.md"]},
+            reference,
+        )
+        self.assertTrue(relevance)
+        self.assertTrue(citation)
+
+        wrong_revision = [{**reference[0], "document_revision": 1}]
+        wrong_section = [{**reference[0], "section_key": "outra-secao"}]
+        for invalid in (wrong_revision, wrong_section):
+            self.assertFalse(run_offline_eval._retrieval_relevance([chunk], invalid)[0])
+            self.assertFalse(run_offline_eval._citation_validity(
+                False,
+                {"cited_evidence_refs": [cited_ref], "cited_files": ["docs/novo.md"]},
+                invalid,
+            )[0])
+
+    def test_alias_without_canonical_identity_and_basename_do_not_match(self):
+        chunks = [
+            {
+                "filename": "docs/novo-a.md",
+                "canonical_id": "10000000-0000-4000-8000-000000000001",
+                "aliases": ["antigo.md"],
+                "content": "alfa",
+            },
+            {
+                "filename": "docs/novo-b.md",
+                "canonical_id": "10000000-0000-4000-8000-000000000002",
+                "aliases": ["antigo.md"],
+                "content": "beta",
+            },
+        ]
+        self.assertFalse(run_offline_eval._retrieval_relevance(
+            chunks, ["antigo.md"]
+        )[0])
+        self.assertFalse(run_offline_eval._retrieval_relevance(
+            [{"filename": "docs/legado.md", "content": "alfa"}],
+            ["legado.md"],
+        )[0])
+
     def test_ndcg_uses_explicit_qrels_and_judged_pool(self):
         evidence = [{"source": "a.md", "contains": ["alfa"]}]
         judgments = {
@@ -509,7 +599,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(metrics["ndcg_at_10"], 0.7896)
         self.assertEqual(details["ndcg_at_10"]["judged_universe_id"], "pool-v1")
         self.assertEqual(details["ndcg_at_10"]["judged_count"], 3)
-        self.assertEqual(details["ndcg_at_10"]["definition_version"], 2)
+        self.assertEqual(details["ndcg_at_10"]["definition_version"], 3)
         self.assertEqual(metrics["evidence_discounted_coverage_at_10"], 0.6309)
 
         ideal_metrics, _ = run_offline_eval._retrieval_metrics(
@@ -872,7 +962,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(prepared["external_calls"], 0)
         self.assertEqual(prepared["database_writes"], 0)
         self.assertIn("snapshot_id_required_before_execution", prepared["blockers"])
-        self.assertIn("jev_rerank_requires_active_path:#91", prepared["blockers"])
+        self.assertNotIn("jev_rerank_requires_active_path:#91", prepared["blockers"])
         ask.assert_not_called()
         identity.assert_not_called()
 
@@ -987,7 +1077,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(result["comparison"]["effective_variant"], "existing")
         self.assertEqual(result["comparison"]["fallback_reason"], "provider_error")
 
-    def test_non_existing_variant_without_active_path_fails_before_rag_call(self):
+    def test_jev_variant_uses_active_rag_path(self):
         dataset = [
             {
                 "id": "one",
@@ -996,16 +1086,100 @@ class TestOfflineEvaluator(unittest.TestCase):
                 "expected_intent": "general",
             }
         ]
-        with patch.object(run_offline_eval.rag, "ask") as ask:
-            with self.assertRaises(run_offline_eval.VariantUnavailableError):
-                run_offline_eval.run_evaluation(
-                    dataset=dataset,
-                    dataset_name="unavailable",
-                    dry_run=True,
-                    limit=None,
-                    variant_id="jev_rerank",
+        observed = []
+
+        def fake_ask(*_args, **_kwargs):
+            observed.append(run_offline_eval.rag._offline_eval_rerank_provider.get())
+            return "Sem resposta.", [], {"abstained": True, "rerank": [{
+                "effective_provider": "retrieval", "applied": False,
+                "fallback_reason": "insufficient_candidates",
+            }]}
+
+        with patch.object(run_offline_eval.rag, "ask", side_effect=fake_ask):
+            result = run_offline_eval.run_evaluation(
+                dataset=dataset, dataset_name="active", dry_run=True, limit=None,
+                variant_id="jev_rerank",
+            )
+        self.assertEqual(observed, ["jev"])
+        self.assertEqual(result["results"][0]["comparison"]["effective_variant"], "existing")
+        self.assertFalse(result["results"][0]["variant_success"])
+        self.assertIsNone(run_offline_eval.rag._offline_eval_rerank_provider.get())
+
+    def test_paired_cli_path_selects_providers_and_reuses_a_pool(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation/datasets/jev_paired_synthetic_fixture.json"
+        )[:1]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation/baseline_config.json").read_text(encoding="utf-8")
+        )
+        observed = []
+
+        def fake_ask(question, **_kwargs):
+            variant = run_offline_eval.rag._offline_eval_rerank_provider.get()
+            pool = run_offline_eval.rag._offline_eval_candidate_pool.get()
+            observed.append((variant, pool is not None))
+            response = dataset[0]["fixture_variants"][
+                "jev_rerank" if variant == "jev" else "existing"
+            ]
+            trace = dict(response["trace"])
+            if variant == "jev":
+                trace["rerank"] = [{"effective_provider": "jev", "applied": True}]
+            return response["answer"], response["chunks"], trace
+
+        with patch.object(run_offline_eval, "_database_identity", return_value=self._verified_database_identity()), patch.object(
+            run_offline_eval.rag, "ask", side_effect=fake_ask
+        ):
+            report = run_offline_eval.run_paired_comparison(
+                dataset=dataset, dataset_name="active-pair", dry_run=True, limit=None,
+                baseline_config=baseline_config, snapshot_id="snapshot-1",
+            )
+        self.assertEqual(observed, [("existing", False), ("jev", True), ("existing", False), ("jev", False)])
+        self.assertEqual(report["status"], "complete")
+        self.assertTrue(report["identity_comparisons"]["jev_rerank"]["compatible"])
+        self.assertEqual(report["summaries"]["jev_rerank"]["results"][0]["comparison"]["rerank_provider"], "jev")
+        self.assertTrue(report["summaries"]["jev_rerank"]["results"][0]["variant_success"])
+
+    def test_active_provider_rejects_database_snapshot_drift(self):
+        expected = self._verified_database_identity()
+        changed = self._verified_database_identity(corpus_sha256="changed")
+        scope = {
+            "_comparison_snapshot_id": "snapshot-1",
+            "_comparison_experiment_identity": {"database": expected},
+        }
+        with patch.object(run_offline_eval, "_database_identity", return_value=changed), patch.object(
+            run_offline_eval.rag, "ask", return_value=("", [], {})
+        ):
+            with self.assertRaisesRegex(run_offline_eval.VariantConfigurationError, "snapshot do banco diverge"):
+                run_offline_eval._active_comparison_provider(
+                    {"question": "q"}, scope, variant_id="existing", mode="end_to_end", candidate_pool=None
+                )
+
+    def test_active_pair_rejects_unknown_database_before_provider_calls(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation/datasets/jev_paired_synthetic_fixture.json"
+        )[:1]
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation/baseline_config.json").read_text(encoding="utf-8")
+        )
+        with patch.object(run_offline_eval, "_database_identity", return_value={"status": "unknown"}), patch.object(
+            run_offline_eval.rag, "ask"
+        ) as ask:
+            with self.assertRaisesRegex(run_offline_eval.VariantConfigurationError, "identidade verificável"):
+                run_offline_eval.run_paired_comparison(
+                    dataset=dataset, dataset_name="active-pair", dry_run=True, limit=None,
+                    baseline_config=baseline_config, snapshot_id="snapshot-1",
                 )
         ask.assert_not_called()
+
+    def test_jev_evidence_report_keeps_only_opaque_id_hash_and_status(self):
+        trace = {"jev_evidence": [{
+            "candidate_id": "private-id", "state_sha256": "a" * 64,
+            "status": "attempted", "state": {"trecho_documental": "private text"},
+        }], "rerank": [{"effective_provider": "jev", "evidence": [{"state": "private text"}]}]}
+        safe = run_offline_eval._trace_for_report(trace, {})
+        self.assertEqual(safe["jev_evidence"][0]["state_sha256"], "a" * 64)
+        self.assertTrue(safe["jev_evidence"][0]["candidate_id"].startswith("candidate-"))
+        self.assertNotIn("private", json.dumps(safe))
 
     def test_paired_provider_without_snapshot_or_identity_is_rejected(self):
         dataset = run_offline_eval._load_dataset(

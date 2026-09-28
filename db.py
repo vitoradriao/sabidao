@@ -240,6 +240,14 @@ def db_advisory_xact_lock(key: str, *, connection) -> None:
     )
 
 
+def db_table_exists(qualified_name: str, *, connection=None) -> bool:
+    """Detecta migração aditiva sem disparar erro de tabela ausente na transação."""
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*", qualified_name):
+        raise ValueError("nome de tabela invalido")
+    rows = _fetch_rows("SELECT to_regclass(%s) AS relation", [qualified_name], connection=connection)
+    return bool(rows and rows[0]["relation"] is not None)
+
+
 def _parse_scalar(value: str) -> Any:
     lowered = value.lower()
     if lowered == "null":

@@ -28,7 +28,7 @@ from bot_common import normalize_text
 
 
 EVALUATOR_SCHEMA_VERSION = 7
-METRIC_DEFINITIONS_VERSION = 2
+METRIC_DEFINITIONS_VERSION = 3
 COMPARISON_PROFILE_VERSION = 1
 COMPARISON_SCHEMA_VERSION = 1
 VARIANT_EXISTING = "existing"
@@ -68,7 +68,7 @@ _VARIANT_DEFINITIONS = {
     },
     VARIANT_JEV_RERANK: {
         "label": "B — jev_rerank",
-        "available_without_provider": False,
+        "available_without_provider": True,
         "requires": ["#91"],
     },
     VARIANT_JEV_RERANK_GATE: {
@@ -86,8 +86,8 @@ METRIC_DEFINITIONS = {
         "fica nao avaliada quando expected_facts nao foi informado."
     ),
     "retrieval_relevance": (
-        "Verifica se ao menos uma evidencia de referencia foi recuperada pela fonte e, "
-        "quando informados, pelos termos esperados."
+        "Verifica fonte exata ou identidade canonica, revisao, secao, localizador "
+        "e termos declarados; alias exige identidade canonica verificavel."
     ),
     "recall_at_10": "Fracao das referencias distintas encontradas ate a posicao 10.",
     "recall_at_20": "Fracao das referencias distintas encontradas ate a posicao 20.",
@@ -166,6 +166,7 @@ _CONFIG_FIELDS = (
     "RAG_MIN_RETRIEVED_CHUNKS",
     "RAG_OPERATIONAL_SIMILARITY_MARGIN",
     "RAG_ENABLE_RERANKING",
+    "RAG_RERANK_PROVIDER",
     "RERANKER_MODEL",
     "RERANKER_MIN_TRIGGER_SIM",
     "RERANKER_MAX_TRIGGER_SIM",
@@ -192,6 +193,7 @@ _CONFIG_FIELDS = (
     "RAG_PROVIDER_MAX_RETRIES",
     "RAG_RETRY_BASE_SECONDS",
     "JEV_MODEL",
+    "JEV_RERANK_MAX_CANDIDATES",
     "JEV_MAX_CONCURRENCY",
     "JEV_REQUEST_TIMEOUT_SECONDS",
     "JEV_STAGE_TIMEOUT_SECONDS",
@@ -248,9 +250,14 @@ def _invoke_comparison_provider(
     variant_id: str,
     mode: str,
     candidate_pool: list[dict] | None,
+    frozen_query: str | None = None,
+    query_capture: list[str] | None = None,
 ) -> tuple[str, list[dict], dict[str, Any]]:
     if provider is None:
-        raise VariantUnavailableError(f"provider ausente para variante: {variant_id}")
+        return _active_comparison_provider(
+            case, scope, variant_id=variant_id, mode=mode, candidate_pool=candidate_pool,
+            frozen_query=frozen_query, query_capture=query_capture,
+        )
     question = str(case.get("question") or "").strip()
     try:
         import inspect
@@ -281,6 +288,65 @@ def _invoke_comparison_provider(
         raise VariantConfigurationError(
             f"provider inválido para variante {variant_id}: {type(exc).__name__}"
         ) from exc
+
+
+def _active_comparison_provider(
+    case: dict[str, Any],
+    scope: dict[str, Any],
+    *,
+    variant_id: str,
+    mode: str,
+    candidate_pool: list[dict] | None,
+    frozen_query: str | None = None,
+    query_capture: list[str] | None = None,
+) -> tuple[str, list[dict], dict[str, Any]]:
+    if variant_id == VARIANT_JEV_RERANK_GATE:
+        raise VariantUnavailableError("O evidence gate da #92 não está implementado.")
+    provider = "jev" if variant_id == VARIANT_JEV_RERANK else "existing"
+    provider_token = rag._offline_eval_rerank_provider.set(provider)
+    pool_token = rag._offline_eval_candidate_pool.set(
+        candidate_pool if mode == "ranking_ablation" else None
+    )
+    query_token = rag._offline_eval_search_query.set(
+        frozen_query if mode == "ranking_ablation" else None
+    )
+    capture_token = rag._offline_eval_query_capture.set(query_capture)
+    try:
+        history = case.get("conversation_history")
+        answer, chunks, trace = rag.ask(
+            str(case.get("question") or "").strip(),
+            conversation_history=history if isinstance(history, list) else None,
+            images=None,
+            system_prompt=None,
+            platform="offline_eval",
+            scope=scope,
+        )
+    finally:
+        rag._offline_eval_query_capture.reset(capture_token)
+        rag._offline_eval_search_query.reset(query_token)
+        rag._offline_eval_candidate_pool.reset(pool_token)
+        rag._offline_eval_rerank_provider.reset(provider_token)
+    if variant_id == VARIANT_JEV_RERANK and not trace.get("rerank"):
+        trace.setdefault("comparison", {}).update({
+            "effective_variant": VARIANT_EXISTING,
+            "fallback_stage": "rerank",
+            "fallback_reason": "jev_not_reached",
+        })
+    expected_identity = scope.get("_comparison_experiment_identity")
+    if isinstance(expected_identity, dict):
+        expected_database = expected_identity.get("database")
+        current_database = _database_identity()
+        if (
+            not isinstance(expected_database, dict)
+            or expected_database.get("status") != "verified"
+            or current_database != expected_database
+        ):
+            raise VariantConfigurationError(
+                "snapshot do banco diverge da identidade pareada verificada."
+            )
+        trace["snapshot_id"] = scope["_comparison_snapshot_id"]
+        trace["experiment_identity"] = expected_identity
+    return answer, chunks, trace
 
 
 def _load_dataset(path: Path) -> list[dict[str, Any]]:
@@ -454,7 +520,7 @@ def _validate_variant_execution(
         raise VariantUnavailableError(
             f"A variante {variant_id} está indisponível: {reason}."
         )
-    if not definition["available_without_provider"] and answer_provider is None:
+    if variant_id == VARIANT_JEV_RERANK_GATE and answer_provider is None:
         requirements = ", ".join(definition["requires"])
         raise VariantUnavailableError(
             f"A variante {variant_id} ainda não possui caminho ativo no rag.ask; "
@@ -483,6 +549,7 @@ def _comparison_metadata(
         "snapshot_id": snapshot_id,
         "view": view,
         "requested_variant": variant_id,
+        "rerank_provider": "jev" if variant_id == VARIANT_JEV_RERANK else "existing",
         "effective_variant": variant_id,
         "fallback_stage": None,
         "fallback_reason": None,
@@ -643,17 +710,71 @@ def _evidence_specs(reference_evidence: Any) -> list[dict[str, Any]]:
             for value in raw_terms
             if value is not None and str(value).strip()
         ]
-        if source or terms:
-            specs.append({"source": source, "contains": terms})
+        canonical_id = str(item.get("canonical_id") or "").strip()
+        section_key = str(item.get("section_key") or "").strip()
+        source_id = str(item.get("source_id") or "").strip()
+        revision = item.get("document_revision", item.get("revision"))
+        locator = item.get("locator")
+        if revision is not None and (type(revision) is not int or revision < 1):
+            raise ValueError("reference_evidence.document_revision must be a positive integer")
+        if locator is not None and not isinstance(locator, dict):
+            raise ValueError("reference_evidence.locator must be an object")
+        if (revision is not None or section_key or source_id or locator is not None) and not canonical_id:
+            raise ValueError("Canonical evidence selectors require canonical_id")
+        if source or terms or canonical_id:
+            specs.append({
+                "source": source,
+                "contains": terms,
+                "canonical_id": canonical_id,
+                "document_revision": revision,
+                "section_key": section_key,
+                "source_id": source_id,
+                "locator": locator,
+            })
     return specs
 
 
 def _source_matches(actual: Any, expected: Any) -> bool:
     actual_value = str(actual or "").strip().replace("\\", "/").casefold()
     expected_value = str(expected or "").strip().replace("\\", "/").casefold()
-    if not actual_value or not expected_value:
-        return False
-    return actual_value == expected_value or Path(actual_value).name == Path(expected_value).name
+    return bool(actual_value and expected_value and actual_value == expected_value)
+
+
+def _evidence_matches_chunk(spec: dict[str, Any], chunk: dict[str, Any]) -> bool:
+    canonical_id = spec.get("canonical_id")
+    if canonical_id:
+        if str(chunk.get("canonical_id") or "").casefold() != canonical_id.casefold():
+            return False
+        if spec.get("document_revision") is not None and (
+            chunk.get("document_revision") != spec["document_revision"]
+        ):
+            return False
+        if spec.get("section_key") and chunk.get("section_key") != spec["section_key"]:
+            return False
+
+    source = spec.get("source")
+    if source and not _source_matches(chunk.get("filename") or chunk.get("source"), source):
+        aliases = chunk.get("aliases") or []
+        if not canonical_id or not isinstance(aliases, list) or not any(
+            _source_matches(alias, source) for alias in aliases
+        ):
+            return False
+
+    if spec.get("source_id") or spec.get("locator") is not None:
+        source_refs = chunk.get("source_refs") or []
+        if not isinstance(source_refs, list) or not any(
+            isinstance(ref, dict)
+            and (not spec["source_id"] or ref.get("source_id") == spec["source_id"])
+            and (spec["locator"] is None or ref.get("locator") == spec["locator"])
+            for ref in source_refs
+        ):
+            return False
+
+    normalized_content = normalize_text(str(chunk.get("content") or ""))
+    return all(
+        normalize_text(term) in normalized_content
+        for term in spec.get("contains", [])
+    )
 
 
 def _metric_detail(
@@ -864,21 +985,15 @@ def _retrieval_relevance(
     matches: list[dict[str, Any]] = []
     for evidence_index, spec in enumerate(specs, start=1):
         for chunk_index, chunk in enumerate(chunks or [], start=1):
-            source_matches = not spec["source"] or _source_matches(
-                chunk.get("filename"),
-                spec["source"],
-            )
-            normalized_content = normalize_text(str(chunk.get("content") or ""))
-            terms_match = all(
-                normalize_text(term) in normalized_content
-                for term in spec["contains"]
-            )
-            if source_matches and terms_match:
+            if _evidence_matches_chunk(spec, chunk):
                 matches.append(
                     {
                         "evidence_index": evidence_index,
                         "chunk_index": chunk_index,
                         "source": chunk.get("filename"),
+                        "canonical_id": chunk.get("canonical_id"),
+                        "document_revision": chunk.get("document_revision"),
+                        "section_key": chunk.get("section_key"),
                     }
                 )
 
@@ -938,19 +1053,10 @@ def _retrieval_metrics(
 
     matched_evidence: dict[int, int] = {}
     for rank, chunk in enumerate(chunks or [], start=1):
-        normalized_content = normalize_text(str(chunk.get("content") or ""))
         for evidence_index, spec in enumerate(specs, start=1):
             if evidence_index in matched_evidence:
                 continue
-            source_matches = not spec["source"] or _source_matches(
-                chunk.get("filename"),
-                spec["source"],
-            )
-            terms_match = all(
-                normalize_text(term) in normalized_content
-                for term in spec["contains"]
-            )
-            if source_matches and terms_match:
+            if _evidence_matches_chunk(spec, chunk):
                 matched_evidence[evidence_index] = rank
 
     def recall_at(k: int) -> float:
@@ -1318,21 +1424,31 @@ def _citation_validity(
     if abstained:
         return None, {"reason": "abstention_not_applicable", "matched_sources": []}
 
-    expected_sources = [
-        spec["source"]
-        for spec in _evidence_specs(reference_evidence)
-        if spec["source"]
+    evidence_specs = [
+        spec for spec in _evidence_specs(reference_evidence)
+        if spec.get("source") or spec.get("canonical_id")
     ]
-    if not expected_sources:
+    if not evidence_specs:
         return None, {"reason": "missing_reference_sources", "matched_sources": []}
 
     grounding_errors = list(trace.get("grounding_errors") or [])
     cited_sources = list(trace.get("cited_files") or trace.get("citations") or [])
-    matched_sources = [
-        cited
-        for cited in cited_sources
-        if any(_source_matches(cited, expected) for expected in expected_sources)
-    ]
+    cited_refs = trace.get("cited_evidence_refs") or []
+    matched_sources: list[str] = []
+    for spec in evidence_specs:
+        if spec.get("canonical_id"):
+            citation_spec = {**spec, "contains": []}
+            matched_sources.extend(
+                str(ref.get("filename") or ref.get("source"))
+                for ref in cited_refs
+                if isinstance(ref, dict) and _evidence_matches_chunk(citation_spec, ref)
+            )
+        else:
+            matched_sources.extend(
+                str(cited)
+                for cited in cited_sources
+                if _source_matches(cited, spec["source"])
+            )
     valid = not grounding_errors and bool(matched_sources)
     return valid, {
         "grounding_errors": grounding_errors,
@@ -1535,6 +1651,16 @@ def _text_identity(text: str) -> dict[str, Any]:
     }
 
 
+def _canonical_manifest_identity() -> dict[str, Any]:
+    manifest = ROOT_DIR / "contracts" / "canonical-docs" / "manifest.yaml"
+    if not manifest.is_file():
+        return {"status": "missing", "sha256": None}
+    return {
+        "status": "available",
+        "sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+    }
+
+
 def _database_identity() -> dict[str, Any]:
     if not os.getenv("DATABASE_URL"):
         return {
@@ -1705,6 +1831,7 @@ def _experiment_identity(
         },
         "prompts_and_policies": _prompt_and_policy_identity(baseline_config),
         "database": database_identity,
+        "canonical_manifest": _canonical_manifest_identity(),
         "vector_indexes": _vector_identity_metadata(database_identity),
         "jev": _jev_identity(),
         "cache": {
@@ -1735,6 +1862,7 @@ def _experiment_identity(
             for key in (
                 "profile_version",
                 "variant_id",
+                "rerank_provider",
                 "pair_id",
                 "snapshot_id",
                 "view",
@@ -2167,6 +2295,29 @@ def _trace_for_report(
     safe_trace = _sanitize_evaluation_metadata({**trace, "comparison": comparison})
     if not isinstance(safe_trace, dict):
         return {"comparison": comparison}
+    evidence = trace.get("jev_evidence")
+    safe_trace["jev_evidence"] = [
+        {
+            "candidate_id": (
+                item["candidate_id"]
+                if re.fullmatch(r"[0-9a-f]{64}", str(item["candidate_id"]))
+                else _opaque_report_id(item["candidate_id"])
+            ),
+            "state_sha256": item["state_sha256"],
+            "status": item["status"],
+        }
+        for item in (evidence if isinstance(evidence, list) else [])
+        if isinstance(item, dict)
+        and re.fullmatch(r"[0-9a-f]{64}", str(item.get("state_sha256") or ""))
+        and re.fullmatch(r"[a-z0-9_]{1,40}", str(item.get("status") or ""))
+        and item.get("candidate_id")
+    ]
+    if isinstance(safe_trace.get("rerank"), list):
+        safe_trace["rerank"] = [
+            {key: value for key, value in item.items() if key != "evidence"}
+            for item in safe_trace["rerank"]
+            if isinstance(item, dict)
+        ]
     stages = safe_trace.get("retrieval_stages")
     if isinstance(stages, dict):
         safe_trace["retrieval_stages"] = {
@@ -2312,13 +2463,12 @@ def run_evaluation(
 
         t0 = time.perf_counter()
         if answer_provider is None:
-            answer, chunks, trace = rag.ask(
-                question,
-                conversation_history=conversation_history,
-                images=None,
-                system_prompt=None,
-                platform="offline_eval",
-                scope=provider_scope,
+            answer, chunks, trace = _active_comparison_provider(
+                case,
+                provider_scope,
+                variant_id=variant_id,
+                mode="end_to_end",
+                candidate_pool=None,
             )
         else:
             answer, chunks, trace = answer_provider(question, provider_scope)
@@ -2378,6 +2528,29 @@ def run_evaluation(
             if provider_reranker.get("model") is not None:
                 trace_comparison["effective_reranker_model"] = str(
                     provider_reranker["model"]
+                )
+        rerank_stages = trace.get("rerank")
+        if variant_id == VARIANT_JEV_RERANK and isinstance(rerank_stages, list):
+            failures = [
+                stage for stage in rerank_stages
+                if isinstance(stage, dict)
+                and (stage.get("effective_provider") != "jev" or not stage.get("applied"))
+            ]
+            if failures or not rerank_stages:
+                failure = failures[0] if failures else {}
+                trace_comparison["effective_variant"] = VARIANT_EXISTING
+                trace_comparison["fallback_stage"] = "rerank"
+                trace_comparison["fallback_reason"] = str(
+                    failure.get("fallback_reason") or "jev_not_applied"
+                )
+            else:
+                trace_comparison["effective_variant"] = VARIANT_JEV_RERANK
+            if rerank_stages and isinstance(rerank_stages[-1], dict):
+                trace_comparison["effective_reranker_provider"] = rerank_stages[-1].get(
+                    "effective_provider"
+                )
+                trace_comparison["effective_reranker_model"] = rerank_stages[-1].get(
+                    "model_effective"
                 )
         if "context_envelope" not in trace and isinstance(
             trace.get("context_selection"), dict
@@ -2941,9 +3114,21 @@ def run_paired_comparison(
         raise VariantConfigurationError(
             "A comparação pareada exige perguntas únicas no recorte selecionado."
         )
+    if any(providers.get(variant_id) is None for variant_id in selected_variants):
+        database = _database_identity()
+        if (
+            database.get("status") != "verified"
+            or not (database.get("corpus") or {}).get("sha256")
+            or not (database.get("feedback") or {}).get("sha256")
+        ):
+            raise VariantConfigurationError(
+                "A comparação ativa exige identidade verificável do corpus e feedback antes de chamar providers."
+            )
 
     def _run_mode(mode: str, view: str) -> dict[str, dict[str, Any]]:
         captured_pools: dict[str, list[dict]] = {}
+        captured_queries: dict[str, str] = {}
+        captured_query_hashes: dict[str, str] = {}
         mode_summaries: dict[str, dict[str, Any]] = {}
         for variant_id in selected_variants:
             provider = providers.get(variant_id)
@@ -2966,6 +3151,7 @@ def run_paired_comparison(
                     if mode == "ranking_ablation" and _variant_id != VARIANT_EXISTING
                     else None
                 )
+                query_capture: list[str] = []
                 answer, chunks, trace = _invoke_comparison_provider(
                     _provider,
                     case=case,
@@ -2973,6 +3159,8 @@ def run_paired_comparison(
                     variant_id=_variant_id,
                     mode=mode,
                     candidate_pool=candidate_pool,
+                    frozen_query=captured_queries.get(case_id) if mode == "ranking_ablation" else None,
+                    query_capture=query_capture if mode == "ranking_ablation" else None,
                 )
                 if _variant_id == VARIANT_EXISTING:
                     pool_chunks = (
@@ -2987,7 +3175,18 @@ def run_paired_comparison(
                             "A ablação pareada exige chunks do candidate_pool no trace da variante existing."
                         )
                     captured_pools[case_id] = list(pool_chunks)
+                    if mode == "ranking_ablation":
+                        if query_capture:
+                            captured_queries[case_id] = query_capture[0]
+                        if trace.get("search_query_sha256"):
+                            captured_query_hashes[case_id] = str(trace["search_query_sha256"])
                 elif mode == "ranking_ablation":
+                    expected_query_hash = captured_query_hashes.get(case_id)
+                    observed_query_hash = trace.get("search_query_sha256")
+                    if expected_query_hash and observed_query_hash != expected_query_hash:
+                        raise VariantConfigurationError(
+                            "A ablação pareada usou search_query diferente da variante A."
+                        )
                     expected_pool = [
                         _comparison_chunk_id(chunk)
                         for chunk in (candidate_pool or [])
@@ -2998,6 +3197,19 @@ def run_paired_comparison(
                     if observed_pool != expected_pool:
                         raise VariantConfigurationError(
                             "A variante pareada alterou ou omitiu o candidate_pool da ablação."
+                        )
+                    stages = trace.get("retrieval_stages") or {}
+                    if (stages.get("candidate_pool") or {}).get("expansions"):
+                        raise VariantConfigurationError(
+                            "A ablação pareada expandiu o candidate_pool após a recuperação inicial."
+                        )
+                    allowed_ids = set(expected_pool)
+                    if any(
+                        not set(_comparison_stage_ids(trace, stage_name)).issubset(allowed_ids)
+                        for stage_name in ("post_rerank", "final_context")
+                    ):
+                        raise VariantConfigurationError(
+                            "A ablação pareada usou evidência fora do candidate_pool de A."
                         )
                 return answer, chunks, trace
 
@@ -3058,7 +3270,7 @@ def run_paired_comparison(
         variant_id: _compare_runtime_identities(
             summaries[variant_id]["runtime"],
             summaries[reference_variant]["runtime"],
-            experimental_variables=["comparison.variant_id"],
+            experimental_variables=["comparison.variant_id", "comparison.rerank_provider"],
         )
         for variant_id in selected_variants[1:]
     }
@@ -3171,7 +3383,7 @@ def prepare_comparison(
             blockers.append(
                 f"{variant_id}_unavailable:{unavailable.get('reason') or unavailable.get('unavailable_reason')}"
             )
-        elif not definition["available_without_provider"]:
+        elif variant_id == VARIANT_JEV_RERANK_GATE:
             blockers.append(
                 f"{variant_id}_requires_active_path:{','.join(definition['requires'])}"
             )

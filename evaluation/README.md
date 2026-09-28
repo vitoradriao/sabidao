@@ -24,9 +24,15 @@ declaração de validação operacional.
 | `datasets/maxpedido_seed_cases.json` | Fonte curada dos 30 casos. |
 | `datasets/maxpedido_eval_dataset.json` | Dataset normalizado usado pelo runner. |
 | `datasets/evaluator_synthetic_fixture.json` | Fixture sem banco ou API para testar o avaliador. |
+| `datasets/migration_batch_synthetic_fixture.json` | Casos sintéticos para exercitar consultas de um lote canônico. |
+| `migration_batch_policy.template.json` | Modelo não aprovado para congelar o ensaio de um lote. |
+| `verify_migration_batch.py` | Compara relatórios de referência e candidato sem chamar serviços. |
 | `build_dataset.py` | Normaliza os casos e acrescenta, opcionalmente, lacunas do banco. |
 | `run_offline_eval.py` | Executa o RAG, calcula métricas e produz o relatório. |
 | `run_contextual_ingest_benchmark.py` | Mede tempo, chunks e uso de providers na ingestão das variantes da issue #16. |
+
+Para verificar uma migração documental por lote, consulte o
+[procedimento de preservação e consultas](../docs/verificacao-migracao-canonica.md).
 
 ## Proveniência e revisão
 
@@ -50,12 +56,27 @@ Os valores de `answerability` são:
 
 `expected_facts` lista fatos obrigatórios, `forbidden_facts` lista afirmações que
 constituem falha crítica e `reference_evidence` identifica fonte e termos esperados no
-retrieval. Para avaliar a ordenação com nDCG convencional, um caso também pode declarar
+retrieval. Referências legadas continuam aceitando o caminho exato em `source`; o
+avaliador não infere identidade pelo basename. Para uma fonte canônica, declare
+`canonical_id` e, quando relevantes, `document_revision`, `section_key`, `source_id`
+e `locator`. `source` pode ser um alias editorial somente junto da identidade
+canônica explícita; splits precisam apontar para a seção ou evidência correta.
+Por exemplo:
+
+```json
+{"source": "docs/antigo.md", "canonical_id": "10000000-0000-4000-8000-000000000001", "document_revision": 2, "section_key": "conta-corrente", "source_id": "manual", "locator": {"kind": "line_range", "start": 10, "end": 12}, "contains": ["Passos confirmados"]}
+```
+
+Para avaliar a ordenação com nDCG convencional, um caso também pode declarar
 `ranking_judgments` com `schema_version: 1`, `universe_id`, `corpus_fingerprint` e
 `qrels` (`candidate_id` + relevância inteira de 0 a 3). Os `candidate_id` dos chunks
 retornados precisam ser únicos e estar julgados; o nDCG usa somente os dez primeiros.
 O hash canônico
 dos qrels é registrado no detalhe, sem copiar o conteúdo bruto para o relatório.
+O fingerprint do experimento inclui o manifesto canônico e o hash sanitizado da
+projeção persistida, incluindo revisão, seção, proveniência e `retrieval_text`.
+Mudanças nessa identidade exigem nova comparação; um relatório de corpus legado
+não é diretamente comparável a um corpus promovido.
 
 ## Preparar o dataset
 
@@ -184,7 +205,7 @@ A issue #90 entrega somente o contrato e o harness para a comparação ativa. O
 baseline registra as variantes com identificadores estáveis:
 
 - `existing` (A): pipeline atual;
-- `jev_rerank` (B): reranking com Jev, dependente do caminho ativo da issue #91;
+- `jev_rerank` (B): reranking ativo com Jev, integrado pela issue #91;
 - `jev_rerank+evidence_gate` (C): variante registrada, mas explicitamente
   indisponível enquanto o gate da issue #92 não existir.
 
@@ -203,13 +224,12 @@ python evaluation/run_offline_eval.py --prepare-only \
   --output-report evaluation/reports/jev-prepare.json
 ```
 
-O status `blocked` é esperado enquanto o snapshot não estiver registrado e o
-caminho B ainda depender da issue #91. A opção legada `--dry-run` tem outro
-significado: impede apenas a escrita das tabelas e ainda pode chamar banco e
-providers pagos.
+O status `blocked` é esperado enquanto o snapshot não estiver registrado. A
+opção legada `--dry-run` tem outro significado: impede apenas a escrita das
+tabelas e ainda pode chamar banco e providers pagos.
 
-Com providers de teste ou com o caminho da issue #91 integrado, execute o par
-informando explicitamente o snapshot:
+Com o caminho ativo da issue #91, execute o par informando explicitamente o
+snapshot. Essa execução pode chamar Jev, o gerador, embeddings e banco:
 
 ```sh
 python evaluation/run_offline_eval.py --paired \
@@ -218,12 +238,12 @@ python evaluation/run_offline_eval.py --paired \
   --dry-run --output-report evaluation/reports/jev-paired.json
 ```
 
-Cada provider pareado precisa devolver no trace o `snapshot_id` efetivamente
-usado e a `experiment_identity` completa, incluindo `fingerprint_sha256`; o
-runner rejeita respostas que não comprovem esses dois campos. Na base desta
-issue, a variante B ainda depende da integração ativa da #91. As fixtures
-sintéticas exercitam o runner diretamente com providers fake; o comando CLI só
-fica executável para B depois que essa integração expuser o provider ativo.
+O caminho ativo verifica no banco a identidade de corpus, feedback e índices
+antes e depois de cada resposta. Só então o adapter acrescenta ao trace o
+`snapshot_id` e a `experiment_identity`, incluindo `fingerprint_sha256`.
+Providers simulados precisam devolver esses campos explicitamente; o runner
+rejeita respostas que não os comprovem. As fixtures sintéticas exercitam o
+runner com providers fake, sem chamadas pagas.
 
 O harness produz duas visões do mesmo recorte: `ranking_ablation_same_pool`,
 que reutiliza o mesmo conjunto de candidatos para isolar a ordenação, e
@@ -234,9 +254,17 @@ IDs opacos e métricas com denominador e motivo de indisponibilidade. O envelope
 final preserva hashes, fontes e spans, sem texto bruto nos traces persistidos ou
 no `ASK_TRACE`.
 
+Para cada tentativa de reranking Jev, `jev_evidence` registra o ID opaco, o
+SHA-256 do estado passado ao cliente e o status da decisão. O estado inclui a
+pergunta, o trecho documental, o título e a fonte; seu texto não entra no
+relatório. O status `attempted` não comprova recebimento remoto. Tentativas sem
+decisão válida continuam identificáveis quando o fallback restaura a ordem
+anterior.
+
 O resultado desta issue não aprova adoção, custo ou operação. Revisão humana,
 ensaio operacional, orçamento e decisão de adoção continuam nas issues #53,
-#93 e #96; a integração do caminho ativo de Jev continua na #91.
+#93 e #96. O código da #91 está integrado; isso não constitui validação
+operacional de Jev.
 
 ## Conteúdo do relatório
 

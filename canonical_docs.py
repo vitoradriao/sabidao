@@ -458,9 +458,14 @@ def lint_manifest(manifest_path: Path, repo_root: Path) -> tuple[list[Diagnostic
         entry["path"] for entry in manifest["entries"]
         if entry["ingestion"] == "include" and entry["state"] == "active"
     }
-    if immediate != included:
-        missing = sorted(immediate - included)
-        extra = sorted(included - immediate)
+    retained_predecessors = {
+        entry["path"] for entry in manifest["entries"]
+        if entry["state"] == "superseded" and entry["ingestion"] == "exclude"
+        and entry["successors"]
+    }
+    missing = sorted(immediate - included - retained_predecessors)
+    extra = sorted(included - immediate)
+    if missing or extra:
         diagnostics.append(Diagnostic(
             manifest_path.relative_to(repo_root).as_posix(),
             "selection-mismatch",

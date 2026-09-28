@@ -8,7 +8,7 @@ doc_type: md
 semantic_type: guide
 products: [maxpedido]
 taxonomy:
-  taxonomy_version: fixture_v1
+  taxonomy_version: taxonomy_v1
   primary_module: configuracao
   secondary_modules: []
   answer_mode: reference

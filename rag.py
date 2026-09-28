@@ -28,15 +28,22 @@ from google.genai import types as _gtypes
 
 import config
 import jev
+from canonical_docs import (
+    DEFAULT_MANIFEST,
+    load_canonical_document,
+    load_yaml,
+    validate_canonical_text,
+    validate_manifest,
+)
 from bot_common import normalize_text
-from db import db_call, db_delete, db_insert, db_select, db_update, is_missing_function_error
+from db import db_call, db_delete, db_insert, db_select, db_table_exists, db_update, get_database_url, is_missing_function_error
 
 logger = logging.getLogger(__name__)
 
 _knowledge_gap_rpc_available: bool | None = None
 _top_knowledge_gaps_rpc_available: bool | None = None
 _business_rules_cache: tuple[str, float, str] | None = None
-_full_context_cache: tuple[str, float] | None = None  # (text, mtime_max)
+_full_context_cache: tuple[str, tuple] | None = None  # (text, file signatures)
 _validated_embedding_index_identities: set[tuple[str, str, str, int, str]] = set()
 _request_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar(
     "rag_request_deadline",
@@ -44,6 +51,18 @@ _request_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar
 )
 _request_external_calls: contextvars.ContextVar[list[dict[str, Any]] | None] = (
     contextvars.ContextVar("rag_request_external_calls", default=None)
+)
+_offline_eval_rerank_provider: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "rag_offline_eval_rerank_provider", default=None
+)
+_offline_eval_candidate_pool: contextvars.ContextVar[list[dict] | None] = contextvars.ContextVar(
+    "rag_offline_eval_candidate_pool", default=None
+)
+_offline_eval_search_query: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "rag_offline_eval_search_query", default=None
+)
+_offline_eval_query_capture: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
+    "rag_offline_eval_query_capture", default=None
 )
 
 
@@ -1881,6 +1900,7 @@ def _sanitize_trace_for_log(trace: dict[str, Any]) -> dict[str, Any]:
             "retrieved_sources",
             "citations",
             "cited_files",
+            "cited_evidence_refs",
             "grounding_errors",
         }
     }
@@ -2403,6 +2423,11 @@ def _search_rpc_with_filter_fallback(function_name: str, params: dict) -> list:
         raise
 
 
+def _starts_with_front_matter(text: str) -> bool:
+    lines = text.splitlines()
+    return bool(lines) and lines[0].lstrip("\ufeff") == "---"
+
+
 def _load_business_rules_context() -> str:
     if not config.RAG_ENABLE_BUSINESS_RULES:
         return ""
@@ -2421,6 +2446,14 @@ def _load_business_rules_context() -> str:
             return cached_text
 
     text = rules_path.read_text(encoding="utf-8", errors="ignore").strip()
+    if _starts_with_front_matter(text):
+        try:
+            validate_canonical_text(text)
+            _document, text, _body_line = load_canonical_document(rules_path)
+            text = text.strip()
+        except ValueError as exc:
+            logger.warning("Arquivo canonico de regras invalido (%s).", type(exc).__name__)
+            return ""
     if not text:
         return ""
 
@@ -2453,20 +2486,70 @@ def _load_full_context_docs() -> str:
         return ""
 
     allowed_exts = {ext.strip().lower() for ext in config.FULL_CONTEXT_EXTENSIONS}
+    repo_root = Path(__file__).resolve().parent
+    repository_corpus = docs_dir.resolve().is_relative_to(repo_root)
+    manifest_path = DEFAULT_MANIFEST if repository_corpus else None
+    if repository_corpus and not manifest_path.is_file():
+        logger.warning("FULL_CONTEXT: manifesto do corpus nao encontrado.")
+        return ""
+    if manifest_path and get_database_url():
+        try:
+            publication = (db_select("canonical_publication_state")
+                           if db_table_exists("public.canonical_publication_state") else [])
+            if publication and (
+                publication[0]["status"] != "applied"
+                or publication[0]["manifest_sha256"] != hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+            ):
+                logger.warning("FULL_CONTEXT: manifesto diverge da publicacao no banco.")
+                return ""
+        except Exception as exc:
+            logger.warning("FULL_CONTEXT: publicacao indisponivel (%s).", type(exc).__name__)
+            return ""
+    selected_paths: set[Path] | None = None
+    if manifest_path and manifest_path.is_file():
+        try:
+            manifest = load_yaml(manifest_path)
+        except ValueError as exc:
+            logger.warning("FULL_CONTEXT: manifesto invalido (%s).", type(exc).__name__)
+            return ""
+        selected_paths = {
+            (repo_root / entry["path"]).resolve()
+            for entry in manifest.get("entries", [])
+            if isinstance(entry, dict)
+            and isinstance(entry.get("path"), str)
+            and entry.get("state") == "active"
+            and entry.get("ingestion") == "include"
+        }
     doc_files = sorted(
         f for f in docs_dir.iterdir()
         if f.is_file() and f.suffix.lower() in allowed_exts
+        and (selected_paths is None or f.resolve() in selected_paths)
     )
 
     if not doc_files:
         logger.warning("FULL_CONTEXT: nenhum documento encontrado.")
         return ""
 
-    current_mtime_max = max(f.stat().st_mtime for f in doc_files)
+    manifest_signature = (
+        (
+            str(manifest_path.resolve()),
+            hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        ),
+    ) if manifest_path else ()
+    signatures = manifest_signature + tuple(
+        (str(path.resolve()), path.stat().st_mtime_ns, path.stat().st_size)
+        for path in doc_files
+    )
     if _full_context_cache:
-        cached_text, cached_mtime = _full_context_cache
-        if cached_mtime == current_mtime_max:
+        cached_text, cached_signatures = _full_context_cache
+        if cached_signatures == signatures:
             return cached_text
+    if manifest_path and manifest_path.is_file():
+        try:
+            validate_manifest(manifest_path, repo_root)
+        except ValueError as exc:
+            logger.warning("FULL_CONTEXT: manifesto invalido (%s).", type(exc).__name__)
+            return ""
 
     parts: list[str] = []
     total_chars = 0
@@ -2475,6 +2558,10 @@ def _load_full_context_docs() -> str:
     for doc_file in doc_files:
         try:
             content = doc_file.read_text(encoding="utf-8", errors="ignore").strip()
+            if _starts_with_front_matter(content):
+                validate_canonical_text(content)
+                _document, content, _body_line = load_canonical_document(doc_file)
+                content = content.strip()
         except Exception as e:
             logger.warning(
                 "FULL_CONTEXT: erro de leitura (%s).",
@@ -2505,7 +2592,7 @@ def _load_full_context_docs() -> str:
         total_chars += len(content)
 
     full_text = "\n\n".join(parts)
-    _full_context_cache = (full_text, current_mtime_max)
+    _full_context_cache = (full_text, signatures)
     logger.info(
         "FULL_CONTEXT: %d documentos carregados (%d chars total).",
         len(parts), total_chars,
@@ -3315,6 +3402,24 @@ def _context_chunk_key(chunk: dict) -> str:
     )
 
 
+def _canonical_provenance(chunk: dict) -> dict[str, Any]:
+    metadata = chunk.get("metadata") if isinstance(chunk.get("metadata"), dict) else {}
+    source_refs = chunk.get("source_refs") or metadata.get("source_refs")
+    locator = chunk.get("locator")
+    if locator is None and isinstance(source_refs, list) and source_refs:
+        locator = source_refs[0].get("locator")
+    fields = {
+        "canonical_id": chunk.get("canonical_id") or metadata.get("canonical_id"),
+        "document_revision": chunk.get("document_revision") or metadata.get("document_revision"),
+        "schema_version": chunk.get("schema_version") or metadata.get("schema_version"),
+        "section_key": chunk.get("section_key") or metadata.get("section_key"),
+        "locator": locator,
+        "source_refs": source_refs,
+        "aliases": chunk.get("aliases") or metadata.get("aliases"),
+    }
+    return {key: value for key, value in fields.items() if value is not None}
+
+
 def _context_evidence_ref(chunk: dict, rank: int) -> dict[str, Any]:
     source = str(chunk.get("filename") or "desconhecido")
     content = str(chunk.get("content") or "")
@@ -3337,6 +3442,7 @@ def _context_evidence_ref(chunk: dict, rank: int) -> dict[str, Any]:
         "retrieval_origin": str(chunk.get("retrieval_origin") or "") or None,
         "is_neighbor": bool(chunk.get("is_neighbor")),
         "seed_chunk_id": str(chunk.get("seed_chunk_id") or "") or None,
+        **_canonical_provenance(chunk),
     }
 
 
@@ -3415,7 +3521,11 @@ def _render_context_records(
             consecutive = _chunk_index_value(record["chunk"]) == (
                 _chunk_index_value(previous["chunk"]) + 1
             )
-            if same_document and consecutive:
+            same_section = (
+                _canonical_provenance(previous["chunk"]).get("section_key")
+                == _canonical_provenance(record["chunk"]).get("section_key")
+            )
+            if same_document and same_section and consecutive:
                 blocks[-1].append(record)
                 continue
         blocks.append([record])
@@ -3461,8 +3571,23 @@ def _render_context_records(
         block_chunks = [record["chunk"] for record in block]
         analytical_context = _build_analytical_context_block(block_chunks)
         doc_body = merged_content
+        provenance = _canonical_provenance(block_chunks[0])
         if analytical_context:
             doc_body = f"{analytical_context}\n\n<evidence>\n{doc_body}\n</evidence>"
+        elif provenance:
+            doc_body = f"<evidence>\n{doc_body}\n</evidence>"
+        if provenance:
+            prompt_provenance = {
+                key: provenance[key]
+                for key in ("canonical_id", "document_revision", "section_key", "locator")
+                if key in provenance
+            }
+            doc_body = (
+                "<source_provenance>"
+                + json.dumps(prompt_provenance, ensure_ascii=False, default=str)
+                + "</source_provenance>\n"
+                + doc_body
+            )
         filename = next(
             (record["chunk"].get("filename") for record in block if record["chunk"].get("filename")),
             "desconhecido",
@@ -3726,6 +3851,222 @@ def _reformulate_query_with_history(
 
 
 # -- Re-ranking com LLM (P1.1) -------------------------------------------------
+JEV_RERANK_PROMPT_VERSION = "jev-rerank-pt-v1"
+_JEV_RERANK_QUESTION = {
+    "relevance": {
+        "type": "noul",
+        "instructions": (
+            "Este trecho documental e relevante para responder a pergunta de suporte? "
+            "Considere instrucoes, campos, telas, erros e procedimentos especificos. "
+            "A probabilidade da resposta sim serve apenas para ordenar; nao descarte trechos."
+        ),
+    }
+}
+
+
+def _jev_candidate_id(chunk: dict) -> str:
+    metadata = _chunk_meta(chunk)
+    identity = (
+        metadata.get("snapshot_id") or metadata.get("corpus_snapshot_id")
+        or _chunk_analytical_value(chunk, "document_revision", "")
+        or ""
+    )
+    fields = [
+        str(identity),
+        str(chunk.get("id") or ""),
+        str(chunk.get("document_id") or chunk.get("filename") or ""),
+        str(chunk.get("filename") or ""),
+        str(chunk.get("section_id") or ""),
+        str(_chunk_index_value(chunk)),
+        hashlib.sha256(str(chunk.get("content") or "").encode("utf-8")).hexdigest(),
+    ]
+    return hashlib.sha256(json.dumps(fields, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _rerank_chunks_with_jev(
+    query: str,
+    chunks: list[dict],
+    *,
+    request_id: str | None = None,
+    model_calls: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict], dict[str, Any]]:
+    """Aplica uma passagem Jev completa ou devolve a entrada sem alteracao."""
+    started_at = _time.monotonic()
+    config.validate_jev_config(active=True)
+    deduped_chunks = _dedupe_chunks(chunks)
+    candidates = deduped_chunks[: int(config.JEV_RERANK_MAX_CANDIDATES)]
+    summary: dict[str, Any] = {
+        "requested_provider": "jev",
+        "effective_provider": "retrieval",
+        "applied": False,
+        "candidate_count": len(candidates),
+        "candidate_pool_count": len(deduped_chunks),
+        "excluded_by_cap_count": len(deduped_chunks) - len(candidates),
+        "decisions_completed": 0,
+        "evidence": [],
+        "fallback_reason": None,
+        "prompt_version": JEV_RERANK_PROMPT_VERSION,
+        "model_requested": config.JEV_MODEL,
+        "model_effective": None,
+        "estimated_cost_usd": 0.0,
+        "cost_complete": True,
+        "latency_ms": 0,
+    }
+
+    def fallback(reason: str) -> tuple[list[dict], dict[str, Any]]:
+        summary["fallback_reason"] = reason
+        summary["latency_ms"] = int((_time.monotonic() - started_at) * 1000)
+        return chunks, summary
+
+    if len(candidates) < 2:
+        return fallback("insufficient_candidates")
+
+    deadline = _request_deadline.get()
+    if deadline is not None and deadline - started_at <= config.JEV_MIN_REMAINING_SECONDS:
+        return fallback("deadline_reserve")
+
+    states: list[dict[str, str]] = []
+    for chunk in candidates:
+        state = {
+            "pergunta": query,
+            "trecho_documental": str(chunk.get("content") or ""),
+            "titulo": str(_chunk_analytical_value(chunk, "heading_path", "") or ""),
+            "fonte": str(chunk.get("filename") or ""),
+        }
+        estimate, _ = _count_context_text(
+            json.dumps(state, ensure_ascii=False) + json.dumps(_JEV_RERANK_QUESTION),
+            provider="typesafe",
+            model=config.JEV_MODEL,
+        )
+        if estimate > config.JEV_MAX_STATE_ESTIMATED_TOKENS:
+            return fallback("state_limit")
+        states.append(state)
+
+    scores: list[float] = []
+    effective_models: list[str] = []
+    client = None
+    try:
+        client = jev.TypeSafeClient()
+        for chunk, state in zip(candidates, states):
+            remaining = config.JEV_STAGE_TIMEOUT_SECONDS - (_time.monotonic() - started_at)
+            if remaining <= 0:
+                return fallback("stage_budget_exhausted")
+            candidate_id = _jev_candidate_id(chunk)
+            evidence = {
+                "candidate_id": candidate_id,
+                "state_sha256": hashlib.sha256(
+                    json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+                ).hexdigest(),
+                "status": "attempted",
+            }
+            summary["evidence"].append(evidence)
+            result = client.decide(
+                state,
+                _JEV_RERANK_QUESTION,
+                stage="rerank",
+                request_id=request_id,
+                candidate_id=candidate_id,
+                deadline=deadline,
+                stage_budget_seconds=remaining,
+            )
+            _record_jev_decision(model_calls, result=result, stage="rerank")
+            evidence["status"] = result.status
+            summary["model_effective"] = result.model_effective or result.model_requested
+            if result.estimated_cost_usd is None:
+                summary["cost_complete"] = False
+                summary["estimated_cost_usd"] = None
+            elif summary["estimated_cost_usd"] is not None:
+                summary["estimated_cost_usd"] += result.estimated_cost_usd
+            if not result.ok:
+                return fallback(result.status)
+            answer = result.answers.get("relevance")
+            score = answer.get("noul") if isinstance(answer, dict) else None
+            if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score) or not 0 <= score <= 1:
+                return fallback("invalid_response")
+            scores.append(float(score))
+            effective_models.append(result.model_effective or result.model_requested)
+            summary["decisions_completed"] += 1
+    except jev.JevConfigurationError:
+        raise
+    except Exception as exc:
+        logger.warning("Erro no re-ranking Jev (%s).", type(exc).__name__)
+        return fallback("client_error")
+    finally:
+        if client is not None:
+            client.close()
+
+    order = sorted(range(len(candidates)), key=lambda index: (-scores[index], index))
+    reranked: list[dict] = []
+    for new_rank, index in enumerate(order, start=1):
+        chunk = dict(candidates[index])
+        state_hash = summary["evidence"][index]["state_sha256"]
+        chunk["jev"] = {
+            "relevance": scores[index],
+            "model_effective": effective_models[index],
+            "prompt_version": JEV_RERANK_PROMPT_VERSION,
+            "state_sha256": state_hash,
+            "status": "ok",
+            "original_rank": index + 1,
+            "reranked_rank": new_rank,
+        }
+        reranked.append(chunk)
+    reranked.extend(deduped_chunks[len(candidates):])
+    summary["effective_provider"] = "jev"
+    summary["applied"] = True
+    summary["fallback_reason"] = None
+    summary["latency_ms"] = int((_time.monotonic() - started_at) * 1000)
+    return reranked, summary
+
+
+def _rerank_chunks(
+    query: str,
+    chunks: list[dict],
+    *,
+    request_id: str | None = None,
+    model_calls: list[dict[str, Any]] | None = None,
+    trace: dict[str, Any] | None = None,
+) -> list[dict]:
+    """Seleciona provider preservando o fluxo existente como fallback."""
+    requested_provider = _offline_eval_rerank_provider.get() or config.RAG_RERANK_PROVIDER
+    if not config.RAG_ENABLE_RERANKING or requested_provider == "existing":
+        result = _rerank_chunks_with_llm(query, chunks, request_id=request_id, model_calls=model_calls)
+        if trace is not None:
+            trace.setdefault("rerank", []).append({
+                "requested_provider": requested_provider,
+                "effective_provider": "existing" if result is not chunks else "retrieval",
+                "applied": result is not chunks,
+                "candidate_count": None,
+                "fallback_reason": None,
+            })
+        return result
+
+    result, summary = _rerank_chunks_with_jev(query, chunks, request_id=request_id, model_calls=model_calls)
+    if not summary["applied"]:
+        deadline = _request_deadline.get()
+        remaining = float("inf") if deadline is None else deadline - _time.monotonic()
+        if remaining > config.JEV_MIN_REMAINING_SECONDS and _should_rerank_chunks(chunks):
+            token = None
+            if deadline is not None:
+                token = _request_deadline.set(deadline - config.JEV_MIN_REMAINING_SECONDS)
+            try:
+                result = _rerank_chunks_with_llm(
+                    query, chunks, request_id=request_id, model_calls=model_calls
+                )
+                if deadline is not None:
+                    _ensure_request_active("rerank")
+            except RequestDeadlineExceeded:
+                result = chunks
+            finally:
+                if token is not None:
+                    _request_deadline.reset(token)
+            summary["effective_provider"] = "existing" if result is not chunks else "retrieval"
+            summary["applied"] = result is not chunks
+    if trace is not None:
+        trace.setdefault("jev_evidence", []).extend(summary["evidence"])
+        trace.setdefault("rerank", []).append(summary)
+    return result
+
+
 def _rerank_chunks_with_llm(
     query: str,
     chunks: list[dict],
@@ -4224,6 +4565,7 @@ def _ask_impl(
         "retrieval_origins": [],
         "citations": [],
         "cited_files": [],
+        "cited_evidence_refs": [],
         "grounding_errors": [],
         "regeneration_attempts": 0,
         "response_state": None,
@@ -4275,12 +4617,18 @@ def _ask_impl(
 
     _ensure_request_active("reformulation")
     stage_started_at = _time.monotonic()
-    search_query = _reformulate_query_with_history(
+    frozen_query = _offline_eval_search_query.get() if platform == "offline_eval" else None
+    search_query = frozen_query if frozen_query is not None else _reformulate_query_with_history(
         question,
         conversation_history,
         request_id=query_id,
         model_calls=trace["model_calls"],
     )
+    if platform == "offline_eval":
+        trace["search_query_sha256"] = hashlib.sha256(search_query.encode("utf-8")).hexdigest()
+        capture = _offline_eval_query_capture.get()
+        if capture is not None:
+            capture.append(search_query)
     _mark_stage("reformulation", stage_started_at)
     base_system = system_prompt or config.SYSTEM_PROMPT
 
@@ -4430,12 +4778,19 @@ def _ask_impl(
     _ensure_request_active("retrieval")
     stage_started_at = _time.monotonic()
     retrieval_scope_trace: dict[str, Any] = {}
-    merged_chunks, scoped_feedback_chunks, kb_chunks = retrieve_chunks_with_feedback(
-        search_query,
-        query_plan=query_plan,
-        scope=scope,
-        retrieval_trace=retrieval_scope_trace,
-    )
+    comparison_pool = _offline_eval_candidate_pool.get() if platform == "offline_eval" else None
+    if comparison_pool is None:
+        merged_chunks, scoped_feedback_chunks, kb_chunks = retrieve_chunks_with_feedback(
+            search_query,
+            query_plan=query_plan,
+            scope=scope,
+            retrieval_trace=retrieval_scope_trace,
+        )
+    else:
+        merged_chunks = [dict(chunk) for chunk in comparison_pool]
+        scoped_feedback_chunks = []
+        kb_chunks = merged_chunks
+        retrieval_scope_trace["status"] = "paired_candidate_pool_reused"
     _mark_stage("retrieval", stage_started_at)
     trace["retrieval_stages"]["sections"] = _summarize_section_stage(
         merged_chunks,
@@ -4453,11 +4808,12 @@ def _ask_impl(
 
     _ensure_request_active("rerank")
     stage_started_at = _time.monotonic()
-    ranked_chunks = _rerank_chunks_with_llm(
+    ranked_chunks = _rerank_chunks(
         search_query,
         merged_chunks,
         request_id=query_id,
         model_calls=trace["model_calls"],
+        trace=trace,
     )
     trace["retrieval_stages"]["post_rerank"] = _summarize_retrieval_stage(
         ranked_chunks,
@@ -4501,7 +4857,9 @@ def _ask_impl(
         )
 
     should_abstain, abstain_reason = _should_strict_abstain(question, chunks)
-    if should_abstain and query_plan and (
+    if should_abstain and comparison_pool is not None:
+        trace["query_plan_fallback"] = "skipped_paired_pool"
+    if should_abstain and comparison_pool is None and query_plan and (
         (query_plan.get("modules") or query_plan.get("doc_types"))
         and abstain_reason in {"no_chunks", "few_chunks", "low_similarity", "low_similarity_operational"}
     ):
@@ -4544,11 +4902,12 @@ def _ask_impl(
                     "candidate_count": len(combined_chunks),
                 }
             )
-            fallback_ranked_chunks = _rerank_chunks_with_llm(
+            fallback_ranked_chunks = _rerank_chunks(
                 search_query,
                 combined_chunks,
                 request_id=query_id,
                 model_calls=trace["model_calls"],
+                trace=trace,
             )
             fallback_chunks = _limit_chunk_diversity(
                 fallback_ranked_chunks,
@@ -4805,11 +5164,17 @@ def _ask_impl(
     trace["grounding_errors"] = grounding_errors
     trace["cited_files"] = sorted(cited_sources)
     trace["citations"] = sorted(cited_sources)
+    trace["cited_evidence_refs"] = [
+        evidence
+        for evidence in selection.evidence
+        if _normalize_source_name(str(evidence.get("source") or "")) in cited_sources
+    ]
     trace["regeneration_attempts"] = regen_attempts
     if _is_provider_error_response(answer):
         trace["grounding_errors"] = []
         trace["cited_files"] = []
         trace["citations"] = []
+        trace["cited_evidence_refs"] = []
         _set_response_state(
             trace,
             "provider_error",

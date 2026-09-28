@@ -48,6 +48,15 @@ class TestAskIntegration(unittest.TestCase):
                 content="Parametro USAGRADE habilita grade de produto no pedido.",
             )
         ]
+        chunks[0].update({
+            "canonical_id": "10000000-0000-4000-8000-000000000001",
+            "document_revision": 2,
+            "schema_version": "1.0.0",
+            "section_key": "configurar-grade",
+            "source_refs": [
+                {"source_id": "manual", "locator": {"kind": "line_range", "start": 4, "end": 8}}
+            ],
+        })
 
         with patch.multiple(
             config,
@@ -83,6 +92,14 @@ class TestAskIntegration(unittest.TestCase):
         self.assertFalse(trace["abstained"])
         self.assertGreaterEqual(trace["top_similarity"], 0.89)
         self.assertIn("guia-maxpedido.md", [s.lower() for s in trace["cited_files"]])
+        self.assertEqual(
+            trace["cited_evidence_refs"][0]["canonical_id"],
+            chunks[0]["canonical_id"],
+        )
+        self.assertEqual(
+            trace["cited_evidence_refs"][0]["section_key"],
+            "configurar-grade",
+        )
         self.assertIn("Fontes:", answer)
         self.assertEqual(trace["response_state"], "answered")
         self.assertEqual(trace["citation_validation"]["syntax"], "valid")

@@ -190,14 +190,15 @@ OPENAI_CONTEXTUAL_MODEL = os.getenv("OPENAI_CONTEXTUAL_MODEL", "gpt-5.4-mini")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
 EMBEDDING_DIMENSIONS = _env_int("EMBEDDING_DIMENSIONS", 1536)
 
-# TypeSafe/Jev e opcional e permanece sem efeito enquanto nenhum consumidor o
-# utilizar. O endpoint nao e configuravel por dados de usuario.
+# TypeSafe/Jev e opcional. O endpoint nao e configuravel por dados de usuario.
 TYPESAFE_API_KEY = _env_setting("TYPESAFE_API_KEY")
 JEV_MODEL = _env_setting("JEV_MODEL", "jev-1.13.0")
 JEV_MAX_CONCURRENCY = _env_int("JEV_MAX_CONCURRENCY", 4)
 JEV_REQUEST_TIMEOUT_SECONDS = _env_float("JEV_REQUEST_TIMEOUT_SECONDS", 2.0)
 JEV_STAGE_TIMEOUT_SECONDS = _env_float("JEV_STAGE_TIMEOUT_SECONDS", 8.0)
 JEV_MIN_REMAINING_SECONDS = _env_float("JEV_MIN_REMAINING_SECONDS", 20.0)
+JEV_RERANK_MAX_CANDIDATES = _env_int("JEV_RERANK_MAX_CANDIDATES", 20)
+JEV_MAX_STATE_ESTIMATED_TOKENS = _env_int("JEV_MAX_STATE_ESTIMATED_TOKENS", 24000)
 
 DB_POOL_MIN_SIZE = _env_int("DB_POOL_MIN_SIZE", 1)
 DB_POOL_MAX_SIZE = _env_int("DB_POOL_MAX_SIZE", 8)
@@ -251,6 +252,7 @@ SIMILARITY_FLOOR_FACTOR = _env_float("SIMILARITY_FLOOR_FACTOR", 0.7)
 RAG_ENABLE_QUERY_REFORMULATION = _env_bool("RAG_ENABLE_QUERY_REFORMULATION", True)
 REFORMULATION_MODEL = os.getenv("REFORMULATION_MODEL", "gemini-2.5-flash")
 RAG_ENABLE_RERANKING = _env_bool("RAG_ENABLE_RERANKING", True)
+RAG_RERANK_PROVIDER = _env_setting("RAG_RERANK_PROVIDER", "existing")
 RERANKER_MODEL = os.getenv("RERANKER_MODEL", REFORMULATION_MODEL)
 RERANKER_MIN_TRIGGER_SIM = _env_float("RERANKER_MIN_TRIGGER_SIM", 0.55)
 RERANKER_MAX_TRIGGER_SIM = _env_float("RERANKER_MAX_TRIGGER_SIM", 0.82)
@@ -441,6 +443,7 @@ def validate_jev_config(*, active: bool = False) -> None:
     """Valida Jev somente quando um consumidor realmente o habilita."""
     if not active:
         return
+    _check_range("JEV_MAX_STATE_ESTIMATED_TOKENS", JEV_MAX_STATE_ESTIMATED_TOKENS, min_val=1, max_val=24000)
     if not TYPESAFE_API_KEY:
         raise EnvironmentError(
             "Variavel de ambiente obrigatoria nao definida: TYPESAFE_API_KEY."
@@ -564,6 +567,11 @@ def validate():
     _check_range("RAG_RETRY_BASE_SECONDS", RAG_RETRY_BASE_SECONDS, min_val=0.0, max_val=30.0)
     _check_range("RAG_FEEDBACK_TOP_K", RAG_FEEDBACK_TOP_K, min_val=1, max_val=20)
     _check_range("RERANKER_MAX_CANDIDATES", RERANKER_MAX_CANDIDATES, min_val=2, max_val=80)
+    if RAG_RERANK_PROVIDER not in {"existing", "jev"}:
+        raise EnvironmentError("RAG_RERANK_PROVIDER deve ser existing ou jev.")
+    _check_range("JEV_RERANK_MAX_CANDIDATES", JEV_RERANK_MAX_CANDIDATES, min_val=2, max_val=40)
+    _check_range("JEV_MAX_STATE_ESTIMATED_TOKENS", JEV_MAX_STATE_ESTIMATED_TOKENS, min_val=1, max_val=24000)
+    validate_jev_config(active=RAG_ENABLE_RERANKING and RAG_RERANK_PROVIDER == "jev")
     _check_range("RERANKER_MIN_TRIGGER_SIM", RERANKER_MIN_TRIGGER_SIM, min_val=0.0, max_val=1.0)
     _check_range("RERANKER_MAX_TRIGGER_SIM", RERANKER_MAX_TRIGGER_SIM, min_val=0.0, max_val=1.0)
     _check_range("BUSINESS_RULES_MAX_CHARS", BUSINESS_RULES_MAX_CHARS, min_val=500, max_val=200000)

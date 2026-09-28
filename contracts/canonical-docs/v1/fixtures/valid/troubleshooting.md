@@ -8,7 +8,7 @@ doc_type: md
 semantic_type: troubleshooting
 products: [maxpedido]
 taxonomy:
-  taxonomy_version: fixture_v1
+  taxonomy_version: taxonomy_v1
   primary_module: pedidos_vendas
   secondary_modules: [sql_integracao]
   answer_mode: troubleshooting

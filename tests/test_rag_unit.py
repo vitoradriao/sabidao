@@ -1,5 +1,7 @@
 import unittest
 import tempfile
+import hashlib
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,6 +12,15 @@ from bot_common import normalize_over_numbered_response
 
 
 class TestIntentRouting(unittest.TestCase):
+    def test_all_intent_filters_keep_markdown_sources_eligible(self):
+        with patch.object(config, "RAG_FILTER_BY_DOC_TYPE", True):
+            for intent, doc_types in rag.INTENT_DOC_TYPES.items():
+                with self.subTest(intent=intent):
+                    selected, _modules = rag._build_search_filters(
+                        {"intent": intent, "doc_types": doc_types, "modules": []}
+                    )
+                    self.assertIn("md", selected)
+
     def test_sql_lookup_intent_for_maxpedido_tables(self):
         query = "Preciso de select na tabela mxsintegracaopedido para analisar erro"
         plan = rag._classify_query_intent(query)
@@ -517,6 +528,157 @@ class TestBusinessRulesContext(unittest.TestCase):
         finally:
             rag._business_rules_cache = original_cache
 
+    def test_canonical_business_rules_include_body_without_yaml(self):
+        original_cache = rag._business_rules_cache
+        rag._business_rules_cache = None
+        fixture = (
+            Path(__file__).resolve().parents[1]
+            / "contracts/canonical-docs/v1/fixtures/valid/procedure.md"
+        )
+        try:
+            with patch.multiple(
+                config,
+                RAG_ENABLE_BUSINESS_RULES=True,
+                BUSINESS_RULES_FILE=str(fixture),
+                BUSINESS_RULES_MAX_CHARS=80000,
+            ):
+                loaded = rag._load_business_rules_context()
+            self.assertIn("Habilitar conta corrente", loaded)
+            self.assertNotIn("schema_version:", loaded)
+            self.assertNotIn("document_id:", loaded)
+        finally:
+            rag._business_rules_cache = original_cache
+
+    def test_canonical_business_rules_with_bom_do_not_expose_yaml(self):
+        original_cache = rag._business_rules_cache
+        rag._business_rules_cache = None
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                path = Path(tmpdir) / "rules.md"
+                path.write_text("\ufeff---\nschema_version: 1.0.0\n---\nSegredo", encoding="utf-8")
+                with patch.multiple(
+                    config,
+                    RAG_ENABLE_BUSINESS_RULES=True,
+                    BUSINESS_RULES_FILE=str(path),
+                ):
+                    self.assertEqual(rag._load_business_rules_context(), "")
+        finally:
+            rag._business_rules_cache = original_cache
+
+
+class TestCanonicalRetrievalProvenance(unittest.TestCase):
+    def test_context_and_evidence_keep_canonical_locator(self):
+        source_refs = [
+            {"source_id": "manual", "locator": {"kind": "line_range", "start": 10, "end": 12}}
+        ]
+        chunk = {
+            "id": "chunk-1",
+            "document_id": "db-1",
+            "filename": "procedimento.md",
+            "content": "Passo confirmado.",
+            "chunk_index": 0,
+            "similarity": 0.8,
+            "canonical_id": "10000000-0000-4000-8000-000000000001",
+            "document_revision": 2,
+            "schema_version": "1.0.0",
+            "section_key": "passo-confirmado",
+            "source_refs": source_refs,
+            "aliases": ["Afirmação editorial não confirmada"],
+        }
+        rendered, evidence = rag._render_context_records(
+            rag._prepare_context_records(
+                [chunk], max_chunks=2, max_per_section=2, max_per_document=2
+            )[0]
+        )
+        self.assertIn("source_provenance", rendered)
+        self.assertIn('"section_key": "passo-confirmado"', rendered)
+        self.assertNotIn("Afirmação editorial não confirmada", rendered)
+        self.assertNotIn('"source_refs"', rendered)
+        self.assertIn("<evidence>\nPasso confirmado.\n</evidence>", rendered)
+        self.assertEqual(evidence[0]["canonical_id"], chunk["canonical_id"])
+        self.assertEqual(evidence[0]["locator"], source_refs[0]["locator"])
+        self.assertEqual(evidence[0]["source_refs"], source_refs)
+
+    def test_full_context_uses_manifest_inclusion_and_strips_canonical_yaml(self):
+        original_cache = rag._full_context_cache
+        rag._full_context_cache = None
+        fixture = (
+            Path(__file__).resolve().parents[1]
+            / "contracts/canonical-docs/v1/fixtures/valid/procedure.md"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            docs = root / "documentos"
+            docs.mkdir()
+            canonical = docs / "current.md"
+            canonical.write_bytes(fixture.read_bytes())
+            predecessor = docs / "old.md"
+            predecessor.write_text("Predecessor obsoleto", encoding="utf-8")
+            manifest = root / "manifest.yaml"
+            manifest.write_text("stub", encoding="utf-8")
+            entries = [
+                {"path": "documentos/current.md", "state": "active", "ingestion": "include"},
+                {"path": "documentos/old.md", "state": "superseded", "ingestion": "exclude"},
+            ]
+            try:
+                with patch.multiple(
+                    config,
+                    FULL_CONTEXT_ENABLED=True,
+                    DOCS_DIR=str(docs),
+                    FULL_CONTEXT_EXTENSIONS=[".md"],
+                    FULL_CONTEXT_MAX_CHARS=100000,
+                ), patch.object(rag, "__file__", str(root / "rag.py")), patch.object(
+                    rag, "DEFAULT_MANIFEST", manifest
+                ), patch("rag.load_yaml", return_value={"entries": entries}), patch(
+                    "rag.validate_manifest", return_value=({"entries": entries}, {})
+                ):
+                    loaded = rag._load_full_context_docs()
+                self.assertIn("current.md", loaded)
+                self.assertNotIn("old.md", loaded)
+                self.assertNotIn("Predecessor obsoleto", loaded)
+                self.assertNotIn("schema_version:", loaded)
+            finally:
+                rag._full_context_cache = original_cache
+
+    def test_full_context_external_directory_keeps_legacy_selection(self):
+        original_cache = rag._full_context_cache
+        rag._full_context_cache = None
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                docs = Path(tmpdir)
+                (docs / "custom.md").write_text("Conteudo configurado", encoding="utf-8")
+                with patch.multiple(
+                    config,
+                    FULL_CONTEXT_ENABLED=True,
+                    DOCS_DIR=str(docs),
+                    FULL_CONTEXT_EXTENSIONS=[".md"],
+                    FULL_CONTEXT_MAX_CHARS=100000,
+                ):
+                    self.assertIn("Conteudo configurado", rag._load_full_context_docs())
+        finally:
+            rag._full_context_cache = original_cache
+
+    def test_full_context_repository_corpus_requires_manifest(self):
+        original_cache = rag._full_context_cache
+        rag._full_context_cache = None
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                root = Path(tmpdir)
+                docs = root / "documentos"
+                docs.mkdir()
+                (docs / "old.md").write_text("Predecessor", encoding="utf-8")
+                with patch.multiple(
+                    config,
+                    FULL_CONTEXT_ENABLED=True,
+                    DOCS_DIR=str(docs),
+                    FULL_CONTEXT_EXTENSIONS=[".md"],
+                ), patch.object(rag, "__file__", str(root / "rag.py")), patch.object(
+                    rag, "DEFAULT_MANIFEST", root / "missing-manifest.yaml"
+                ):
+                    self.assertEqual(rag._load_full_context_docs(), "")
+        finally:
+            rag._full_context_cache = original_cache
+
 
 class TestRerankPolicy(unittest.TestCase):
     def test_should_rerank_only_inside_gray_zone(self):
@@ -838,6 +1000,77 @@ class TestDatabaseValidation(unittest.TestCase):
         with patch.dict("os.environ", {}, clear=True):
             with self.assertRaises(EnvironmentError):
                 db.validate_database_config()
+
+
+class TestOfflineJevEvidence(unittest.TestCase):
+    def test_paired_pool_abstention_skips_global_retrieval(self):
+        pool = [{"id": "a", "filename": "doc.md", "content": "Trecho A", "similarity": 0.2}]
+        token = rag._offline_eval_candidate_pool.set(pool)
+        try:
+            with patch.object(config, "FULL_CONTEXT_ENABLED", False), patch.object(
+                rag, "_classify_query_intent",
+                return_value={"intent": "configuration", "modules": ["module"], "doc_types": []},
+            ), patch.object(rag, "_rerank_chunks", return_value=pool), patch.object(
+                rag, "_should_strict_abstain", return_value=(True, "few_chunks")
+            ), patch.object(rag, "retrieve_chunks_with_feedback") as retrieve, patch.object(
+                rag, "_log_ask_trace"
+            ):
+                _answer, _chunks, trace = rag.ask("Pergunta", platform="offline_eval")
+        finally:
+            rag._offline_eval_candidate_pool.reset(token)
+
+        retrieve.assert_not_called()
+        self.assertTrue(trace["abstained"])
+        self.assertEqual(trace["query_plan_fallback"], "skipped_paired_pool")
+        self.assertEqual(trace["retrieval_stages"]["candidate_pool"]["count"], 1)
+        self.assertNotIn("expansions", trace["retrieval_stages"]["candidate_pool"])
+
+    def test_partial_jev_attempt_keeps_state_hashes_without_claiming_success(self):
+        chunks = [
+            {"id": str(index), "filename": "doc.md", "content": f"Trecho {index}", "similarity": 0.7}
+            for index in range(2)
+        ]
+        states = []
+        candidate_ids = []
+
+        class FakeClient:
+            def decide(self, state, _questions, **kwargs):
+                states.append(state)
+                candidate_ids.append(kwargs["candidate_id"])
+                if len(states) == 2:
+                    raise TimeoutError("timeout sintético")
+                return rag.jev.DecisionResult(
+                    status="ok", model_requested="jev-1.13.0", model_effective="jev-1.13.0",
+                    answers={"relevance": {"type": "noul", "noul": 0.8}},
+                    usage={"input_tokens": 10, "output_tokens": 0}, latency_ms=1,
+                    error_code=None, request_id="test", call_id="call-1",
+                    candidate_id=kwargs["candidate_id"], estimated_cost_usd=0.0, cost_status="estimated",
+                )
+
+            def close(self):
+                pass
+
+        trace = {}
+        with patch.multiple(
+            config, RAG_ENABLE_RERANKING=True, RAG_RERANK_PROVIDER="jev",
+            JEV_RERANK_MAX_CANDIDATES=2, JEV_MAX_STATE_ESTIMATED_TOKENS=24000,
+            JEV_STAGE_TIMEOUT_SECONDS=8.0, JEV_MIN_REMAINING_SECONDS=1.0,
+            TYPESAFE_API_KEY="fake-test-key",
+        ), patch.object(rag.jev, "TypeSafeClient", return_value=FakeClient()), patch.object(
+            rag, "_rerank_chunks_with_llm", return_value=chunks
+        ):
+            ranked = rag._rerank_chunks("Pergunta", chunks, trace=trace)
+
+        self.assertIs(ranked, chunks)
+        self.assertEqual(trace["rerank"][0]["fallback_reason"], "client_error")
+        self.assertEqual([item["status"] for item in trace["jev_evidence"]], ["ok", "attempted"])
+        self.assertEqual([item["candidate_id"] for item in trace["jev_evidence"]], candidate_ids)
+        for state, evidence in zip(states, trace["jev_evidence"]):
+            expected = hashlib.sha256(
+                json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            self.assertEqual(evidence["state_sha256"], expected)
+            self.assertNotIn("Trecho", str(evidence))
 
 
 if __name__ == "__main__":

@@ -7,6 +7,8 @@ Execute os comandos na raiz do projeto, com o ambiente Python ativo e os serviç
 ## Preparar as fontes
 
 Mantenha em `DOCS_DIR` apenas os materiais que devem fazer parte da consulta. Revise duplicações, documentos desatualizados e arquivos gerados antes de indexar.
+Antes de aplicar uma mudança ampla de classificação, confira o relatório
+offline descrito em [Taxonomia documental](taxonomia.md#conferência-antes-de-migrar).
 
 Para indexar os arquivos diretamente em `documentos/`, sem percorrer subpastas:
 
@@ -51,6 +53,52 @@ Não há script down publicado. Para retornar a aplicação, restaure a versão 
 e mantenha as colunas aditivas instaladas. Para desfazer o schema, use o
 backup/snapshot validado ou uma operação reversível específica; não remova dados,
 tabelas ou o volume como forma de rollback.
+
+## Ingerir documentos canônicos
+
+Antes de incluir um Markdown canônico, valide o front matter e as chaves de
+seção com `py canonical_docs.py lint`. A ingestão também valida cada fonte
+canônica antes de consultar modelos ou substituir registros. `doc_type` continua
+`md`; a classificação e o tipo semântico ficam em metadados separados. O YAML
+bruto não é indexado como conteúdo. Título e classificação editoriais podem
+compor o contexto de recuperação enviado aos embeddings.
+
+O `document_id` editorial identifica a fonte mesmo se seu arquivo mudar de
+nome. Uma repetição idêntica não refaz o processamento; uma revisão superior
+substitui a projeção da mesma identidade. A mesma revisão com conteúdo
+divergente e uma revisão inferior são conflitos: corrija a fonte, não use
+`--force` para contornar a revisão. Falha de validação, preparação ou escrita
+preserva a versão anterior do índice.
+
+O banco guarda uma assinatura semântica canônica em `documents.metadata`,
+calculada a partir dos campos validados e do corpo com finais de linha
+normalizados. Reordenar chaves YAML sem mudar seus valores não altera essa
+assinatura. `content_hash` identifica somente o corpo; `processing_hash`
+identifica a projeção e o processamento necessários para reutilizar vetores.
+
+Essa capacidade não promove o manifesto nem converte os 27 Markdown legados.
+Planeje a migração de cada lote com snapshot, verificação de preservação,
+comparação de consultas e rollback antes de executar ingestão operacional.
+O procedimento de [promoção de lotes canônicos](promocao-lotes-canonicos.md)
+descreve a ação explícita de troca e restauração; não execute `--force` ou
+`!reindex` para simular um split ou merge.
+
+### Recuperação de fontes canônicas
+
+Após aplicar `sql/migrate_canonical_retrieval_1536.sql` (ou a variante 3072
+correspondente à dimensão do índice) e reaplicar
+`sql/add_evaluation_identity.sql`, as buscas retornam `canonical_id`, revisão,
+versão de schema, chave de seção e localizadores junto de `filename` e do conteúdo
+legado. O contexto e o trace preservam essas referências para ligar a citação
+ao trecho enviado. O manifesto seleciona documentos elegíveis em full-context;
+fontes `superseded` ou excluídas não são carregadas por esse caminho. Um
+`BUSINESS_RULES_FILE` canônico fornece somente o corpo Markdown, sem o YAML
+administrativo. A seleção do bootstrap padrão de regras continua separada.
+
+O avaliador usa o manifesto e a projeção persistida no fingerprint. Compare
+execuções apenas quando a identidade do corpus e da política for compatível;
+uma promoção de lote exige nova referência experimental. O upgrade SQL não
+executa ingestão, reindexação nem promoção do manifesto.
 
 ## Atualizar documentos
 
