@@ -20,24 +20,17 @@ def _make_kb_chunk(*, chunk_id: str, filename: str, similarity: float, content: 
 
 
 class TestAskIntegration(unittest.TestCase):
-    def test_full_context_model_abstention_sets_insufficient_evidence_state(self):
-        with patch.multiple(config, FULL_CONTEXT_ENABLED=True), patch(
-            "rag._reformulate_query_with_history",
-            return_value="Pergunta sem resposta",
-        ), patch(
-            "rag._load_full_context_docs",
-            return_value="Conteudo completo da base",
-        ), patch(
-            "rag._ask_model",
-            return_value=config.NO_ANSWER_PHRASE,
-        ):
-            answer, returned_chunks, trace = rag.ask("Pergunta sem resposta")
-
-        self.assertEqual(answer, config.NO_ANSWER_PHRASE)
-        self.assertEqual(returned_chunks, [])
-        self.assertTrue(trace["abstained"])
-        self.assertEqual(trace["abstention_reason"], "model_insufficient_evidence")
-        self.assertEqual(trace["response_state"], "insufficient_evidence")
+    def test_full_context_rejected_before_any_pipeline_call(self):
+        with patch.object(config, "FULL_CONTEXT_ENABLED", True), patch(
+            "rag._reformulate_query_with_history"
+        ) as reformulate, patch("rag.retrieve_chunks_with_feedback") as retrieve, patch(
+            "rag._ask_model"
+        ) as generate:
+            with self.assertRaisesRegex(EnvironmentError, "FULL_CONTEXT_ENABLED=true"):
+                rag.ask("Pergunta")
+        reformulate.assert_not_called()
+        retrieve.assert_not_called()
+        generate.assert_not_called()
 
     def test_answer_generation_with_seeded_chunks(self):
         chunks = [
@@ -61,6 +54,7 @@ class TestAskIntegration(unittest.TestCase):
         with patch.multiple(
             config,
             FULL_CONTEXT_ENABLED=False,
+            RAG_ENABLE_BUSINESS_RULES=False,
             RAG_STRICT_ABSTAIN=True,
             RAG_MIN_RETRIEVED_CHUNKS=1,
             RAG_MIN_STRONG_SIMILARITY=0.60,

@@ -135,13 +135,18 @@ class TestEvidenceGate(unittest.TestCase):
                 self.assertEqual(trace["evidence_gate"]["status"], expected)
                 self.assertNotEqual(trace["citation_validation"]["semantic_support"], "verified")
 
-    def test_business_rules_are_the_same_text_sent_to_generation(self):
-        client, transport = self.client("sufficient")
-        with patch("rag._load_business_rules_context", return_value="Regra fixa sintética: X exige Y."):
-            _, _, _, generate = self.ask(client)
-        rules = transport.calls[0]["json"]["state"]["regras_negocio"]
-        self.assertEqual(rules, "Regra fixa sintética: X exige Y.")
-        self.assertIn(rules, generate.call_args.kwargs["system"])
+    def test_business_rules_share_the_retained_envelope_with_generation(self):
+        for limit in (2, 3):
+            with self.subTest(max_chunks=limit), patch.object(config, "MAX_CONTEXT_CHUNKS", limit):
+                client, transport = self.client("sufficient")
+                rules = "Regra sintética: X exige Y."
+                with patch("rag._load_business_rules_context", return_value=rules):
+                    _, _, _, generate = self.ask(client)
+                state = transport.calls[0]["json"]["state"]
+                self.assertEqual(state["regras_negocio"], "")
+                self.assertEqual(state["contexto_documental"], generate.call_args.kwargs["evidence_context"])
+                self.assertEqual(rules in state["contexto_documental"], limit == 3)
+                self.assertNotIn(rules, generate.call_args.kwargs["system"])
 
     def test_transport_timeout_preserves_flow_with_unknown_cost(self):
         import httpx

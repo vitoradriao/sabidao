@@ -339,7 +339,7 @@ class TestAnalyticalContextFormatting(unittest.TestCase):
         context = rag.build_context(chunks)
 
         self.assertIn("<analytical_context>", context)
-        self.assertIn("Assunto/secoes: Pedidos > Pedido nao aparece no ERP", context)
+        self.assertIn("Assunto/secoes: Pedidos &gt; Pedido nao aparece no ERP", context)
         self.assertIn("Tabelas: MXSINTEGRACAOPEDIDO", context)
         self.assertLess(context.index("<analytical_context>"), context.index("<evidence>"))
 
@@ -416,7 +416,7 @@ class TestContextBudgetSelection(unittest.TestCase):
         ]
         with patch.multiple(
             config,
-            RAG_MAX_INPUT_TOKENS=728,
+            RAG_MAX_INPUT_TOKENS=500,
             RAG_MAX_HISTORY_TOKENS=48,
             RAG_MODEL_CONTEXT_TOKENS=2048,
             RAG_CONTEXT_MARGIN_TOKENS=0,
@@ -597,86 +597,6 @@ class TestCanonicalRetrievalProvenance(unittest.TestCase):
         self.assertEqual(evidence[0]["canonical_id"], chunk["canonical_id"])
         self.assertEqual(evidence[0]["locator"], source_refs[0]["locator"])
         self.assertEqual(evidence[0]["source_refs"], source_refs)
-
-    def test_full_context_uses_manifest_inclusion_and_strips_canonical_yaml(self):
-        original_cache = rag._full_context_cache
-        rag._full_context_cache = None
-        fixture = (
-            Path(__file__).resolve().parents[1]
-            / "contracts/canonical-docs/v1/fixtures/valid/procedure.md"
-        )
-        with tempfile.TemporaryDirectory() as tmpdir:
-            root = Path(tmpdir)
-            docs = root / "documentos"
-            docs.mkdir()
-            canonical = docs / "current.md"
-            canonical.write_bytes(fixture.read_bytes())
-            predecessor = docs / "old.md"
-            predecessor.write_text("Predecessor obsoleto", encoding="utf-8")
-            manifest = root / "manifest.yaml"
-            manifest.write_text("stub", encoding="utf-8")
-            entries = [
-                {"path": "documentos/current.md", "state": "active", "ingestion": "include"},
-                {"path": "documentos/old.md", "state": "superseded", "ingestion": "exclude"},
-            ]
-            try:
-                with patch.multiple(
-                    config,
-                    FULL_CONTEXT_ENABLED=True,
-                    DOCS_DIR=str(docs),
-                    FULL_CONTEXT_EXTENSIONS=[".md"],
-                    FULL_CONTEXT_MAX_CHARS=100000,
-                ), patch.object(rag, "__file__", str(root / "rag.py")), patch.object(
-                    rag, "DEFAULT_MANIFEST", manifest
-                ), patch("rag.load_yaml", return_value={"entries": entries}), patch(
-                    "rag.validate_manifest", return_value=({"entries": entries}, {})
-                ):
-                    loaded = rag._load_full_context_docs()
-                self.assertIn("current.md", loaded)
-                self.assertNotIn("old.md", loaded)
-                self.assertNotIn("Predecessor obsoleto", loaded)
-                self.assertNotIn("schema_version:", loaded)
-            finally:
-                rag._full_context_cache = original_cache
-
-    def test_full_context_external_directory_keeps_legacy_selection(self):
-        original_cache = rag._full_context_cache
-        rag._full_context_cache = None
-        try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                docs = Path(tmpdir)
-                (docs / "custom.md").write_text("Conteudo configurado", encoding="utf-8")
-                with patch.multiple(
-                    config,
-                    FULL_CONTEXT_ENABLED=True,
-                    DOCS_DIR=str(docs),
-                    FULL_CONTEXT_EXTENSIONS=[".md"],
-                    FULL_CONTEXT_MAX_CHARS=100000,
-                ):
-                    self.assertIn("Conteudo configurado", rag._load_full_context_docs())
-        finally:
-            rag._full_context_cache = original_cache
-
-    def test_full_context_repository_corpus_requires_manifest(self):
-        original_cache = rag._full_context_cache
-        rag._full_context_cache = None
-        try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                root = Path(tmpdir)
-                docs = root / "documentos"
-                docs.mkdir()
-                (docs / "old.md").write_text("Predecessor", encoding="utf-8")
-                with patch.multiple(
-                    config,
-                    FULL_CONTEXT_ENABLED=True,
-                    DOCS_DIR=str(docs),
-                    FULL_CONTEXT_EXTENSIONS=[".md"],
-                ), patch.object(rag, "__file__", str(root / "rag.py")), patch.object(
-                    rag, "DEFAULT_MANIFEST", root / "missing-manifest.yaml"
-                ):
-                    self.assertEqual(rag._load_full_context_docs(), "")
-        finally:
-            rag._full_context_cache = original_cache
 
 
 class TestRerankPolicy(unittest.TestCase):

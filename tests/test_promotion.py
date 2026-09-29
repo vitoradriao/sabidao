@@ -17,7 +17,6 @@ import config
 import db
 import ingest
 import promotion
-import rag
 from canonical_docs import lint_manifest
 from preservation import compute_snapshot_sha256
 
@@ -291,21 +290,6 @@ class TestPromotionPreview(unittest.TestCase):
         ), patch.dict(ingest.READERS, {".md": unittest.mock.Mock(side_effect=AssertionError("read"))}):
             result = ingest.ingest_file(str(self.fixture.old))
         self.assertEqual(result["skip_reason"], "manifest_not_active")
-
-    def test_full_context_rejects_pending_manifest(self):
-        old_cache = rag._full_context_cache
-        rag._full_context_cache = None
-        try:
-            with patch.multiple(config, FULL_CONTEXT_ENABLED=True, DOCS_DIR=str(self.fixture.root / "documentos")), patch.object(
-                rag, "__file__", str(self.fixture.root / "rag.py")
-            ), patch.object(rag, "DEFAULT_MANIFEST", self.fixture.before_path), patch.object(
-                rag, "get_database_url", return_value="postgresql://fixture"
-            ), patch.object(rag, "db_table_exists", return_value=True), patch.object(
-                rag, "db_select", return_value=[{"status": "applying_manifest", "manifest_sha256": "0" * 64}]
-            ):
-                self.assertEqual(rag._load_full_context_docs(), "")
-        finally:
-            rag._full_context_cache = old_cache
 
     def test_partial_archive_is_resumable_and_restores_exact_bytes(self):
         original = self.fixture.old.read_bytes()

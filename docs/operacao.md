@@ -90,10 +90,11 @@ correspondente à dimensão do índice) e reaplicar
 `sql/add_evaluation_identity.sql`, as buscas retornam `canonical_id`, revisão,
 versão de schema, chave de seção e localizadores junto de `filename` e do conteúdo
 legado. O contexto e o trace preservam essas referências para ligar a citação
-ao trecho enviado. O manifesto seleciona documentos elegíveis em full-context;
-fontes `superseded` ou excluídas não são carregadas por esse caminho. Um
-`BUSINESS_RULES_FILE` canônico fornece somente o corpo Markdown, sem o YAML
-administrativo. A seleção do bootstrap padrão de regras continua separada.
+ao trecho enviado. O modo full-context foi desativado na entrega #17; sua
+ativação é erro de configuração. Um `BUSINESS_RULES_FILE` canônico fornece
+somente o corpo Markdown, sem o YAML administrativo. O arquivo mantém caminho
+e hash como proveniência e passa pelos limites do envelope documental, conforme
+[configuração](configuracao.md#política-e-evidência-documental-issue-17).
 
 O avaliador usa o manifesto e a projeção persistida no fingerprint. Compare
 execuções apenas quando a identidade do corpus e da política for compatível;

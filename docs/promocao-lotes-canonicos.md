@@ -88,13 +88,13 @@ se o estado persistido ainda corresponder ao resultado registrado. Revisão
 inferior não é promoção válida.
 
 Depois do commit, o manifesto do filesystem é publicado por substituição de
-arquivo. Git/filesystem e PostgreSQL não compartilham uma transação. Enquanto
-os hashes divergirem, o caminho de full-context falha fechado, sem misturar
-gerações. Se a publicação do arquivo falhar, reexecute `apply` com o mesmo
+arquivo. Git/filesystem e PostgreSQL não compartilham uma transação. Se a
+publicação do arquivo falhar, reexecute `apply` com o mesmo
 plano e os mesmos gates para concluir a publicação pendente, sem recalcular
 vetores; também é possível iniciar o rollback identificado. Confirme o estado
-da publicação antes de reabrir esse caminho. O
-índice de chunks continua sob a fronteira transacional do PostgreSQL; coordene
+da publicação antes de considerar a promoção concluída. Full-context está
+desativado e sua ativação é erro de configuração (entrega #17). O índice de
+chunks continua sob a fronteira transacional do PostgreSQL; coordene
 a janela de publicação e as consultas em andamento com a operação do bot.
 
 ## Reverter
@@ -110,8 +110,8 @@ aliases anteriores. A restauração das linhas ocorre em transação, sem recalc
 embeddings. O comando restaura os arquivos predecessores e arquiva os arquivos
 sucessores que o manifesto anterior não inventaria; depois republica o
 manifesto anterior no filesystem. Se a publicação
-do arquivo falhar após o commit, o estado fica pendente e full-context continua
-bloqueado até a reconciliação; não trate esse estado como rollback concluído.
+do arquivo falhar após o commit, o estado fica pendente até a reconciliação;
+não trate esse estado como rollback concluído.
 Guarde o ledger e o plano pelo prazo operacional do lote. Um downgrade de
 revisão por ingestão comum é rejeitado; use o rollback identificado.
 
