@@ -71,10 +71,6 @@ PAIRED_EXPERIMENTAL_VARIABLES = (
     "rag_config.RAG_RERANK_PROVIDER",
     "rag_config.RAG_ENABLE_RERANKING",
     "rag_config.JEV_EVIDENCE_GATE_ENABLED",
-    "rag_config.JEV_RERANK_MODE",
-    "rag_config.JEV_SEMANTIC_GROUNDING_ENABLED",
-    "jev.rerank.mode",
-    "jev.semantic_grounding.enabled",
 )
 
 
@@ -483,9 +479,11 @@ def _validate_jev_study_profile(
         VARIANT_GROUNDING_D0,
         VARIANT_GROUNDING_D1,
     }
-    if not study_variants.intersection(variants):
-        return
     study = profile.get("jev_study")
+    if not study_variants.intersection(variants) and (
+        not isinstance(study, dict) or study.get("dataset_role") != "confirmation"
+    ):
+        return
     if not isinstance(study, dict) or study.get("schema_version") != 1:
         raise VariantConfigurationError(
             "comparison.jev_study schema_version=1 é obrigatório para os braços JEV-11."
@@ -542,12 +540,16 @@ def _validate_jev_study_profile(
                 "A auditoria determinística de ordem é restrita ao desenvolvimento."
             )
         compositions = audit.get("compositions")
-        if not isinstance(compositions, list) or len(compositions) < 2:
+        if (
+            not isinstance(compositions, list) or len(compositions) < 2
+            or len(set(compositions)) != len(compositions)
+            or any(name not in {"original", "reversed", "stable_rotation"} for name in compositions)
+        ):
             raise VariantConfigurationError(
                 "A auditoria de ordem exige ao menos duas composições declaradas."
             )
         confounder = rerank.get("historical_prompt_confounder")
-        if not isinstance(confounder, dict) or "present" not in confounder:
+        if not isinstance(confounder, dict) or confounder.get("present") is not True:
             raise VariantConfigurationError(
                 "A diferença histórica de prompt deve ser declarada como confounder."
             )
@@ -629,6 +631,54 @@ def _validate_jev_study_profile(
             raise VariantConfigurationError(
                 "Confirmação rejeita política provisional; policy_status deve ser frozen."
             )
+
+
+def _validate_study_dataset(profile, dataset, *, dataset_name, variants, split):
+    """Valida os dados reais, além das declarações de independência no perfil."""
+    study = profile.get("jev_study") or {}
+    if study.get("dataset_role") != "confirmation":
+        return
+    _validate_jev_study_profile(profile, variants=variants or [VARIANT_GROUNDING_D1])
+    confirmation = study["confirmation"]
+    if dataset_name != confirmation["independent_dataset_id"]:
+        raise VariantConfigurationError("dataset_name diverge do conjunto independente pré-registrado.")
+    if confirmation.get("dataset_sha256") != _canonical_sha256(dataset):
+        raise VariantConfigurationError("Hash do dataset diverge da confirmação pré-registrada.")
+    comparisons = confirmation["preregistered_comparisons"]
+    if variants and "_vs_".join(variants) not in comparisons:
+        raise VariantConfigurationError("Comparação solicitada não foi pré-registrada.")
+    historical = _load_dataset(Path(__file__).parent / "datasets" / "maxpedido_eval_dataset.json")
+    historical_questions = {normalize_text(case["question"]) for case in historical}
+    historical_ids = {case["id"] for case in historical}
+    if any(
+        case.get("id") in historical_ids
+        or normalize_text(str(case.get("question") or "")) in historical_questions
+        for case in dataset
+    ):
+        raise VariantConfigurationError("Confirmação rejeita casos do dataset histórico, mesmo renomeados.")
+    selected = _comparison_selected_cases(dataset, split=split, limit=None)
+    if any(
+        (case.get("review") or {}).get("human_review") != "approved"
+        or not (case.get("review") or {}).get("human_reviewer")
+        or not (case.get("review") or {}).get("human_reviewed_at")
+        for case in selected
+    ):
+        raise VariantConfigurationError("Confirmação exige revisão humana aprovada dos casos.")
+
+
+def _validate_grounding_profile(profile, *, variants, split):
+    if VARIANT_GROUNDING_D1 not in variants:
+        return None
+    declaration = (profile.get("jev_study") or {}).get("grounding") or {}
+    development_run_id = declaration.get("development_run_id") if split == "development" else None
+    policy = evidence_gate.load_policy_file(
+        config.JEV_POLICY_FILE, model=config.JEV_MODEL,
+        development_run_id=development_run_id,
+    )
+    grounding.load_grounding_policy(policy)
+    if (profile.get("jev_study") or {}).get("dataset_role") == "confirmation" and policy["status"] != "frozen":
+        raise VariantConfigurationError("Confirmação rejeita política provisional.")
+    return development_run_id
 
 
 def _comparison_profile(baseline_config: dict[str, Any] | None) -> dict[str, Any]:
@@ -821,6 +871,10 @@ def _validate_variant_execution(
             f"A variante {variant_id} está indisponível: {reason}."
         )
     settings = _variant_settings(variant_id, profile)
+    if variant_id in {VARIANT_GROUNDING_D0, VARIANT_GROUNDING_D1} and answer_provider is None:
+        declaration = ((profile or {}).get("jev_study") or {}).get("grounding") or {}
+        if not str(declaration.get("base_selection_development_run_id") or "").strip():
+            raise VariantConfigurationError("D0/D1 exige o run de development que escolheu a base antes das calls.")
     if (
         settings.get("rerank_provider") == "jev"
         or settings.get("evidence_gate_enabled")
@@ -828,7 +882,8 @@ def _validate_variant_execution(
     ) and answer_provider is None:
         config.validate_jev_config(active=True)
     if settings.get("semantic_grounding_enabled") and answer_provider is None:
-        config.validate_semantic_grounding_config()
+        declaration = ((profile or {}).get("jev_study") or {}).get("grounding") or {}
+        config.validate_semantic_grounding_config(development_run_id=declaration.get("development_run_id"))
     if not definition["available_without_provider"] and answer_provider is None:
         requirements = ", ".join(definition["requires"])
         raise VariantUnavailableError(
@@ -903,7 +958,18 @@ def _live_comparison_provider(
             system_prompt=None,
             platform="offline_eval",
             scope=scope,
+            deadline=time.monotonic() + config.ASK_TIMEOUT_SECONDS,
         )
+        audit = None
+        if (profile or {}).get("execute_order_audit") and variant_id in {
+            VARIANT_JEV_POINTWISE, VARIANT_JEV_BATCH,
+        }:
+            pool = ((trace.get("retrieval_stages") or {}).get("candidate_pool") or {}).get("chunks")
+            if isinstance(pool, list) and observed_queries:
+                audit = _audit_rerank_orders(
+                    observed_queries[-1], pool, mode=settings["rerank_mode"],
+                    compositions=profile["jev_study"]["rerank"]["order_sensitivity_audit"]["compositions"],
+                )
     reranks = trace.get("rerank") or []
     rerank = reranks[-1] if reranks and isinstance(reranks[-1], dict) else {}
     jev_applied = (
@@ -922,6 +988,10 @@ def _live_comparison_provider(
         fallback_stage = "rerank"
         fallback_reason = rerank.get("fallback_reason") or "jev_not_applied"
     if settings.get("evidence_gate_enabled"):
+        if gate_applied and not jev_applied:
+            effective_variant = (
+                VARIANT_EXISTING_GATE if fallback_stage else variant_id
+            )
         if not gate_applied and fallback_stage is None:
             effective_variant = (
                 VARIANT_JEV_RERANK if jev_applied else VARIANT_EXISTING
@@ -944,9 +1014,54 @@ def _live_comparison_provider(
         "effective_reranker_provider": rerank.get("effective_provider", "retrieval"),
         "effective_reranker_model": rerank.get("model_effective"),
     }
+    if audit is not None:
+        trace["comparison"]["order_sensitivity_audit"] = audit
     trace["snapshot_id"] = scope.get("_comparison_snapshot_id")
     trace["experiment_identity"] = scope.get("_comparison_experiment_identity")
     return answer, chunks, trace
+
+
+def _audit_rerank_orders(query, candidate_pool, *, mode, compositions):
+    """Reexecuta apenas o reranker; composição muda sem mudar candidatos ou cap."""
+    pool = copy.deepcopy(rag._dedupe_chunks(candidate_pool)[:config.JEV_RERANK_MAX_CANDIDATES])
+    records = []
+    calls = []
+    deadline_token = rag._request_deadline.set(time.monotonic() + config.ASK_TIMEOUT_SECONDS)
+    try:
+        for name in compositions:
+            ordered = list(pool)
+            if name == "reversed":
+                ordered.reverse()
+            elif name == "stable_rotation" and ordered:
+                ordered = ordered[1:] + ordered[:1]
+            request_calls = []
+            ranked, summary = rag._rerank_chunks_with_jev(
+                query, ordered, request_id=f"order-audit-{name}", model_calls=request_calls,
+            )
+            for call in request_calls:
+                call["stage"] = "rerank_order_audit"
+            calls.extend(request_calls)
+            records.append({
+                "name": name,
+                "candidate_count": len(ordered),
+                "input_order_sha256": _canonical_sha256([_comparison_chunk_id(c) for c in ordered]),
+                "output_order_sha256": _canonical_sha256([_comparison_chunk_id(c) for c in ranked]),
+                "applied": summary.get("applied") is True,
+                "fallback_reason": summary.get("fallback_reason"),
+                "scores": [
+                    {"candidate_id": _opaque_report_id(_comparison_chunk_id(c)), "score": (c.get("jev") or {}).get("relevance")}
+                    for c in ranked
+                ],
+                "calls": summary.get("calls", []),
+            })
+    finally:
+        rag._request_deadline.reset(deadline_token)
+    return {
+        "mode": mode,
+        "deterministic_replay": True,
+        "compositions": records,
+        "model_calls": calls,
+    }
 
 
 def _comparison_metadata(
@@ -1556,7 +1671,13 @@ def _sanitize_evaluation_metadata(value: Any) -> Any:
         return {
             str(key): _sanitize_evaluation_metadata(item)
             for key, item in value.items()
-            if key not in {"content", "text", "answer", "question", "state"}
+            if key not in {
+                "content", "text", "answer", "question", "state", "raw_text",
+                "raw_json", "evidence_context", "contexto_documental", "claims",
+                "messages", "headers", "api_key", "authorization", "secret",
+                "access_token", "refresh_token", "answer_preview", "quote",
+                "notes", "comment", "scope", "provenance",
+            } and not str(key).startswith("_")
         }
     if isinstance(value, list):
         return [_sanitize_evaluation_metadata(item) for item in value]
@@ -1590,6 +1711,10 @@ def _sanitize_order_sensitivity_audit(value: Any) -> dict[str, Any]:
                     r"[^a-z0-9_-]+", "-", str(item.get("name") or f"composition-{index}").lower()
                 )[:48],
                 "candidate_count": int(item.get("candidate_count") or 0),
+                "applied": item.get("applied") is True,
+                "fallback_reason": item.get("fallback_reason"),
+                "scores": item.get("scores", []),
+                "calls": item.get("calls", []),
                 "input_order_sha256": (
                     _validated_sha256(
                         item["input_order_sha256"], field="input_order_sha256"
@@ -1603,8 +1728,10 @@ def _sanitize_order_sensitivity_audit(value: Any) -> dict[str, Any]:
             }
         )
     return {
+        "mode": value.get("mode"),
         "deterministic_replay": value.get("deterministic_replay") is True,
         "compositions": safe_compositions,
+        "model_calls": value.get("model_calls", []),
     }
 
 
@@ -1639,7 +1766,7 @@ def _stage_unavailable_metrics(
 
 def _opaque_report_id(value: Any, *, prefix: str = "candidate") -> str:
     text = str(value or "").strip()
-    if re.fullmatch(r"(?:candidate|section)-[0-9a-f]{24}", text):
+    if re.fullmatch(r"(?:candidate|section|claim|human-claim|call|question|reference)-[0-9a-f]{24}", text):
         return text
     return f"{prefix}-{hashlib.sha256(text.encode('utf-8')).hexdigest()[:24]}"
 
@@ -1834,6 +1961,15 @@ def _rendered_context_chunks(
     return rendered
 
 
+def _reviewed_coverage(metrics, details, case):
+    reviewed = (case.get("review") or {}).get("human_review") == "approved"
+    for name in ("evidence_coverage_at_20", "evidence_coverage_at_40"):
+        details[name]["references_reviewed"] = reviewed
+        if not reviewed:
+            metrics[name] = None
+            details[name]["unavailable_reason"] = "reference_review_not_confirmed"
+
+
 def _evaluate_retrieval_stages(
     *,
     case: dict[str, Any],
@@ -1882,6 +2018,7 @@ def _evaluate_retrieval_stages(
                 case.get("reference_evidence"),
                 case.get("ranking_judgments"),
             )
+        _reviewed_coverage(metrics, details, case)
         stage_results[stage_name] = {
             "stage": _sanitize_stage_for_report(stage, stage_name=stage_name),
             "metrics": metrics,
@@ -2042,31 +2179,65 @@ def _semantic_grounding_observation(
             },
         }
     rounds = semantic.get("rounds") if isinstance(semantic.get("rounds"), list) else []
-    review = case.get("review") if isinstance(case.get("review"), dict) else {}
-    review_status = str(review.get("status") or "not_performed")
-    omissions = review.get("omissions")
-    if not isinstance(omissions, list):
-        omissions = (
-            [] if review_status == "completed"
-            else ["claim_decisions", "qualified_response"]
-        )
+    review = case.get("grounding_review") if isinstance(case.get("grounding_review"), dict) else {}
     return {
         "status": semantic.get("status"),
         "reason": semantic.get("reason"),
-        "qualified_response": semantic.get("status") == "supported",
+        "qualified_response": (
+            semantic.get("status") == "supported"
+            and int(semantic.get("regenerations") or 0) > 0
+            and bool(rounds) and rounds[0].get("status") == "rejected"
+        ),
+        "final_response_supported": semantic.get("status") == "supported",
         "extraction": semantic.get("extraction"),
         "claim_decisions": semantic.get("claim_support") or [],
         "counts": semantic.get("counts") or {},
         "rounds": {
             "original": rounds[0] if rounds else None,
-            "final": rounds[-1] if len(rounds) > 1 else None,
+            "final": rounds[-1] if rounds else None,
             "count": len(rounds),
         },
         "regenerations": int(semantic.get("regenerations") or 0),
-        "human_review": {
-            "status": review_status,
-            "omissions": [str(value) for value in omissions],
-        },
+        "human_review": _human_grounding_review(semantic, review),
+    }
+
+
+def _human_grounding_review(semantic, review):
+    """Rótulos humanos só valem para a resposta exata revisada, nunca para o dataset em geral."""
+    claims = review.get("claims")
+    complete = (
+        review.get("status") == "completed" and bool(review.get("reviewer"))
+        and bool(review.get("date")) and isinstance(claims, list)
+        and bool(semantic.get("answer_fingerprint"))
+        and review.get("answer_sha256") == semantic["answer_fingerprint"]
+    )
+    if not complete:
+        return {"status": "not_performed", "omissions": ["review_required"], "omission_count": None, "human_claim_count": None}
+    decisions = {
+        item["claim_id"]: item["status"] for item in semantic.get("claim_support", [])
+    }
+    confusion = {}
+    observations = []
+    for claim in claims:
+        predicted = decisions.get(_opaque_report_id(claim.get("extracted_claim_id"), prefix="claim")) if claim.get("extraction_found") is True else "omitted"
+        gold = claim.get("gold_support")
+        if gold not in {"supported", "unsupported", "contradicted", "conflicting_evidence", "uncertain"}:
+            raise VariantConfigurationError("Rótulo de suporte humano inválido.")
+        if type(claim.get("extraction_found")) is not bool:
+            raise VariantConfigurationError("Revisão humana exige extraction_found explícito.")
+        key = f"{gold}:{predicted or 'unavailable'}"
+        confusion[key] = confusion.get(key, 0) + 1
+        observations.append({
+            "claim_id": _opaque_report_id(claim.get("claim_id"), prefix="human-claim"),
+            "gold_support": gold, "predicted_status": predicted,
+            "extraction_found": claim["extraction_found"],
+        })
+    omissions = sum(item["extraction_found"] is False for item in observations)
+    return {
+        "status": "completed", "review_sha256": _canonical_sha256(review),
+        "human_claim_count": len(observations), "omission_count": omissions,
+        "extraction_coverage": _rate_summary(len(observations) - omissions, len(observations)),
+        "confusion_matrix": confusion, "claim_observations": observations,
     }
 
 
@@ -2102,6 +2273,7 @@ def _evaluate_response(
         case.get("reference_evidence"),
         case.get("ranking_judgments"),
     )
+    _reviewed_coverage(retrieval_metrics, ranked_retrieval_details, case)
     stage_metrics = _evaluate_retrieval_stages(
         case=case,
         final_chunks=chunks,
@@ -2669,6 +2841,8 @@ def _rate_summary(successes: int, total: int) -> dict[str, Any]:
 
 
 def _case_outcome(result: dict[str, Any]) -> str:
+    if result.get("operational_failure"):
+        return "operational_failure"
     answerability = result["answerability"]
     if result["abstained"]:
         return "correct_abstention" if answerability == "no_evidence" else "incorrect_abstention"
@@ -2687,6 +2861,17 @@ def _case_outcome(result: dict[str, Any]) -> str:
     if answerability == "no_evidence":
         return "unsupported_answer"
     return "incorrect_answer"
+
+
+def _operational_failure(trace):
+    semantic = trace.get("semantic_grounding") or {}
+    reason = str(semantic.get("reason") or "")
+    return bool(
+        trace.get("response_state") == "operational_error"
+        or semantic.get("status") == "inconclusive" and any(
+            marker in reason for marker in ("provider", "timeout", "deadline", "budget", "capacity", "invalid_response", "extraction_unavailable")
+        )
+    )
 
 
 def _summarize_outcomes(results: list[dict[str, Any]]) -> dict[str, Any]:
@@ -2942,7 +3127,20 @@ def _trace_for_report(
     trace: dict[str, Any],
     comparison: dict[str, Any],
 ) -> dict[str, Any]:
-    safe_trace = _sanitize_evaluation_metadata({**trace, "comparison": comparison})
+    fields = {
+        "request_id", "query_id", "platform", "abstained", "abstention_reason",
+        "confidence", "query_plan", "retrieved_sources", "retrieved_chunk_count",
+        "top_similarity", "top_vector_similarity", "top_lexical_score", "top_fusion_score",
+        "top_feedback_priority", "retrieval_origins", "citations", "cited_files",
+        "cited_evidence_refs", "grounding_errors", "regeneration_attempts", "response_state",
+        "citation_validation", "stage_timings_ms", "retrieval_stages", "model_calls",
+        "external_calls", "model_usage", "evidence_gate", "semantic_grounding",
+        "claim_extraction", "history_selection", "context_selection", "context_envelope",
+        "context_budget", "context_selected_chunk_count", "rerank", "latency_ms",
+        "evaluation_retrieval_depth", "snapshot_id", "experiment_identity", "comparison",
+        "completion", "completion_status", "late_completion", "deadline_exceeded",
+    }
+    safe_trace = _sanitize_evaluation_metadata({key: value for key, value in {**trace, "comparison": comparison}.items() if key in fields})
     if not isinstance(safe_trace, dict):
         return {"comparison": comparison}
     stages = safe_trace.get("retrieval_stages")
@@ -2987,6 +3185,36 @@ def _trace_for_report(
                         for value in decision["question_ids"]
                     ]
     return safe_trace
+
+
+def _public_metadata(value):
+    """Projeção pública: referências/identificadores opacos e revisão só por contagem."""
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            if key in {"provenance", "question", "answer_preview", "notes", "comment", "claims", "raw_text", "headers", "api_key", "authorization"}:
+                continue
+            if key == "review":
+                result[key] = {field: item[field] for field in ("status", "human_review") if field in (item or {})}
+            elif key == "matched_evidence" and isinstance(item, dict):
+                result[key] = {_opaque_report_id(identifier, prefix="reference"): rank for identifier, rank in item.items()}
+            elif key in {"source", "filename", "document_id", "section_id", "seed_chunk_id", "source_id", "canonical_id", "section_key", "reviewer", "request_id", "query_id"}:
+                result[key] = _opaque_report_id(item, prefix="reference") if item is not None else None
+            elif key in {"cited_files", "cited_sources", "citations", "retrieved_sources", "allowed_sources", "matched_sources", "missing_sources", "evidence_ids", "candidate_ids", "question_ids"} and isinstance(item, list):
+                prefix = {"evidence_ids": "candidate", "candidate_ids": "candidate", "question_ids": "question"}.get(key, "reference")
+                result[key] = [_opaque_report_id(identifier, prefix=prefix) for identifier in item]
+            elif key in {"call_id", "candidate_id", "claim_id", "question_id", "evidence_id"}:
+                prefix = key.removesuffix("_id")
+                result[key] = (
+                    item if isinstance(item, str) and re.fullmatch(rf"{prefix}-[0-9a-f]{{24}}", item)
+                    else _opaque_report_id(item, prefix=prefix) if item is not None else None
+                )
+            else:
+                result[key] = _public_metadata(item)
+        return result
+    if isinstance(value, list):
+        return [_public_metadata(item) for item in value]
+    return value
 
 
 def _insert_run(*, dataset_name: str, total_cases: int, metadata: dict[str, Any]) -> str:
@@ -3047,6 +3275,7 @@ def run_evaluation(
         profile=profile if isinstance(profile, dict) else None,
     )
     development_run_id = _validate_gate_profile(profile or {}, variants=[variant_id], split=split)
+    grounding_run_id = _validate_grounding_profile(profile or {}, variants=[variant_id], split=split)
     comparison = _comparison_metadata(
         variant_id=variant_id,
         pair_id=pair_id,
@@ -3134,7 +3363,10 @@ def run_evaluation(
             if isinstance(case.get("conversation_history"), list)
             else None
         )
-        provider_scope = {**scope, "_evidence_gate_development_run_id": development_run_id}
+        provider_scope = {
+            **scope, "_evidence_gate_development_run_id": development_run_id,
+            "_semantic_grounding_development_run_id": grounding_run_id,
+        }
         if paired_execution:
             provider_scope["_comparison_snapshot_id"] = snapshot_id
             provider_scope["_comparison_experiment_identity"] = runtime_metadata[
@@ -3161,6 +3393,11 @@ def run_evaluation(
             expected_policy = runtime_metadata["experiment_identity"]["jev"]["evidence_gate_policy"]
             if observed_policy != expected_policy:
                 raise VariantConfigurationError("Política efetiva do gate diverge da identidade da execução.")
+        if variant_settings.get("semantic_grounding_enabled"):
+            observed_policy = (trace.get("semantic_grounding") or {}).get("policy_version")
+            expected_policy = runtime_metadata["experiment_identity"]["jev"]["evidence_gate_policy"]
+            if observed_policy != expected_policy:
+                raise VariantConfigurationError("Política efetiva do grounding diverge da identidade da execução.")
         observed_snapshot = trace.get("snapshot_id")
         if paired_execution:
             if observed_snapshot is None:
@@ -3276,10 +3513,20 @@ def run_evaluation(
                 _semantic_grounding_observation(safe_trace, case)
             ),
             "answer_preview": (answer or "")[:240],
+            "operational_failure": _operational_failure(trace),
         }
+        if result["operational_failure"]:
+            for name in ("behavior_match", "factual_correctness", "citation_validity", "citation_ok", "grounded", "unsupported_claims", "false_absence_claim"):
+                result[name] = None
+                evaluation[name] = None
+                if name in evaluation["metric_details"]:
+                    evaluation["metric_details"][name]["unavailable_reason"] = "operational_failure"
+            result["score"] = None
+            evaluation["score"] = None
         if comparison_profile is not None:
             result.pop("question", None)
             result.pop("answer_preview", None)
+            result = _public_metadata(result)
         result["outcome"] = _case_outcome(result)
         result["effective_variant"] = trace_comparison.get("effective_variant")
         result["fallback"] = bool(
@@ -3322,7 +3569,7 @@ def run_evaluation(
                 "top_similarity": result["top_similarity"],
                 "latency_ms": latency_ms,
                 "score": evaluation["score"],
-                "trace": result["trace"],
+                "trace": _public_metadata(result["trace"]),
                 "evaluation_details": {
                     **evaluation["metric_details"],
                     "decision": {
@@ -3622,6 +3869,13 @@ def _comparison_chunk_id(chunk: dict[str, Any]) -> str:
     return rag._evaluation_candidate_id(chunk)
 
 
+def _candidate_input_identity(chunks):
+    return _canonical_sha256([
+        rag._jev_rerank_candidate_state(chunk, _comparison_chunk_id(chunk))
+        for chunk in chunks
+    ])
+
+
 def _stage_contract_complete(result: dict[str, Any]) -> bool:
     stages = (result.get("trace") or {}).get("retrieval_stages")
     return isinstance(stages, dict) and all(
@@ -3783,7 +4037,12 @@ def run_paired_comparison(
     configured_variants = [str(value) for value in profile["variants"]]
     selected_variants = list(variants or configured_variants)
     experimental_variables = _paired_experimental_variables(selected_variants)
+    _validate_jev_study_profile(profile, variants=selected_variants)
+    _validate_study_dataset(profile, dataset, dataset_name=dataset_name, variants=selected_variants, split=split)
+    if profile.get("execute_order_audit") and split != "development":
+        raise VariantConfigurationError("Auditoria de ordem só pode executar em development.")
     development_run_id = _validate_gate_profile(profile, variants=selected_variants, split=split)
+    grounding_run_id = _validate_grounding_profile(profile, variants=selected_variants, split=split)
     if len(selected_variants) < 2:
         raise VariantConfigurationError("Uma comparação pareada exige pelo menos duas variantes.")
     if len(set(selected_variants)) != len(selected_variants):
@@ -3854,7 +4113,11 @@ def run_paired_comparison(
                 )
                 query_capture: list[str] = []
                 if _provider is None:
-                    scope = {**scope, "_evidence_gate_development_run_id": development_run_id}
+                    scope = {
+                        **scope,
+                        "_evidence_gate_development_run_id": development_run_id,
+                        "_semantic_grounding_development_run_id": grounding_run_id,
+                    }
                     answer, chunks, trace = _live_comparison_provider(
                         question,
                         scope,
@@ -3936,6 +4199,11 @@ def run_paired_comparison(
                         raise VariantConfigurationError(
                             "A variante pareada alterou ou omitiu o candidate_pool da ablação."
                         )
+                    observed_chunks = ((trace.get("retrieval_stages") or {}).get("candidate_pool") or {}).get("chunks")
+                    if _variant_id in {VARIANT_JEV_POINTWISE, VARIANT_JEV_BATCH} and _candidate_input_identity(observed_chunks or []) != _candidate_input_identity(candidate_pool or []):
+                        raise VariantConfigurationError("A variante pareada alterou o texto ou a proveniência dos candidatos.")
+                    if _variant_id in {VARIANT_JEV_POINTWISE, VARIANT_JEV_BATCH} and comparison_trace["same_rerank_query"] is not True:
+                        raise VariantConfigurationError("A variante pareada alterou a consulta reformulada.")
                 return answer, chunks, trace
 
             mode_summaries[variant_id] = run_evaluation(
@@ -4096,7 +4364,10 @@ def prepare_comparison(
     profile = _comparison_profile(baseline_config)
     configured_variants = [str(value) for value in profile["variants"]]
     selected_variants = list(variants or configured_variants)
+    _validate_jev_study_profile(profile, variants=selected_variants)
+    _validate_study_dataset(profile, dataset, dataset_name=dataset_name, variants=selected_variants, split=split)
     _validate_gate_profile(profile, variants=selected_variants, split=split)
+    _validate_grounding_profile(profile, variants=selected_variants, split=split)
     registered_variants = set(configured_variants) | set(
         (profile.get("unavailable_variants") or {}).keys()
     )
@@ -4271,10 +4542,12 @@ def _order_sensitivity_observation(comparison: dict[str, Any]) -> dict[str, Any]
                     "composition_count": len(compositions),
                     "deterministic_replay": audit.get("deterministic_replay") is True,
                     "order_sensitive": len(set(output_hashes)) > 1,
+                    "all_compositions_applied": all(item.get("applied") is True for item in compositions),
+                    "compositions": compositions,
                 }
             )
     complete = bool(cases) and not missing and all(
-        case["deterministic_replay"] for case in cases
+        case["deterministic_replay"] and case["all_compositions_applied"] for case in cases
     )
     return {
         "status": "complete" if complete else "incomplete",
@@ -4282,7 +4555,97 @@ def _order_sensitivity_observation(comparison: dict[str, Any]) -> dict[str, Any]
         "policy_effect": "diagnostic_only",
         "holdout_or_product_changed": False,
         "missing_cases": sorted(set(missing)),
+        "denominator": len(cases) + len(missing),
+        "evaluated": len(cases),
         "cases": cases,
+        "model_usage": _summarize_model_usage([
+            {"trace": {"model_calls": (((result.get("trace") or {}).get("comparison") or {}).get("order_sensitivity_audit") or {}).get("model_calls", [])}}
+            for summary in comparison.get("summaries", {}).values()
+            for result in summary.get("results", [])
+        ]),
+    }
+
+
+def _fixed_response_inputs(records, dataset, *, split, limit):
+    """Arquivo privado com resposta-base e envelope exato; não os reconstrói."""
+    if not isinstance(records, list):
+        raise VariantConfigurationError("Respostas fixas devem ser uma lista de registros.")
+    selected = _comparison_selected_cases(dataset, split=split, limit=limit)
+    by_id = {str(record.get("case_id")): record for record in records if isinstance(record, dict)}
+    if len(by_id) != len(records):
+        raise VariantConfigurationError("Respostas fixas contêm registro inválido ou case_id duplicado.")
+    inputs = []
+    for case in selected:
+        record = by_id.get(str(case["id"]))
+        if not record or not isinstance(record.get("answer"), str) or not record["answer"].strip():
+            raise VariantConfigurationError("Resposta-base fixa ausente para um caso selecionado.")
+        envelope = record.get("envelope") or {}
+        if envelope.get("version") != rag.CONTEXT_SELECTION_VERSION:
+            raise VariantConfigurationError("Versão do envelope fixo incompatível.")
+        if record.get("answer_sha256") != hashlib.sha256(record["answer"].encode("utf-8")).hexdigest():
+            raise VariantConfigurationError("Hash da resposta fixa diverge do texto fornecido.")
+        if record.get("envelope_sha256") != _canonical_sha256(envelope):
+            raise VariantConfigurationError("Hash do envelope fixo diverge dos dados fornecidos.")
+        selection = rag.ContextSelection(
+            rendered_text=envelope["rendered_text"],
+            retained_chunks=tuple(envelope["retained_chunks"]),
+            evidence=tuple(envelope["evidence"]), exclusions=(),
+            order=tuple(item["evidence_id"] for item in envelope["evidence"]),
+            token_count=0, budgets={}, token_counter={}, history=(),
+            allowed_sources=frozenset(item["source"] for item in envelope["evidence"]),
+        )
+        grounding.build_evidence_index(selection.evidence, selection.retained_chunks, selection.rendered_text)
+        inputs.append((case, record, selection))
+    return inputs
+
+
+def run_fixed_response_judgment(*, records, dataset, baseline_config, split="development", limit=None):
+    """Julga as respostas fornecidas com o extrator/juiz real, sem gerar ou regenerar."""
+    profile = _comparison_profile(baseline_config)
+    development_run_id = _validate_grounding_profile(profile, variants=[VARIANT_GROUNDING_D1], split=split)
+    inputs = _fixed_response_inputs(records, dataset, split=split, limit=limit)
+    policy, grounding_policy = config.validate_semantic_grounding_config(development_run_id=development_run_id)
+    results = []
+    for case, record, selection in inputs:
+        calls = []
+        start = time.monotonic()
+        token = rag._request_deadline.set(start + config.ASK_TIMEOUT_SECONDS)
+        try:
+            semantic = rag._semantic_grounding_round(
+                question=case["question"], answer=record["answer"], selection=selection,
+                policy=policy, grounding_policy=grounding_policy,
+                request_id=f"fixed-{case['id']}", model_calls=calls,
+            )
+            semantic["rounds"] = [grounding.round_trace(semantic)]
+        except rag.RequestDeadlineExceeded:
+            semantic = grounding.empty_grounding_result("deadline_exceeded")
+            semantic["status"] = "inconclusive"
+        finally:
+            rag._request_deadline.reset(token)
+        trace = _public_metadata(_trace_for_report({
+            "semantic_grounding": grounding.result_trace(semantic), "model_calls": calls,
+        }, {}))
+        results.append({
+            "case_id": case["id"],
+            "fixed_response_sha256": record["answer_sha256"],
+            "fixed_envelope_sha256": record["envelope_sha256"],
+            "trace": trace,
+            "observation": _semantic_grounding_observation(trace, {"grounding_review": record.get("grounding_review")}),
+            "latency_ms": int((time.monotonic() - start) * 1000),
+        })
+    latencies = sorted(item["latency_ms"] for item in results)
+    return {
+        "status": "complete" if all(item["observation"]["status"] in {"supported", "rejected"} for item in results) else "incomplete",
+        "mode": "fixed_baseline_response_exact_envelope",
+        "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
+        "judge_error_isolated": True,
+        "generated_or_regenerated": False,
+        "input_sha256": _canonical_sha256(records),
+        "sample_size": len(results),
+        "p50_latency_ms": _percentile(latencies, 0.5),
+        "p95_latency_ms": _percentile(latencies, 0.95),
+        "model_usage": _summarize_model_usage(results),
+        "results": results,
     }
 
 
@@ -4294,6 +4657,7 @@ def prepare_jev_study(
     split: str = "development",
     limit: int | None = None,
     snapshot_id: str | None = None,
+    fixed_responses: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Valida JEV-11 localmente; não toca banco, rede nem providers."""
     profile = _comparison_profile(baseline_config)
@@ -4313,13 +4677,20 @@ def prepare_jev_study(
             "JEV-11 escolhe pipeline e audita ordem apenas em development; "
             "holdout #93 e split all são proibidos."
         )
+    _validate_study_dataset(profile, dataset, dataset_name=dataset_name, variants=[], split=split)
     selected = _comparison_selected_cases(dataset, split=split, limit=limit)
     resolved_snapshot = str(snapshot_id or profile.get("snapshot_id") or "").strip()
     blockers = []
+    if fixed_responses is None:
+        blockers.append("fixed_response_inputs_required_for_complete_study")
+    else:
+        _fixed_response_inputs(fixed_responses, dataset, split=split, limit=limit)
     if not resolved_snapshot:
         blockers.append("snapshot_id_required_before_execution")
     if not config.TYPESAFE_API_KEY:
         blockers.append("jev_study_requires_TYPESAFE_API_KEY")
+    if not ((study.get("grounding") or {}).get("base_selection_development_run_id")):
+        blockers.append("grounding_base_development_selection_required")
     policy_path = str(config.JEV_POLICY_FILE or "").strip()
     if not policy_path:
         blockers.append("jev_study_requires_JEV_POLICY_FILE")
@@ -4327,7 +4698,7 @@ def prepare_jev_study(
         development_run_id = (
             (profile.get("evidence_gate") or {}).get("development_run_id")
         )
-        policy = evidence_gate.load_policy_file(
+        policy = evidence_gate.load_policy(
             policy_path,
             model=config.JEV_MODEL,
             development_run_id=development_run_id,
@@ -4351,6 +4722,7 @@ def prepare_jev_study(
     canonical = {
         "dataset_sha256": _canonical_sha256(dataset),
         "profile_sha256": _canonical_sha256(profile),
+        "fixed_responses_sha256": _canonical_sha256(fixed_responses) if fixed_responses is not None else None,
         "selection": [str(case.get("id")) for case in selected],
         "split": split,
         "snapshot_id": resolved_snapshot or None,
@@ -4395,6 +4767,7 @@ def run_jev_study(
     answer_providers: Mapping[str, AnswerProvider | None] | None = None,
     fixed_response_providers: Mapping[str, AnswerProvider | None] | None = None,
     snapshot_id: str | None = None,
+    fixed_responses: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Executa a matriz JEV-11 sem alterar política de produto ou holdout."""
     if split != "development":
@@ -4402,8 +4775,16 @@ def run_jev_study(
             "A escolha do pipeline JEV-11 e a auditoria de ordem exigem split development."
         )
     profile = _comparison_profile(baseline_config)
+    _validate_jev_study_profile(profile, variants=[VARIANT_EXISTING_GATE, VARIANT_JEV_POINTWISE, VARIANT_JEV_BATCH, VARIANT_GROUNDING_D0, VARIANT_GROUNDING_D1])
+    _validate_gate_profile(profile, variants=[VARIANT_EXISTING_GATE], split=split)
+    _validate_grounding_profile(profile, variants=[VARIANT_GROUNDING_D1], split=split)
+    if fixed_responses is not None:
+        _fixed_response_inputs(fixed_responses, dataset, split=split, limit=limit)
     pair_root = str(profile.get("pair_id") or "jev-study").strip()
     providers = dict(answer_providers or {})
+
+    for variant_id in (VARIANT_EXISTING, VARIANT_EXISTING_GATE, VARIANT_JEV_POINTWISE, VARIANT_JEV_BATCH, VARIANT_GROUNDING_D0, VARIANT_GROUNDING_D1):
+        _validate_variant_execution(variant_id, answer_provider=providers.get(variant_id), profile=profile)
 
     def run_pair(name: str, variants: list[str], views: list[str], source: Mapping[str, Any]):
         subconfig = _study_subconfig(
@@ -4412,6 +4793,7 @@ def run_jev_study(
             views=views,
             pair_id=f"{pair_root}:{name}",
         )
+        subconfig["comparison"]["execute_order_audit"] = name == "rerank"
         return run_paired_comparison(
             dataset=dataset,
             dataset_name=dataset_name,
@@ -4448,12 +4830,30 @@ def run_jev_study(
             ["end_to_end_same_snapshot"], dict(fixed_response_providers),
         )
         fixed_isolation = _fixed_response_isolation(fixed_comparison)
+    elif fixed_responses is not None:
+        fixed_comparison = run_fixed_response_judgment(
+            records=fixed_responses, dataset=dataset, baseline_config=baseline_config, split=split, limit=limit,
+        )
+        fixed_isolation = {key: fixed_comparison[key] for key in ("status", "mode", "judge_error_isolated")}
     order_audit = _order_sensitivity_observation(rerank)
     comparisons = {
         "gate_isolation": gate,
         "rerank_ablation": rerank,
         "grounding": grounding_comparison,
     }
+    all_results = [
+        result for comparison in comparisons.values()
+        for summary in comparison["summaries"].values()
+        for result in summary["results"]
+    ]
+    audit_results = [
+        {"trace": {"model_calls": (((result.get("trace") or {}).get("comparison") or {}).get("order_sensitivity_audit") or {}).get("model_calls", [])}}
+        for result in all_results
+    ]
+    fixed_results = (
+        fixed_comparison.get("results", []) if fixed_comparison and "results" in fixed_comparison
+        else [result for summary in (fixed_comparison or {}).get("summaries", {}).values() for result in summary["results"]]
+    )
     complete = (
         all(item.get("status") == "complete" for item in comparisons.values())
         and fixed_isolation.get("status") == "complete"
@@ -4469,6 +4869,7 @@ def run_jev_study(
         "comparisons": comparisons,
         "fixed_response_judgment": fixed_isolation,
         "fixed_response_comparison": fixed_comparison,
+        "total_model_usage": _summarize_model_usage([*all_results, *audit_results, *fixed_results]),
         "order_sensitivity_audit": order_audit,
         "confirmation": (profile.get("jev_study") or {}).get("confirmation"),
         "limitations": [
@@ -4519,6 +4920,10 @@ def main() -> int:
         help="Executa a matriz JEV-11; com --prepare-only apenas valida localmente.",
     )
     parser.add_argument(
+        "--fixed-responses", type=Path,
+        help="Arquivo privado de respostas-base e envelopes exatos para o julgamento fixo do estudo.",
+    )
+    parser.add_argument(
         "--pair-id",
         default="",
         help="Identificador estável do par; obrigatório se não estiver no perfil",
@@ -4563,10 +4968,15 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+    if args.fixed_responses and not args.jev_study:
+        parser.error("--fixed-responses exige --jev-study.")
+    if args.jev_study and args.gate:
+        parser.error("--jev-study não aprova adoção; --gate exige a comparação pareada explícita.")
 
     dataset_path = Path(args.dataset)
     dataset = _load_dataset(dataset_path)
     baseline_config = _load_json_object(Path(args.baseline_config))
+    fixed_responses = json.loads(args.fixed_responses.read_text(encoding="utf-8")) if args.fixed_responses else None
     reference_runtime = None
     if args.compare_report:
         reference_report = _load_json_object(Path(args.compare_report))
@@ -4586,6 +4996,7 @@ def main() -> int:
                 split=args.split,
                 limit=args.limit,
                 snapshot_id=args.snapshot_id or None,
+                fixed_responses=fixed_responses,
             )
         else:
             summary = prepare_comparison(
@@ -4608,6 +5019,7 @@ def main() -> int:
             baseline_config=baseline_config,
             split=args.split,
             snapshot_id=args.snapshot_id or None,
+            fixed_responses=fixed_responses,
         )
     elif args.paired:
         if args.variant != VARIANT_EXISTING:

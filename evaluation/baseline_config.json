@@ -79,7 +79,9 @@
       },
       "grounding": {
         "arms": ["grounding_d0", "grounding_d1"],
-        "base_variant": "jev_rerank+evidence_gate",
+        "base_variant": "existing",
+        "base_selection_development_run_id": null,
+        "development_run_id": null,
         "frozen": {
           "base_pipeline": true,
           "gate_policy": true,

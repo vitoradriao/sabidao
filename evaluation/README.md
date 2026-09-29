@@ -279,6 +279,10 @@ do `state` enviado; fallback para `existing` não conta como sucesso de Jev.
 
 ### Matriz JEV-11: batching, gate e grounding D0/D1
 
+Esta seção descreve a entrega da #115 pendente de integração. Os schemas 11/3
+e os novos comandos passam a valer com o PR desta entrega; a validação sintética
+não conclui os ensaios operacionais #93/#96.
+
 O bloco `comparison.jev_study` congela quatro experimentos relacionados, mas
 separados:
 
@@ -304,14 +308,51 @@ py -3.11 -B evaluation/run_offline_eval.py --jev-study --prepare-only \
 `snapshot_id`, `TYPESAFE_API_KEY` ou política local aparece como bloqueio; não é
 sucesso parcial. `--dry-run` continua podendo consultar banco e modelos.
 
-`run_jev_study` recebe providers por braço e providers separados para o ensaio
-de resposta fixa. O relatório só fica `complete` quando as três comparações, a
-identidade da resposta/envelope fixos e a auditoria determinística de ordem
-estão completas. A auditoria aceita composições declaradas apenas no split
-`development`, é diagnóstica e nunca altera ensemble, política de produto ou
-holdout. A fixture
-`evaluation/datasets/jev_study_synthetic_fixture.json` cobre A/B/C, o gate
-isolado, pointwise/batch e D0/D1 sem rede.
+Antes de executar, copie o perfil para um arquivo local e registre o snapshot,
+as políticas e `jev_study.grounding.base_selection_development_run_id`: o run de
+development que escolheu `base_variant`. O valor `existing` no modelo de perfil
+é ilustrativo. Para política provisional, registre também
+`jev_study.grounding.development_run_id` e
+`comparison.evidence_gate.development_run_id`, iguais ao ID da política. Nenhum
+limiar calibrado ou orçamento de execução é fornecido nesta entrega.
+
+Com dados e orçamento autorizados, execute a matriz:
+
+```sh
+python evaluation/run_offline_eval.py --jev-study --split development --dry-run \
+  --baseline-config runtime/perfil-jev-study.json \
+  --dataset runtime/development-permitido.json --snapshot-id SNAPSHOT_CONGELADO \
+  --fixed-responses runtime/respostas-base.json \
+  --output-report evaluation/reports/jev-study.json
+```
+
+`--fixed-responses` contém uma lista privada, com um registro por `case_id`:
+`answer`, `answer_sha256`, `envelope`, `envelope_sha256`. O envelope contém
+`version=context-selection-v3`, `rendered_text` integral, `retained_chunks` e
+`evidence` exatamente da seleção usada pela geração. O hash da resposta usa
+SHA-256 de seus bytes UTF-8; o hash do envelope usa JSON com `ensure_ascii=False`,
+`sort_keys=True`, `separators=(",", ":")`. O validador verifica hashes, spans e
+conteúdo renderizado antes das calls. Esse ensaio executa somente extração e
+julgamento, sem nova geração, recuperação ou regeneração. Preserve o arquivo
+no local permitido; não publique textos, credenciais ou revisão detalhada.
+O mesmo argumento junto de `--prepare-only` valida o arquivo sem calls.
+
+O relatório só fica `complete` quando as três comparações, o julgamento fixo e
+a auditoria de ordem estão completos. Sem respostas fixas, a comparação do
+pipeline é executada, mas a matriz fica `incomplete`. Providers separados são
+aceitos pela API para fixtures. `complete` significa execução do protocolo,
+não aprovação da qualidade ou da revisão humana.
+
+A auditoria executa novamente apenas o reranker, com a lista original, reversa
+e uma rotação estável dos mesmos candidatos sob o mesmo cap. Ela registra
+hashes de ordem, composição de chamadas e scores por ID opaco. Empates também
+podem mudar a ordem; os scores permitem distinguir esse efeito. O custo da
+auditoria fica separado do custo de cada pipeline e participa de
+`total_model_usage` junto das comparações e do julgamento fixo. A auditoria
+é restrita a `development`; não altera ensemble, política ou holdout.
+As fixtures `tests/test_jev_evaluation_study.py` exercitam A/B/C, gate isolado,
+pointwise/batch, D0/D1 e julgamento fixo pelo pipeline real com providers
+simulados, sem rede paga.
 
 D0 e D1 congelam pipeline-base, gate, modelos, prompts comuns, corpus, feedback,
 strict e budgets. O trace seguro conserva decisões, probabilidades, conflito,
@@ -322,10 +363,26 @@ infraestrutura ou deadline fica inconclusiva e nunca é contabilizada como
 melhora factual.
 
 Uma confirmação exige outro dataset independente, comparações pré-registradas e
-política congelada. O validador rejeita qualquer ID listado em
-`known_historical_dataset_ids`; o conjunto conhecido da #93 não pode ser
-renomeado e apresentado como confirmação nova. O perfil fornecido permanece em
-`development` e não contém limiares sintéticos de aprovação.
+política congelada. Use `--paired` e um perfil por comparação com
+`jev_study.dataset_role=confirmation`. Registre `independent_dataset_id` igual
+a `--dataset-name`, `dataset_sha256` calculado pelo mesmo JSON canônico,
+`policy_status=frozen`, `policy_frozen=true` e `preregistered_comparisons` (por
+exemplo, `grounding_d0_vs_grounding_d1`). O runner verifica a política real,
+a revisão humana dos casos e o hash; rejeita comparação não registrada,
+IDs históricos e perguntas/casos do baseline histórico mesmo renomeados.
+Não use `--jev-study` para confirmação: a matriz escolhe a base e audita ordem
+somente em development. D0/D1 aceita apenas a flag de grounding como diferença
+na identidade; corpus, feedback, modelos, prompts comuns e budgets divergentes
+são rejeitados antes do segundo braço.
+
+A revisão semântica usa `grounding_review`, separada da revisão das perguntas.
+Informe `status=completed`, `reviewer`, `date`, `answer_sha256` da resposta
+revisada e `claims` com `claim_id`, `gold_support`, `extraction_found` e, quando
+encontrada, `extracted_claim_id`. O artefato público preserva contagens,
+cobertura e matriz de confusão; o detalhe fica no arquivo privado. Uma revisão
+de outra resposta permanece `not_performed`. Resposta qualificada exige uma
+rodada rejeitada seguida de regeneração e suporte final; suporte direto não
+é qualificação, e conflito original não é erro residual da atribuição validada.
 
 ### Comparação B/C com política explícita
 
@@ -354,7 +411,7 @@ com limiares inventados. Após autorização dos dados e orçamento na #93, use 
 mesmo perfil com `--paired`, `--snapshot-id` e `--pair-id` para executar. A
 preparação não executa a comparação paga.
 
-O schema atual do avaliador é 11 e o da comparação é 3. `evidence_gate` agrega
+O schema preparado na #115 é 11 e o da comparação é 3. `evidence_gate` agrega
 contagens por status, decisão aplicada e motivo. O trace por caso conserva a
 política, a decisão e seu custo na etapa `evidence_gate`. Gate inconclusivo ou
 indisponível é fallback, não sucesso C; se o reranker falhar mas o gate atuar,
@@ -404,6 +461,11 @@ no holdout, os critérios predefinidos em `baseline_config.json`.
 
 Scores de similaridade, fusão ou reranking são sinais de ordenação e não devem ser
 interpretados como probabilidade de a resposta estar correta.
+
+Os diagnósticos `evidence_coverage_at_20/40` exigem `review.human_review=approved`
+para as referências do caso. Sem confirmação da revisão, o valor fica `null`
+com motivo `reference_review_not_confirmed`; a contagem de referências continua
+visível. Isso não impede executar fixtures nem inventa qrels para nDCG.
 
 ### Definições e compatibilidade de métricas
 

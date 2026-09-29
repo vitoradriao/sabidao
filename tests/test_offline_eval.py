@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from evaluation import build_dataset, run_offline_eval
+from tests.test_semantic_grounding import policy_v2
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -1810,7 +1811,7 @@ class TestOfflineEvaluator(unittest.TestCase):
 
     def test_grounding_observation_preserves_outcomes_and_human_omissions(self):
         expected = {
-            "supported": True,
+            "supported": False,
             "rejected": False,
             "inconclusive": False,
         }
@@ -1888,6 +1889,7 @@ class TestOfflineEvaluator(unittest.TestCase):
                 return_value=self._verified_database_identity(),
             ),
             patch.object(run_offline_eval.evidence_gate, "load_policy", return_value={}),
+            patch.object(run_offline_eval.evidence_gate, "load_policy_file", return_value=policy_v2()),
         ):
             report = run_offline_eval.run_jev_study(
                 dataset=dataset,
@@ -1908,7 +1910,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(report["order_sensitivity_audit"]["status"], "complete")
         d1 = report["comparisons"]["grounding"]["summaries"]["grounding_d1"]["results"][0]
         observation = d1["semantic_grounding_observation"]
-        self.assertTrue(observation["qualified_response"])
+        self.assertFalse(observation["qualified_response"])
         self.assertEqual(observation["human_review"]["status"], "not_performed")
         self.assertEqual(observation["rounds"]["count"], 0)
         self.assertTrue(observation["claim_decisions"][0]["claim_id"].startswith("claim-"))
@@ -1954,6 +1956,7 @@ class TestOfflineEvaluator(unittest.TestCase):
                 return_value=self._verified_database_identity(),
             ),
             patch.object(run_offline_eval.evidence_gate, "load_policy", return_value={}),
+            patch.object(run_offline_eval.evidence_gate, "load_policy_file", return_value=policy_v2()),
             patch.object(run_offline_eval, "_variant_settings", side_effect=divergent_settings),
         ):
             with self.assertRaisesRegex(
