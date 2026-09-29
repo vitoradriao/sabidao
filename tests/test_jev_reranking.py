@@ -54,6 +54,39 @@ class _FakeClient:
         pass
 
 
+class _BatchFakeClient:
+    def __init__(self, batches):
+        self.batches = iter(batches)
+        self.calls = []
+
+    def decide(self, state, questions, **kwargs):
+        self.calls.append((state, questions, kwargs))
+        batch = next(self.batches)
+        if isinstance(batch, str):
+            return _decision(kwargs["candidate_id"], status=batch)
+        answers = {
+            question_id: {"type": "noul", "noul": score}
+            for question_id, score in zip(questions, batch)
+        }
+        return jev.DecisionResult(
+            status="ok",
+            model_requested="jev-1.13.0",
+            model_effective="jev-1.13.0",
+            answers=answers,
+            usage={"input_tokens": 100, "output_tokens": 0},
+            latency_ms=1,
+            error_code=None,
+            request_id="request-1",
+            call_id=f"call-{len(self.calls)}",
+            candidate_id=kwargs["candidate_id"],
+            estimated_cost_usd=0.0000042,
+            cost_status="estimated",
+        )
+
+    def close(self):
+        pass
+
+
 class TestJevReranking(unittest.TestCase):
     def setUp(self):
         self.chunks = [_chunk("a", 0.95), _chunk("b", 0.70), _chunk("c", 0.60)]
@@ -62,6 +95,7 @@ class TestJevReranking(unittest.TestCase):
             RAG_ENABLE_RERANKING=True,
             RAG_RERANK_PROVIDER="jev",
             JEV_RERANK_MAX_CANDIDATES=2,
+            JEV_RERANK_MODE="pointwise",
             JEV_MAX_STATE_ESTIMATED_TOKENS=24000,
             JEV_STAGE_TIMEOUT_SECONDS=8.0,
             JEV_MIN_REMAINING_SECONDS=1.0,
@@ -98,6 +132,7 @@ class TestJevReranking(unittest.TestCase):
         self.assertEqual(trace["rerank"][0]["effective_provider"], "jev")
         self.assertEqual(len(fake.calls), 2)
         self.assertEqual(fake.calls[1][0]["trecho_documental"], original[1]["content"])
+        self.assertNotIn("candidate_id", fake.calls[1][0])
         self.assertNotIn("retrieval_text", str(fake.calls))
 
     def test_partial_failure_falls_back_integrally_to_existing_policy(self):
@@ -255,6 +290,153 @@ class TestJevReranking(unittest.TestCase):
         self.assertEqual([chunk["id"] for chunk in ranked], ["a", "b", "c"])
         self.assertIs(ranked[2], self.chunks[2])
         self.assertEqual(summary["excluded_by_cap_count"], 1)
+
+        batch_fake = _BatchFakeClient([[0.5, 0.5]])
+        with patch.object(config, "JEV_RERANK_MODE", "batch"), patch(
+            "rag.jev.TypeSafeClient", return_value=batch_fake
+        ):
+            batch_ranked, batch_summary = rag._rerank_chunks_with_jev(
+                "Pergunta", self.chunks
+            )
+        self.assertEqual([chunk["id"] for chunk in batch_ranked], ["a", "b", "c"])
+        self.assertIs(batch_ranked[2], self.chunks[2])
+        self.assertEqual(batch_summary["excluded_by_cap_count"], 1)
+
+    def test_batch_scores_all_candidates_in_one_request_with_traceable_associations(self):
+        fake = _BatchFakeClient([[0.1, 0.9, 0.2]])
+        model_calls = []
+        with patch.multiple(
+            config, JEV_RERANK_MODE="batch", JEV_RERANK_MAX_CANDIDATES=3
+        ), patch("rag.jev.TypeSafeClient", return_value=fake):
+            ranked, summary = rag._rerank_chunks_with_jev(
+                "Como configurar?", self.chunks, request_id="request-1", model_calls=model_calls
+            )
+
+        self.assertEqual([chunk["id"] for chunk in ranked], ["b", "c", "a"])
+        self.assertEqual(len(fake.calls), 1)
+        self.assertEqual(len(fake.calls[0][0]["candidatos"]), 3)
+        self.assertEqual(len(fake.calls[0][1]), 3)
+        for index, question in enumerate(fake.calls[0][1].values()):
+            candidate_id = fake.calls[0][0]["candidatos"][index]["candidate_id"]
+            self.assertIn(candidate_id, question["instructions"]["candidate_reference"])
+        self.assertEqual(summary["mode"], "batch")
+        self.assertEqual(summary["batch_count"], 1)
+        self.assertEqual(summary["calls_completed"], 1)
+        self.assertEqual(summary["decisions_completed"], 3)
+        self.assertEqual(summary["estimated_cost_usd"], 0.0000042)
+        self.assertEqual(len(model_calls), 1)
+        self.assertEqual(len(model_calls[0]["candidate_ids"]), 3)
+        self.assertEqual(model_calls[0]["call_id"], summary["calls"][0]["call_id"])
+        self.assertEqual(len({chunk["jev"]["state_sha256"] for chunk in ranked}), 1)
+        self.assertEqual(len({chunk["jev"]["call_id"] for chunk in ranked}), 1)
+        self.assertEqual(ranked[0]["metadata"], self.chunks[1]["metadata"])
+        self.assertNotIn("Como configurar?", str(summary))
+        self.assertNotIn("Procedimento documental", str(summary))
+
+    def test_batch_groups_consecutive_candidates_without_reordering_composition(self):
+        fake = _BatchFakeClient([[0.2, 0.9], [0.8]])
+
+        def estimate(value, **_kwargs):
+            candidate_count = str(value).count('"trecho_documental"')
+            return (200 if candidate_count > 2 else 100), rag.TOKEN_COUNTER_VERSION
+
+        with patch.multiple(
+            config,
+            JEV_RERANK_MODE="batch",
+            JEV_RERANK_MAX_CANDIDATES=3,
+            JEV_MAX_STATE_ESTIMATED_TOKENS=100,
+        ), patch("rag._count_context_text", side_effect=estimate), patch(
+            "rag.jev.TypeSafeClient", return_value=fake
+        ):
+            ranked, summary = rag._rerank_chunks_with_jev("Pergunta", self.chunks)
+
+        self.assertEqual(len(fake.calls), 2)
+        self.assertEqual(
+            [[candidate["fonte"] for candidate in call[0]["candidatos"]] for call in fake.calls],
+            [["a.md", "b.md"], ["c.md"]],
+        )
+        self.assertEqual([chunk["id"] for chunk in ranked], ["b", "c", "a"])
+        self.assertEqual(summary["batch_count"], 2)
+        self.assertEqual(summary["calls_completed"], 2)
+
+    def test_failure_in_later_batch_discards_all_batch_scores(self):
+        fake = _BatchFakeClient([[0.2, 0.9], "timeout"])
+
+        def estimate(value, **_kwargs):
+            candidate_count = str(value).count('"trecho_documental"')
+            return (200 if candidate_count > 2 else 100), rag.TOKEN_COUNTER_VERSION
+
+        with patch.multiple(
+            config,
+            JEV_RERANK_MODE="batch",
+            JEV_RERANK_MAX_CANDIDATES=3,
+            JEV_MAX_STATE_ESTIMATED_TOKENS=100,
+        ), patch("rag._count_context_text", side_effect=estimate), patch(
+            "rag.jev.TypeSafeClient", return_value=fake
+        ):
+            ranked, summary = rag._rerank_chunks_with_jev("Pergunta", self.chunks)
+
+        self.assertIs(ranked, self.chunks)
+        self.assertEqual(summary["fallback_reason"], "timeout")
+        self.assertEqual(summary["calls_completed"], 1)
+        self.assertEqual(summary["decisions_completed"], 2)
+        self.assertEqual(len(summary["calls"]), 2)
+
+    def test_batch_rejects_response_with_missing_question_id(self):
+        class InvalidClient(_BatchFakeClient):
+            def decide(self, state, questions, **kwargs):
+                result = super().decide(state, questions, **kwargs)
+                result.answers.pop(next(iter(result.answers)))
+                return result
+
+        with patch.multiple(
+            config, JEV_RERANK_MODE="batch", JEV_RERANK_MAX_CANDIDATES=3
+        ), patch("rag.jev.TypeSafeClient", return_value=InvalidClient([[0.1, 0.9, 0.2]])):
+            ranked, summary = rag._rerank_chunks_with_jev("Pergunta", self.chunks)
+
+        self.assertIs(ranked, self.chunks)
+        self.assertEqual(summary["fallback_reason"], "invalid_response")
+
+    def test_isolated_oversize_candidate_prevents_all_batch_calls(self):
+        self.chunks[1]["content"] = "x" * 2000
+        with patch.multiple(
+            config,
+            JEV_RERANK_MODE="batch",
+            JEV_RERANK_MAX_CANDIDATES=3,
+            JEV_MAX_STATE_ESTIMATED_TOKENS=100,
+        ), patch("rag.jev.TypeSafeClient", side_effect=AssertionError("client constructed")):
+            ranked, summary = rag._rerank_chunks_with_jev("Pergunta", self.chunks)
+
+        self.assertIs(ranked, self.chunks)
+        self.assertEqual(summary["fallback_reason"], "state_limit")
+
+    def test_batch_response_after_shared_deadline_reserve_is_not_applied(self):
+        clock = {"now": 0.0}
+        fake = _BatchFakeClient([[0.1, 0.9, 0.2]])
+        original_decide = fake.decide
+
+        def late_decide(*args, **kwargs):
+            clock["now"] = 7.1
+            return original_decide(*args, **kwargs)
+
+        fake.decide = late_decide
+        token = rag._request_deadline.set(10.0)
+        try:
+            with patch.multiple(
+                config,
+                JEV_RERANK_MODE="batch",
+                JEV_RERANK_MAX_CANDIDATES=3,
+                JEV_MIN_REMAINING_SECONDS=3.0,
+            ), patch.object(
+                rag, "_time", SimpleNamespace(monotonic=lambda: clock["now"])
+            ), patch("rag.jev.TypeSafeClient", return_value=fake):
+                ranked, summary = rag._rerank_chunks_with_jev("Pergunta", self.chunks)
+        finally:
+            rag._request_deadline.reset(token)
+
+        self.assertIs(ranked, self.chunks)
+        self.assertEqual(summary["fallback_reason"], "stage_budget_exhausted")
+        self.assertEqual(summary["decisions_completed"], 0)
 
     def test_fake_ask_response_follows_jev_context_order(self):
         fake = _FakeClient([0.0, 0.9])

@@ -209,6 +209,7 @@ _CONFIG_FIELDS = (
     "JEV_STAGE_TIMEOUT_SECONDS",
     "JEV_MIN_REMAINING_SECONDS",
     "JEV_RERANK_MAX_CANDIDATES",
+    "JEV_RERANK_MODE",
     "JEV_MAX_STATE_ESTIMATED_TOKENS",
     "JEV_GROUNDING_MAX_CLAIMS",
 )
@@ -1940,6 +1941,16 @@ def _jev_identity() -> dict[str, Any]:
             _canonical_sha256(json.loads(Path(config.JEV_POLICY_FILE).read_text(encoding="utf-8")))
             if config.JEV_POLICY_FILE else None
         ),
+        "rerank": {
+            "mode": config.JEV_RERANK_MODE,
+            "pointwise_prompt_version": rag.JEV_RERANK_PROMPT_VERSION,
+            "pointwise_prompt_sha256": _canonical_sha256(
+                rag._JEV_RERANK_POINTWISE_QUESTION
+            ),
+            "batch_prompt_version": rag.JEV_RERANK_BATCH_PROMPT_VERSION,
+            "grouping_version": rag.JEV_RERANK_GROUPING_VERSION,
+            "estimator_version": rag.TOKEN_COUNTER_VERSION,
+        },
         "endpoint": jev.ENDPOINT,
         "model": config.JEV_MODEL,
         "contract_version": jev.CONTRACT_VERSION,

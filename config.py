@@ -200,6 +200,7 @@ JEV_REQUEST_TIMEOUT_SECONDS = _env_float("JEV_REQUEST_TIMEOUT_SECONDS", 2.0)
 JEV_STAGE_TIMEOUT_SECONDS = _env_float("JEV_STAGE_TIMEOUT_SECONDS", 8.0)
 JEV_MIN_REMAINING_SECONDS = _env_float("JEV_MIN_REMAINING_SECONDS", 20.0)
 JEV_RERANK_MAX_CANDIDATES = _env_int("JEV_RERANK_MAX_CANDIDATES", 20)
+JEV_RERANK_MODE = _env_setting("JEV_RERANK_MODE", "pointwise").lower()
 JEV_MAX_STATE_ESTIMATED_TOKENS = _env_int("JEV_MAX_STATE_ESTIMATED_TOKENS", 24000)
 JEV_GROUNDING_MAX_CLAIMS = _env_int("JEV_GROUNDING_MAX_CLAIMS", 12)
 
@@ -458,6 +459,8 @@ def validate_evidence_gate_config(*, development_run_id: str | None = None) -> d
 
 def validate_jev_config(*, active: bool = False) -> None:
     """Valida Jev somente quando um consumidor realmente o habilita."""
+    if JEV_RERANK_MODE not in {"pointwise", "batch"}:
+        raise EnvironmentError("JEV_RERANK_MODE deve ser pointwise ou batch.")
     if not active:
         return
     _check_range("JEV_MAX_STATE_ESTIMATED_TOKENS", JEV_MAX_STATE_ESTIMATED_TOKENS, min_val=1, max_val=24000)

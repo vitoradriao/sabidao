@@ -169,13 +169,29 @@ class TestOfflineEvaluator(unittest.TestCase):
                 run_offline_eval.config.JEV_MAX_CONCURRENCY + 1,
             ):
                 changed = run_offline_eval._experiment_identity({"policy": "v1"})
+            other_mode = (
+                "batch"
+                if run_offline_eval.config.JEV_RERANK_MODE == "pointwise"
+                else "pointwise"
+            )
+            with patch.object(run_offline_eval.config, "JEV_RERANK_MODE", other_mode):
+                mode_changed = run_offline_eval._experiment_identity({"policy": "v1"})
 
         self.assertIn("jev", baseline)
         self.assertIn("JEV_MODEL", baseline["rag_config"])
+        self.assertIn("JEV_RERANK_MODE", baseline["rag_config"])
+        self.assertEqual(
+            baseline["jev"]["rerank"]["mode"],
+            run_offline_eval.config.JEV_RERANK_MODE,
+        )
         self.assertNotIn("TYPESAFE_API_KEY", json.dumps(baseline))
         self.assertNotEqual(
             baseline["fingerprint_sha256"],
             changed["fingerprint_sha256"],
+        )
+        self.assertNotEqual(
+            baseline["fingerprint_sha256"],
+            mode_changed["fingerprint_sha256"],
         )
 
     def test_database_identity_normalizes_persisted_vector_order(self):
