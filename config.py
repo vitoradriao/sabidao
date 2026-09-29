@@ -201,6 +201,7 @@ JEV_STAGE_TIMEOUT_SECONDS = _env_float("JEV_STAGE_TIMEOUT_SECONDS", 8.0)
 JEV_MIN_REMAINING_SECONDS = _env_float("JEV_MIN_REMAINING_SECONDS", 20.0)
 JEV_RERANK_MAX_CANDIDATES = _env_int("JEV_RERANK_MAX_CANDIDATES", 20)
 JEV_MAX_STATE_ESTIMATED_TOKENS = _env_int("JEV_MAX_STATE_ESTIMATED_TOKENS", 24000)
+JEV_GROUNDING_MAX_CLAIMS = _env_int("JEV_GROUNDING_MAX_CLAIMS", 12)
 
 DB_POOL_MIN_SIZE = _env_int("DB_POOL_MIN_SIZE", 1)
 DB_POOL_MAX_SIZE = _env_int("DB_POOL_MAX_SIZE", 8)
@@ -588,6 +589,7 @@ def validate():
         raise EnvironmentError("RAG_RERANK_PROVIDER deve ser existing ou jev.")
     _check_range("JEV_RERANK_MAX_CANDIDATES", JEV_RERANK_MAX_CANDIDATES, min_val=2, max_val=40)
     _check_range("JEV_MAX_STATE_ESTIMATED_TOKENS", JEV_MAX_STATE_ESTIMATED_TOKENS, min_val=1, max_val=24000)
+    _check_range("JEV_GROUNDING_MAX_CLAIMS", JEV_GROUNDING_MAX_CLAIMS, min_val=1, max_val=30)
     if JEV_EVIDENCE_GATE_ENABLED:
         validate_evidence_gate_config()
     else:

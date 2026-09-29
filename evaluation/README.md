@@ -426,10 +426,27 @@ incompleta, mas termina com código 1 e marca `ingestion.complete` como falso.
 
 ### Identidade da política documental (#17)
 
-A entrega #17 usa `context-selection-v2` e registra a versão/hash de
+A entrega #17 introduziu `context-selection-v2` e registra a versão/hash de
 `documentary_evidence_policy` na identidade experimental. Documentos e regras
 retidas são dados separados da política de sistema. A variante C avalia o mesmo
 texto documental enviado à geração, sem incluir regras descartadas pelo envelope.
 `FULL_CONTEXT_ENABLED=true` é configuração inválida para todos os modos.
 Não compare resultados anteriores como identidade equivalente; delimitação e
 fixtures adversariais não medem resistência real a injeção nem suporte factual.
+
+### Identidade e completude da extração de claims (#94)
+
+Esta seção acompanha a entrega pendente da #94 e passa a valer após sua integração.
+O schema 9 registra `JEV_GROUNDING_MAX_CLAIMS`, versão/hash do prompt e modelo de
+geração configurado na identidade experimental. Cada chamada futura de extração
+será contabilizada como `claim_extraction` em `model_calls`, junto das demais
+chamadas de geração. O resultado por caso inclui `claim_extraction.status`,
+`complete` e contagens de cobertura quando o consumidor fornecer o resumo seguro
+no trace. Enquanto a #95 não acionar o extrator, o status é `not_run` e
+`complete` fica nulo. Cobertura de spans não equivale a suporte semântico; nenhuma
+métrica de qualidade operacional é aprovada por esse campo isolado.
+
+O envelope passa a `context-selection-v3`: seu `content_hash` identifica o
+chunk original e os `spans` identificam a parte enviada; o perfil pareado
+registra essa versão.
+Relatórios v2 e v3 têm identidades diferentes.
