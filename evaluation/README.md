@@ -265,16 +265,67 @@ O perfil registra essa diferença e o relatório deixa `gain_attribution` como
 sem um controle de janela equivalente.
 
 O modo efetivo do reranker Jev (`JEV_RERANK_MODE=pointwise|batch`) participa da
-identidade experimental. O código batch preserva o mesmo pool, consulta e texto
-integral, mas a comparação explícita entre os dois modos, a cobertura top-20 e
-top-40 e os diagnósticos de estabilidade por ordem/composição pertencem à issue
-#115. Até essa extensão, não combine relatórios produzidos com modos diferentes
-nem interprete os testes sintéticos de batching como evidência de qualidade.
+identidade experimental. A matriz JEV-11 compara os braços explícitos
+`jev_rerank_pointwise` e `jev_rerank_batch` com o mesmo pool, consulta
+reformulada, texto integral e cap de estado. Versões de prompt, agrupamento,
+estimador e composição ficam congeladas no perfil; como os prompts históricos
+são diferentes, o relatório mantém esse confundidor declarado e não atribui um
+eventual ganho somente ao batching.
 
 O resultado desta issue não aprova adoção, custo ou operação. Revisão humana,
 ensaio operacional, orçamento e decisão de adoção continuam nas issues #53,
 #93 e #96. A variante B deve registrar a aplicação efetiva do Jev e o hash opaco
 do `state` enviado; fallback para `existing` não conta como sucesso de Jev.
+
+### Matriz JEV-11: batching, gate e grounding D0/D1
+
+O bloco `comparison.jev_study` congela quatro experimentos relacionados, mas
+separados:
+
+- `existing` versus `existing+evidence_gate`, para medir o gate isoladamente;
+- `jev_rerank_pointwise` versus `jev_rerank_batch`, para a ablação de ranking;
+- `grounding_d0` versus `grounding_d1`, usando o mesmo pipeline-base escolhido
+  em desenvolvimento e permitindo diferenças apenas em extração, julgamento e
+  regeneração;
+- julgamento de uma resposta-base fixa contra o mesmo envelope exato, para
+  isolar erro do juiz sem chamar esse ensaio de shadow.
+
+Primeiro prepare a matriz sem acesso externo:
+
+```sh
+py -3.11 -B evaluation/run_offline_eval.py --jev-study --prepare-only \
+  --split development \
+  --baseline-config evaluation/baseline_config.json \
+  --dataset evaluation/datasets/jev_study_synthetic_fixture.json \
+  --output-report evaluation/reports/jev-study-prepare.json
+```
+
+`--prepare-only` registra zero chamadas e zero escritas. A ausência de
+`snapshot_id`, `TYPESAFE_API_KEY` ou política local aparece como bloqueio; não é
+sucesso parcial. `--dry-run` continua podendo consultar banco e modelos.
+
+`run_jev_study` recebe providers por braço e providers separados para o ensaio
+de resposta fixa. O relatório só fica `complete` quando as três comparações, a
+identidade da resposta/envelope fixos e a auditoria determinística de ordem
+estão completas. A auditoria aceita composições declaradas apenas no split
+`development`, é diagnóstica e nunca altera ensemble, política de produto ou
+holdout. A fixture
+`evaluation/datasets/jev_study_synthetic_fixture.json` cobre A/B/C, o gate
+isolado, pointwise/batch e D0/D1 sem rede.
+
+D0 e D1 congelam pipeline-base, gate, modelos, prompts comuns, corpus, feedback,
+strict e budgets. O trace seguro conserva decisões, probabilidades, conflito,
+inconclusivo, extração, rodadas inicial/final, regenerações e qualificação da
+resposta quando observados. IDs de claim, pergunta e chamada são opacos; textos,
+respostas, referências e revisão detalhada permanecem locais. Uma falha de
+infraestrutura ou deadline fica inconclusiva e nunca é contabilizada como
+melhora factual.
+
+Uma confirmação exige outro dataset independente, comparações pré-registradas e
+política congelada. O validador rejeita qualquer ID listado em
+`known_historical_dataset_ids`; o conjunto conhecido da #93 não pode ser
+renomeado e apresentado como confirmação nova. O perfil fornecido permanece em
+`development` e não contém limiares sintéticos de aprovação.
 
 ### Comparação B/C com política explícita
 
@@ -303,7 +354,7 @@ com limiares inventados. Após autorização dos dados e orçamento na #93, use 
 mesmo perfil com `--paired`, `--snapshot-id` e `--pair-id` para executar. A
 preparação não executa a comparação paga.
 
-O schema do avaliador passa a 8 e o da comparação a 2. `evidence_gate` agrega
+O schema atual do avaliador é 11 e o da comparação é 3. `evidence_gate` agrega
 contagens por status, decisão aplicada e motivo. O trace por caso conserva a
 política, a decisão e seu custo na etapa `evidence_gate`. Gate inconclusivo ou
 indisponível é fallback, não sucesso C; se o reranker falhar mas o gate atuar,
@@ -335,13 +386,14 @@ canônico e não depende da ordem de retorno dos registros. Estados `configured`
 | `factual_correctness` | Presença de todos os fatos obrigatórios predefinidos. |
 | `unsupported_claims` | Proxy de fatos proibidos e erros do validador de grounding. |
 | `recall_at_10` / `recall_at_20` | Fração das referências distintas encontrada até cada corte. |
+| `recall_at_40` / `evidence_coverage_at_20` / `evidence_coverage_at_40` | Diagnósticos de cobertura com denominador e motivo explícito de indisponibilidade. Não são nDCG. |
 | `evidence_discounted_coverage_at_10` | Cobertura descontada das referências até o corte 10; não é nDCG e permite várias referências no mesmo chunk. |
 | `ndcg_at_10` | nDCG convencional em um universo julgado explícito por `candidate_id`; é `null` com qrels ausentes, candidato não julgado ou IDCG zero. |
 | `citation_validity` | Citação de fonte de referência sem erro de grounding. |
 | `behavior_match` | Correspondência entre responder, esclarecer ou abster-se e o esperado. |
 | `false_abstention` / `false_absence_claim` | Abstenção indevida e alegação de ausência em pergunta respondível. |
 | `p50_latency_ms` / `p95_latency_ms` | Mediana e cauda de latência dos casos. |
-| `model_usage` | Todas as chamadas observadas, tokens, custo conhecido e completude do custo. |
+| `model_usage` | Chamadas físicas deduplicadas por `call_id`, tokens, custo conhecido/desconhecido, conclusão tardia e falhas de deadline. |
 
 `outcomes` separa respostas corretas, respostas sem suporte, abstenções corretas e
 indevidas, esclarecimentos necessários e desnecessários. Cada taxa traz contagem,
@@ -382,8 +434,8 @@ provider não expõe uso ou preço suficiente, o custo conhecido continua visív
 - O conjunto inicial é pequeno; os intervalos de confiança tornam a incerteza visível.
 - Correção factual usa frases aceitas e não reconhece toda paráfrase possível.
 - `unsupported_claims` não substitui revisão semântica humana.
-- Recall@20 fica limitado se o pipeline devolver menos de 20 candidatos; cada caso
-  registra `retrieved_depth` no detalhe da métrica.
+- Cobertura/recall nos cortes 20 e 40 ficam limitados se o pipeline devolver menos
+  candidatos; cada caso registra `retrieved_depth` no detalhe da métrica.
 - O baseline não usa LLM-as-judge. Se esse método for adotado, versão do juiz, prompt,
   ordem, viés de provider e concordância com revisão humana precisam ser medidos.
 - A revisão humana confirma as perguntas do conjunto inicial, mas não transforma o
@@ -443,7 +495,7 @@ fixtures adversariais não medem resistência real a injeção nem suporte factu
 
 ### Identidade de claims e grounding semântico (#94/#95)
 
-Esta seção acompanha o código da #95 e só vale após sua integração. O schema 10
+Esta seção acompanha o código integrado da #95. O schema 11
 registra `JEV_GROUNDING_MAX_CLAIMS`, `JEV_GROUNDING_MAX_REGENERATIONS`, a flag
 efetiva, versões/hashes dos prompts, política integral e modelo na identidade
 experimental. Chamadas de extração aparecem como `claim_extraction`; cada lote
@@ -452,8 +504,8 @@ dual-Noul aparece como `semantic_grounding`, com uso e custo próprios.
 O trace seguro registra extração, estados por claim, probabilidades de suporte e
 contradição, IDs de pergunta/chamada, hashes e fingerprint final. Não registra
 texto bruto. Cobertura de spans e fixtures não equivalem a suporte semântico nem
-aprovam qualidade operacional; a avaliação D0/D1 e a revisão real pertencem às
-#115/#96.
+aprovam qualidade operacional. A matriz D0/D1 da #115 mede o contrato; revisão
+humana, confirmação independente e decisão operacional continuam na #96.
 
 O envelope passa a `context-selection-v3`: seu `content_hash` identifica o
 chunk original e os `spans` identificam a parte enviada; o perfil pareado
