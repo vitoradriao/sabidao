@@ -289,9 +289,11 @@ Este contrato acompanha a entrega da #92. O padrão é
 para uma política JSON válida e a credencial TypeSafe. O gate é independente de
 `RAG_RERANK_PROVIDER`: desligá-lo preserva a escolha do reranker.
 
-A política contém `schema_version=1`, `model` igual a `JEV_MODEL`,
-`prompt_version=jev-evidence-gate-pt-v1`, `development_run_id` não vazio,
-`status` (`provisional` ou `frozen`) e `thresholds` com duas entradas:
+A política v1 do gate isolado contém `schema_version=1`, `model` igual a
+`JEV_MODEL`, `prompt_version=jev-evidence-gate-pt-v1`, `development_run_id` não
+vazio, `status` (`provisional` ou `frozen`) e `thresholds` com duas entradas.
+A política v2 move prompt e limiares para a seção `gate`. Em ambos os formatos,
+as decisões negativas são:
 `insufficient` e `clarification_needed`. Cada entrada exige `min_confidence`
 e `min_probability_margin`, números finitos entre 0 e 1. Não há valores
 semânticos padrão. Defina-os no development da #93; os valores sintéticos dos
@@ -334,13 +336,13 @@ Rollback: `JEV_EVIDENCE_GATE_ENABLED=false`. Não exige migração ou reindexaç
 A entrega é de implementação com fixtures; calibração, ensaio real, revisão
 humana e adoção permanecem na #93.
 
-## Extração de afirmações para grounding (issue #94)
+## Grounding semântico ativo (issues #94 e #95)
 
-Esta seção acompanha a entrega pendente da #94 e passa a valer após sua integração.
-O módulo `grounding.py` e o helper `_extract_answer_claims` preparam o contrato
-para a verificação semântica da #95. Ainda não são chamados por `rag.ask`, não
-alteram respostas e não fazem chamadas pagas no fluxo normal. A #95 decidirá
-quando acioná-los e como tratar um resultado incompleto ou indisponível.
+Esta seção acompanha o código da #95 e só descreve comportamento disponível após
+a integração desta entrega. O padrão permanece
+`JEV_SEMANTIC_GROUNDING_ENABLED=false`: com a flag desligada, `rag.ask` não
+executa extração nem decisões adicionais. A ativação é independente do gate e do
+reranker, exige credencial TypeSafe e uma política Jev v2 compatível.
 
 `JEV_GROUNDING_MAX_CLAIMS=12` limita a saída estruturada a 1–30 afirmações. Se
 o modelo retornar mais do que o limite, a extração fica `incomplete`; nenhuma
@@ -355,14 +357,53 @@ fontes têm o mesmo nome. Uma citação literal pode coincidir com o texto envia
 sem que a afirmação esteja semanticamente sustentada. O resumo seguro da
 extração guarda contagens, status, hashes e modelo; o texto das afirmações não
 deve entrar em `ASK_TRACE`. A cobertura determinística sinaliza omissões e
-trechos técnicos rotulados como não factuais, mas não comprova atomicidade nem
-substitui revisão humana (#96).
+trechos técnicos rotulados como não factuais. Resultado incompleto, indisponível
+ou inválido impede aprovação e leva à abstenção; ainda assim, essa cobertura não
+comprova atomicidade nem substitui revisão humana (#96).
 
 O envelope `context-selection-v3` calcula `content_hash` sobre o conteúdo
 original do chunk e usa `spans` para indicar a parte enviada, sem reutilizar o
 hash do documento inteiro que pode estar em `metadata.content_hash`. O perfil
 de comparação foi versionado para impedir
 equivalência silenciosa com relatórios produzidos pelo envelope v2.
+
+Para cada claim factual ou instrucional, o consumidor envia duas perguntas Noul
+independentes sobre o envelope integral: suporte completo e evidência
+contraditória nas mesmas condições. As probabilidades não são complementares e
+Noul não fornece um campo de confiança. A política define `low` e `high`
+separadamente para `support` e `contradiction`, sempre com
+`0 <= low < high <= 1`. Valores intermediários produzem `inconclusive`.
+
+- suporte alto e contradição baixa: `supported`;
+- suporte baixo e contradição alta: `contradicted`;
+- ambos baixos: `unsupported`;
+- ambos altos: `conflicting_evidence`.
+
+Qualquer estado negativo rejeita a rodada; sem negativos, uma incerteza torna a
+rodada inconclusiva; somente todas as claims obrigatórias suportadas aprovam. As
+claims podem ser divididas entre requisições para respeitar
+`JEV_MAX_STATE_ESTIMATED_TOKENS`, mas cada requisição recebe o envelope inteiro,
+sem truncamento de evidência. Falha de um lote impede aprovação do conjunto.
+
+A política v2 mantém `model`, `development_run_id` e `status` no nível raiz e
+possui seções independentes `gate` e `grounding`. Somente as seções dos recursos
+habilitados são obrigatórias. A seção `grounding` exige
+`prompt_version=jev-grounding-dual-noul-pt-v1` e os quatro limiares. Uma política
+v1 continua válida para o gate isolado, mas nunca ativa grounding. Políticas
+`provisional` continuam restritas ao development explicitamente identificado.
+
+`JEV_GROUNDING_MAX_REGENERATIONS=1` aceita apenas `0` ou `1` e também é limitado
+por `RAG_MAX_REGEN_ATTEMPTS`. O teto é compartilhado com a correção sintática:
+se ela já consumiu a tentativa, uma rejeição semântica abstém. Quando disponível,
+uma única regeneração usa o mesmo envelope e as claims reprovadas; em seguida a
+resposta inteira passa novamente por validação sintática, extração e julgamento.
+Falha posterior nunca libera a resposta original.
+
+O trace `semantic_grounding` registra estados, probabilidades, IDs opacos,
+hashes, custo por chamada e contagens, sem texto de resposta, claim ou evidência.
+Desligar somente `JEV_SEMANTIC_GROUNDING_ENABLED` realiza o rollback sem migração,
+reindexação ou alteração do gate. Testes sintéticos validam o mecanismo; qualidade
+real, omissões e calibração permanecem na #96.
 
 ## Compatibilidade com nomes antigos
 

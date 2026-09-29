@@ -441,17 +441,19 @@ texto documental enviado à geração, sem incluir regras descartadas pelo envel
 Não compare resultados anteriores como identidade equivalente; delimitação e
 fixtures adversariais não medem resistência real a injeção nem suporte factual.
 
-### Identidade e completude da extração de claims (#94)
+### Identidade de claims e grounding semântico (#94/#95)
 
-Esta seção acompanha a entrega pendente da #94 e passa a valer após sua integração.
-O schema 9 registra `JEV_GROUNDING_MAX_CLAIMS`, versão/hash do prompt e modelo de
-geração configurado na identidade experimental. Cada chamada futura de extração
-será contabilizada como `claim_extraction` em `model_calls`, junto das demais
-chamadas de geração. O resultado por caso inclui `claim_extraction.status`,
-`complete` e contagens de cobertura quando o consumidor fornecer o resumo seguro
-no trace. Enquanto a #95 não acionar o extrator, o status é `not_run` e
-`complete` fica nulo. Cobertura de spans não equivale a suporte semântico; nenhuma
-métrica de qualidade operacional é aprovada por esse campo isolado.
+Esta seção acompanha o código da #95 e só vale após sua integração. O schema 10
+registra `JEV_GROUNDING_MAX_CLAIMS`, `JEV_GROUNDING_MAX_REGENERATIONS`, a flag
+efetiva, versões/hashes dos prompts, política integral e modelo na identidade
+experimental. Chamadas de extração aparecem como `claim_extraction`; cada lote
+dual-Noul aparece como `semantic_grounding`, com uso e custo próprios.
+
+O trace seguro registra extração, estados por claim, probabilidades de suporte e
+contradição, IDs de pergunta/chamada, hashes e fingerprint final. Não registra
+texto bruto. Cobertura de spans e fixtures não equivalem a suporte semântico nem
+aprovam qualidade operacional; a avaliação D0/D1 e a revisão real pertencem às
+#115/#96.
 
 O envelope passa a `context-selection-v3`: seu `content_hash` identifica o
 chunk original e os `spans` identificam a parte enviada; o perfil pareado

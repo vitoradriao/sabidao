@@ -1330,6 +1330,18 @@ def _extract_answer_claims(
             answer, fingerprint, model, "unavailable", "extraction_prompt_budget_exceeded",
         )
 
+    deadline = _request_deadline.get()
+    if deadline is not None:
+        remaining = deadline - _time.monotonic()
+        if remaining <= 0:
+            return grounding.empty_claim_set(
+                answer, fingerprint, model, "unavailable", "deadline_exceeded",
+            )
+        if remaining <= config.JEV_MIN_REMAINING_SECONDS:
+            return grounding.empty_claim_set(
+                answer, fingerprint, model, "unavailable", "deadline_reserve",
+            )
+
     try:
         _ensure_request_active("claim_extraction")
         response = _gemini_generate(
@@ -4565,6 +4577,8 @@ def _apply_grounding_regeneration(
     source_display_map: dict[str, str] | None = None,
     request_id: str | None = None,
     model_calls: list[dict[str, Any]] | None = None,
+    max_regen_attempts: int | None = None,
+    min_remaining_seconds: float = 0.0,
 ) -> tuple[str, list[str], set[str], int]:
     if _is_provider_error_response(answer):
         return str(answer).strip(), [], set(), 0
@@ -4603,12 +4617,22 @@ def _apply_grounding_regeneration(
         )
         return normalized_answer, errors, cited_sources, 0
 
-    max_regen_attempts = max(0, int(config.RAG_MAX_REGEN_ATTEMPTS))
+    max_regen_attempts = max(
+        0,
+        int(config.RAG_MAX_REGEN_ATTEMPTS if max_regen_attempts is None else max_regen_attempts),
+    )
     regeneration_attempts = 0
     revised_answer = (answer or "").strip()
     revised_errors = errors
     revised_citations = cited_sources
     for _ in range(max_regen_attempts):
+        deadline = _request_deadline.get()
+        if deadline is not None:
+            remaining = deadline - _time.monotonic()
+            if remaining <= 0:
+                _ensure_request_active("regeneration")
+            if remaining <= min_remaining_seconds:
+                break
         _ensure_request_active("regeneration")
         regeneration_attempts += 1
         revision_prompt = (
@@ -4731,6 +4755,306 @@ def _evaluate_evidence_gate(
     return summary
 
 
+def _semantic_grounding_round(
+    *,
+    question: str,
+    answer: str,
+    selection: ContextSelection,
+    policy: dict,
+    grounding_policy: dict,
+    request_id: str,
+    model_calls: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Julga todas as claims contra o envelope integral; qualquer falha fecha."""
+    policy_version = evidence_gate.fingerprint(policy)
+    summary = grounding.empty_grounding_result(
+        "not_evaluated", policy_version=policy_version,
+    )
+    claim_set = _extract_answer_claims(
+        question=question,
+        answer=answer,
+        selection=selection,
+        request_id=request_id,
+        model_calls=model_calls,
+    )
+    summary["extraction"] = grounding.claim_set_trace(claim_set)
+    summary["answer_fingerprint"] = hashlib.sha256(answer.encode("utf-8")).hexdigest()
+    summary["evidence_fingerprint"] = claim_set.get("evidence_fingerprint")
+    if claim_set.get("reason") == "deadline_exceeded":
+        _ensure_request_active("semantic_grounding_extraction_result")
+    if claim_set["status"] != "complete":
+        summary.update(status="inconclusive", reason=f"extraction_{claim_set['status']}")
+        return summary
+
+    claims = [
+        claim for claim in claim_set["claims"]
+        if claim["kind"] in {"factual", "instruction"}
+    ]
+    summary["_claims"] = claims
+    if not claims:
+        summary.update(status="supported", reason=None)
+        return summary
+
+    try:
+        evidence_index, fingerprint = grounding.build_evidence_index(
+            selection.evidence, selection.retained_chunks, selection.rendered_text,
+        )
+    except ValueError as exc:
+        summary.update(status="inconclusive", reason=str(exc))
+        return summary
+    if fingerprint != claim_set["evidence_fingerprint"]:
+        summary.update(status="inconclusive", reason="evidence_fingerprint_changed")
+        return summary
+
+    evidence = [
+        {
+            "id": evidence_id,
+            "source": entry["source"],
+            "content_hash": entry["ref"]["content_hash"],
+            "section_key": entry["ref"]["section_key"],
+        }
+        for evidence_id, entry in evidence_index.items()
+    ]
+
+    def payload(batch: list[dict[str, Any]]) -> tuple[dict, dict, dict]:
+        state = {
+            "question": question,
+            "answer": answer,
+            "claims": [{"id": claim["id"], "text": claim["text"]} for claim in batch],
+            "evidence_context": selection.rendered_text,
+            "evidence_index": evidence,
+        }
+        questions, mapping = grounding.judgment_questions(batch)
+        return state, questions, mapping
+
+    batches: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    for claim in claims:
+        proposed = [*current, claim]
+        state, questions, _mapping = payload(proposed)
+        estimate, _ = _count_context_text(
+            json.dumps(state, ensure_ascii=False) + json.dumps(questions, ensure_ascii=False),
+            provider="typesafe",
+            model=config.JEV_MODEL,
+        )
+        if estimate <= config.JEV_MAX_STATE_ESTIMATED_TOKENS:
+            current = proposed
+            continue
+        if not current:
+            summary.update(status="inconclusive", reason="state_limit")
+            return summary
+        batches.append(current)
+        current = [claim]
+        state, questions, _mapping = payload(current)
+        estimate, _ = _count_context_text(
+            json.dumps(state, ensure_ascii=False) + json.dumps(questions, ensure_ascii=False),
+            provider="typesafe",
+            model=config.JEV_MODEL,
+        )
+        if estimate > config.JEV_MAX_STATE_ESTIMATED_TOKENS:
+            summary.update(status="inconclusive", reason="state_limit")
+            return summary
+    if current:
+        batches.append(current)
+
+    started_at = _time.monotonic()
+    costs: list[float] = []
+    cost_complete = True
+    claim_support: list[dict[str, Any]] = []
+    client = jev.TypeSafeClient()
+    try:
+        for batch_index, batch in enumerate(batches, start=1):
+            _ensure_request_active("semantic_grounding")
+            now = _time.monotonic()
+            deadline = _request_deadline.get()
+            if deadline is not None and deadline - now <= config.JEV_MIN_REMAINING_SECONDS:
+                summary.update(status="inconclusive", reason="deadline_reserve")
+                break
+            remaining = config.JEV_STAGE_TIMEOUT_SECONDS - (now - started_at)
+            if remaining <= 0:
+                summary.update(status="inconclusive", reason="stage_budget_exhausted")
+                break
+            state, questions, mapping = payload(batch)
+            state_sha256 = evidence_gate.fingerprint(state)
+            result = client.decide(
+                state,
+                questions,
+                stage="semantic_grounding",
+                request_id=request_id,
+                deadline=deadline,
+                stage_budget_seconds=remaining,
+            )
+            _ensure_request_active("semantic_grounding_result")
+            _record_jev_decision(
+                model_calls,
+                result=result,
+                stage="semantic_grounding",
+                metadata={"batch_index": batch_index, "state_sha256": state_sha256},
+            )
+            if result.estimated_cost_usd is None:
+                cost_complete = False
+            else:
+                costs.append(result.estimated_cost_usd)
+            if (
+                not result.ok
+                or result.model_requested != config.JEV_MODEL
+                or result.model_effective != config.JEV_MODEL
+            ):
+                summary.update(
+                    status="inconclusive",
+                    reason=result.status if not result.ok else "model_mismatch",
+                )
+                break
+            for claim in batch:
+                question_ids = mapping[claim["id"]]
+                support = result.answers[question_ids["support"]]["noul"]
+                contradiction = result.answers[question_ids["contradiction"]]["noul"]
+                status = grounding.classify_claim(
+                    support, contradiction, grounding_policy,
+                )
+                claim_support.append({
+                    "claim_id": claim["id"],
+                    "status": status,
+                    "support_probability": support,
+                    "contradiction_probability": contradiction,
+                    "evidence_ids": list(evidence_index),
+                    "reason": (
+                        None if status == "supported" else
+                        "intermediate_probability" if status == "inconclusive" else status
+                    ),
+                    "policy_version": policy_version,
+                    "question_ids": [question_ids["support"], question_ids["contradiction"]],
+                    "call_id": result.call_id,
+                    "state_sha256": state_sha256,
+                })
+        else:
+            summary.update(status=grounding.aggregate_status(claim_support), reason=None)
+    finally:
+        client.close()
+
+    summary["claim_support"] = claim_support
+    summary["counts"] = {
+        status: sum(item["status"] == status for item in claim_support)
+        for status in summary["counts"]
+    }
+    summary["estimated_cost_usd"] = round(sum(costs), 12)
+    summary["cost_complete"] = cost_complete and len(claim_support) == len(claims)
+    return summary
+
+
+def _apply_semantic_grounding(
+    *,
+    answer: str,
+    question: str,
+    system: str,
+    selection: ContextSelection,
+    allowed_sources: set[str],
+    source_display_map: dict[str, str] | None,
+    request_id: str,
+    model_calls: list[dict[str, Any]],
+    policy: dict,
+    grounding_policy: dict,
+    regeneration_attempts: int,
+) -> tuple[str, list[str], set[str], int, dict[str, Any]]:
+    result = _semantic_grounding_round(
+        question=question, answer=answer, selection=selection,
+        policy=policy, grounding_policy=grounding_policy,
+        request_id=request_id, model_calls=model_calls,
+    )
+    result["regenerations"] = regeneration_attempts
+    result["rounds"] = [grounding.round_trace(result)]
+    if result["status"] == "supported":
+        normalized, cited = _enforce_sources_section_only(
+            answer, allowed_sources=allowed_sources, source_display_map=source_display_map,
+        )
+        return normalized, [], cited, regeneration_attempts, result
+
+    remaining = min(
+        int(config.JEV_GROUNDING_MAX_REGENERATIONS),
+        int(config.RAG_MAX_REGEN_ATTEMPTS),
+    ) - regeneration_attempts
+    if result["status"] != "rejected" or remaining <= 0:
+        return (
+            _build_abstain_response(question),
+            [f"semantic_grounding_{result['status']}"],
+            set(), regeneration_attempts, result,
+        )
+
+    failed = [
+        claim for claim in result.get("_claims", [])
+        if next(
+            (item["status"] for item in result["claim_support"] if item["claim_id"] == claim["id"]),
+            "inconclusive",
+        ) != "supported"
+    ]
+    correction = json.dumps(
+        [{"id": claim["id"], "text": claim["text"]} for claim in failed],
+        ensure_ascii=False,
+    )
+    deadline = _request_deadline.get()
+    if deadline is not None and deadline - _time.monotonic() <= config.JEV_MIN_REMAINING_SECONDS:
+        result.update(status="inconclusive", reason="deadline_reserve")
+        return _build_abstain_response(question), ["semantic_grounding_inconclusive"], set(), regeneration_attempts, result
+    _ensure_request_active("regeneration")
+    revised = _ask_model(
+        question=(
+            f"{question}\n\nA resposta anterior contém claims sem suporte integral ou em conflito: "
+            f"{correction}. Reescreva uma única resposta usando somente o contexto original. "
+            "Quando fontes divergirem sem condição documentada que resolva, atribua cada "
+            "orientação à fonte e declare que não há base para escolher. Não invente versões, "
+            "datas ou condições. Preserve a seção final Fontes."
+        ),
+        system=system,
+        evidence_context=selection.rendered_text,
+        conversation_history=None,
+        images=None,
+        max_tokens_override=1024,
+        request_id=request_id,
+        stage="regeneration",
+        model_calls=model_calls,
+    )
+    regeneration_attempts += 1
+    if _is_provider_error_response(revised):
+        result.update(status="inconclusive", reason="regeneration_provider_error")
+        result["regenerations"] = regeneration_attempts
+        return _build_abstain_response(question), ["semantic_grounding_inconclusive"], set(), regeneration_attempts, result
+
+    revised, syntax_errors, cited, _unused = _apply_grounding_regeneration(
+        answer=revised,
+        question=question,
+        system=system,
+        evidence_context=selection.rendered_text,
+        conversation_history=None,
+        images=None,
+        allowed_sources=allowed_sources,
+        source_display_map=source_display_map,
+        request_id=request_id,
+        model_calls=model_calls,
+        max_regen_attempts=0,
+        min_remaining_seconds=config.JEV_MIN_REMAINING_SECONDS,
+    )
+    if _is_provider_error_response(revised) or revised.startswith(config.NO_ANSWER_PHRASE):
+        result.update(status="inconclusive", reason="regeneration_validation_failed")
+        result["regenerations"] = regeneration_attempts
+        return _build_abstain_response(question), syntax_errors or ["semantic_grounding_inconclusive"], set(), regeneration_attempts, result
+
+    final = _semantic_grounding_round(
+        question=question, answer=revised, selection=selection,
+        policy=policy, grounding_policy=grounding_policy,
+        request_id=request_id, model_calls=model_calls,
+    )
+    final["regenerations"] = regeneration_attempts
+    final["rounds"] = [grounding.round_trace(result), grounding.round_trace(final)]
+    final["estimated_cost_usd"] = round(
+        float(result["estimated_cost_usd"]) + float(final["estimated_cost_usd"]),
+        12,
+    )
+    final["cost_complete"] = bool(result["cost_complete"] and final["cost_complete"])
+    if final["status"] != "supported":
+        return _build_abstain_response(question), [f"semantic_grounding_{final['status']}"], set(), regeneration_attempts, final
+    return revised, [], cited, regeneration_attempts, final
+
+
 def ask(
     question: str,
     conversation_history: list[dict] = None,
@@ -4775,12 +5099,22 @@ def _ask_impl(
     config.validate_response_mode()
     t0 = _time.monotonic()
     gate_policy = None
+    semantic_policy = None
+    semantic_grounding_policy = None
     if config.JEV_EVIDENCE_GATE_ENABLED:
         development_run_id = (
             (scope or {}).get("_evidence_gate_development_run_id")
             if platform == "offline_eval" else None
         )
         gate_policy = config.validate_evidence_gate_config(development_run_id=development_run_id)
+    if config.JEV_SEMANTIC_GROUNDING_ENABLED:
+        development_run_id = (
+            (scope or {}).get("_semantic_grounding_development_run_id")
+            if platform == "offline_eval" else None
+        )
+        semantic_policy, semantic_grounding_policy = config.validate_semantic_grounding_config(
+            development_run_id=development_run_id,
+        )
     query_id = _new_query_id()
     external_calls = _request_external_calls.get()
     trace: dict[str, Any] = {
@@ -4830,6 +5164,12 @@ def _ask_impl(
         "model_calls": [],
         "evidence_gate": evidence_gate.empty_result(
             "stage_not_reached" if gate_policy else "disabled", policy=gate_policy,
+        ),
+        "semantic_grounding": grounding.empty_grounding_result(
+            "stage_not_reached" if semantic_policy else "disabled",
+            policy_version=(
+                evidence_gate.fingerprint(semantic_policy) if semantic_policy else None
+            ),
         ),
         "external_calls": external_calls if external_calls is not None else [],
     }
@@ -5279,7 +5619,42 @@ def _ask_impl(
             source_display_map=source_display_map,
             request_id=query_id,
             model_calls=trace["model_calls"],
+            max_regen_attempts=(
+                min(
+                    int(config.RAG_MAX_REGEN_ATTEMPTS),
+                    int(config.JEV_GROUNDING_MAX_REGENERATIONS),
+                )
+                if semantic_policy is not None else None
+            ),
+            min_remaining_seconds=(
+                config.JEV_MIN_REMAINING_SECONDS if semantic_policy is not None else 0.0
+            ),
         )
+        if (
+            semantic_policy is not None
+            and semantic_grounding_policy is not None
+            and not _is_provider_error_response(answer)
+            and not answer.startswith(config.NO_ANSWER_PHRASE)
+        ):
+            answer, semantic_errors, cited_sources, regen_attempts, semantic_result = (
+                _apply_semantic_grounding(
+                    answer=answer,
+                    question=question,
+                    system=system,
+                    selection=selection,
+                    allowed_sources=allowed_sources,
+                    source_display_map=source_display_map,
+                    request_id=query_id,
+                    model_calls=trace["model_calls"],
+                    policy=semantic_policy,
+                    grounding_policy=semantic_grounding_policy,
+                    regeneration_attempts=regen_attempts,
+                )
+            )
+            grounding_errors = [*grounding_errors, *semantic_errors]
+            trace["semantic_grounding"] = grounding.result_trace(semantic_result)
+        elif semantic_policy is not None:
+            trace["semantic_grounding"]["reason"] = "response_not_eligible"
         _mark_stage("grounding", stage_started_at)
     except ContextBudgetError as exc:
         trace["context_budget"] = exc.details
@@ -5329,7 +5704,10 @@ def _ask_impl(
             trace,
             "answered",
             citation_syntax="valid" if config.RAG_ENABLE_GROUNDING_VALIDATION else "not_evaluated",
-            semantic_support="not_verified",
+            semantic_support=(
+                "supported" if trace["semantic_grounding"]["status"] == "supported"
+                else "not_verified"
+            ),
         )
 
     trace["latency_ms"] = int((_time.monotonic() - t0) * 1000)

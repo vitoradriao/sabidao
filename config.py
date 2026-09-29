@@ -194,6 +194,7 @@ EMBEDDING_DIMENSIONS = _env_int("EMBEDDING_DIMENSIONS", 1536)
 TYPESAFE_API_KEY = _env_setting("TYPESAFE_API_KEY")
 JEV_MODEL = _env_setting("JEV_MODEL", "jev-1.13.0")
 JEV_EVIDENCE_GATE_ENABLED = _env_bool("JEV_EVIDENCE_GATE_ENABLED", False)
+JEV_SEMANTIC_GROUNDING_ENABLED = _env_bool("JEV_SEMANTIC_GROUNDING_ENABLED", False)
 JEV_POLICY_FILE = _env_setting("JEV_POLICY_FILE", "")
 JEV_MAX_CONCURRENCY = _env_int("JEV_MAX_CONCURRENCY", 4)
 JEV_REQUEST_TIMEOUT_SECONDS = _env_float("JEV_REQUEST_TIMEOUT_SECONDS", 2.0)
@@ -203,6 +204,7 @@ JEV_RERANK_MAX_CANDIDATES = _env_int("JEV_RERANK_MAX_CANDIDATES", 20)
 JEV_RERANK_MODE = _env_setting("JEV_RERANK_MODE", "pointwise").lower()
 JEV_MAX_STATE_ESTIMATED_TOKENS = _env_int("JEV_MAX_STATE_ESTIMATED_TOKENS", 24000)
 JEV_GROUNDING_MAX_CLAIMS = _env_int("JEV_GROUNDING_MAX_CLAIMS", 12)
+JEV_GROUNDING_MAX_REGENERATIONS = _env_int("JEV_GROUNDING_MAX_REGENERATIONS", 1)
 
 DB_POOL_MIN_SIZE = _env_int("DB_POOL_MIN_SIZE", 1)
 DB_POOL_MAX_SIZE = _env_int("DB_POOL_MAX_SIZE", 8)
@@ -457,6 +459,18 @@ def validate_evidence_gate_config(*, development_run_id: str | None = None) -> d
     return load_policy(JEV_POLICY_FILE, model=JEV_MODEL, development_run_id=development_run_id)
 
 
+def validate_semantic_grounding_config(*, development_run_id: str | None = None) -> tuple[dict, dict]:
+    from evidence_gate import load_policy_file
+    from grounding import load_grounding_policy
+
+    validate_response_mode()
+    validate_jev_config(active=True)
+    policy = load_policy_file(
+        JEV_POLICY_FILE, model=JEV_MODEL, development_run_id=development_run_id,
+    )
+    return policy, load_grounding_policy(policy)
+
+
 def validate_jev_config(*, active: bool = False) -> None:
     """Valida Jev somente quando um consumidor realmente o habilita."""
     if JEV_RERANK_MODE not in {"pointwise", "batch"}:
@@ -593,9 +607,17 @@ def validate():
     _check_range("JEV_RERANK_MAX_CANDIDATES", JEV_RERANK_MAX_CANDIDATES, min_val=2, max_val=40)
     _check_range("JEV_MAX_STATE_ESTIMATED_TOKENS", JEV_MAX_STATE_ESTIMATED_TOKENS, min_val=1, max_val=24000)
     _check_range("JEV_GROUNDING_MAX_CLAIMS", JEV_GROUNDING_MAX_CLAIMS, min_val=1, max_val=30)
+    _check_range(
+        "JEV_GROUNDING_MAX_REGENERATIONS",
+        JEV_GROUNDING_MAX_REGENERATIONS,
+        min_val=0,
+        max_val=1,
+    )
     if JEV_EVIDENCE_GATE_ENABLED:
         validate_evidence_gate_config()
-    else:
+    if JEV_SEMANTIC_GROUNDING_ENABLED:
+        validate_semantic_grounding_config()
+    if not JEV_EVIDENCE_GATE_ENABLED and not JEV_SEMANTIC_GROUNDING_ENABLED:
         validate_jev_config(active=RAG_ENABLE_RERANKING and RAG_RERANK_PROVIDER == "jev")
     _check_range("RERANKER_MIN_TRIGGER_SIM", RERANKER_MIN_TRIGGER_SIM, min_val=0.0, max_val=1.0)
     _check_range("RERANKER_MAX_TRIGGER_SIM", RERANKER_MAX_TRIGGER_SIM, min_val=0.0, max_val=1.0)
