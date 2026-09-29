@@ -232,23 +232,32 @@ instalação:
 RAG_ENABLE_RERANKING=true
 RAG_RERANK_PROVIDER=jev
 JEV_MODEL=jev-1.13.0
+JEV_RERANK_MODE=batch
 ```
 
 | Variável | Default | Finalidade |
 | --- | ---: | --- |
 | `RAG_RERANK_PROVIDER` | `existing` | Seleciona `existing` ou `jev`; qualquer outro valor é inválido. |
 | `JEV_RERANK_MAX_CANDIDATES` | `20` | Limita a avaliação aos primeiros candidatos recuperados; aceita `2` a `40`. |
+| `JEV_RERANK_MODE` | `pointwise` | Seleciona `pointwise` para a ablação histórica ou `batch` para agrupar candidatos consecutivos. O `.env.example` usa `batch`, mas o provider geral continua `existing`. |
 | `JEV_MAX_STATE_ESTIMATED_TOKENS` | `24000` | Teto conservador para o `state` e a pergunta enviados em cada decisão; aceita `1` a `24000`. |
 
 Jev classifica a relevância de cada candidato selecionado com uma pergunta
-Noul. A pontuação apenas reordena: nenhum candidato é removido por limiar, e
-os que excedem o limite de quantidade permanecem na cauda original. O
-conteúdo selecionado é enviado por inteiro; se exceder o orçamento estimado,
-a etapa Jev é descartada sem truncamento silencioso. O limite usa um
-estimador local e não garante a contagem exata do provider.
-Os candidatos reordenados recebem `jev.state_sha256`, hash do `state`
-efetivamente enviado, para referência pelo avaliador. O hash não inclui a
-posição de recuperação e não expõe o conteúdo no `ASK_TRACE`.
+Noul. Em `batch`, um mesmo `state` contém a pergunta e um grupo consecutivo de
+candidatos; cada Noul referencia explicitamente o candidato correspondente nas
+instruções. O agrupador determinístico adiciona candidatos enquanto o `state`
+e todas as perguntas couberem no teto local. Em `pointwise`, cada candidato
+continua gerando uma requisição independente para permitir a ablação.
+
+A pontuação apenas reordena: nenhum candidato é removido por limiar, e os que
+excedem o limite de quantidade permanecem na cauda original. O conteúdo é
+enviado por inteiro. Se um candidato isolado exceder o orçamento estimado, a
+etapa Jev inteira é descartada sem truncamento silencioso. O limite usa um
+estimador local versionado e não garante a contagem exata do provider.
+Os candidatos reordenados recebem `jev.state_sha256` e `jev.call_id`, que
+identificam o `state` e a requisição efetivamente usados. `ASK_TRACE` associa
+`call_id`, IDs opacos de candidatos e perguntas, hash, composição do lote,
+versões do prompt, agrupador e estimador, sem persistir pergunta ou documentos.
 
 Uma ordem Jev só é aplicada se todas as decisões selecionadas forem válidas.
 Em falha, o fluxo tenta o reranker `existing` apenas quando a condição
@@ -256,7 +265,9 @@ original dele e a reserva do prazo ainda permitem; caso contrário conserva
 a ordem recuperada. `ASK_TRACE` registra provider solicitado e efetivo,
 aplicação, contagens, motivo de fallback, versão do prompt, latência e custo
 conhecido, sem copiar pergunta, conteúdo, credencial ou resposta bruta.
-Cada candidato gera uma chamada distinta com `attempt=1`; não é retry.
+Cada lote gera uma chamada distinta com `attempt=1`; não é retry. Custo e
+`usage` são contabilizados uma vez por requisição, ainda que ela contenha
+várias perguntas.
 Se a busca global de fallback for acionada depois do primeiro contexto, o
 pipeline pode executar uma segunda passagem de reranking sobre os candidatos
 combinados; o limite de candidatos vale para cada passagem. O custo total e
@@ -265,8 +276,11 @@ os dois registros ficam associados à mesma pergunta.
 Para voltar ao comportamento anterior, configure
 `RAG_RERANK_PROVIDER=existing` ou desabilite `RAG_ENABLE_RERANKING`. O
 rollback não exige migração, reindexação nem recálculo de embeddings. A
-comparação operacional ativa depende do runner da issue #90 e da rodada da
-issue #93; os testes sintéticos desta entrega não demonstram ganho real.
+comparação operacional ativa depende das extensões do avaliador na issue
+#115 e da rodada da issue #93; os testes sintéticos desta entrega não
+demonstram ganho real. A identidade experimental já registra
+`JEV_RERANK_MODE`, impedindo que resultados pointwise e batch sejam tratados
+como a mesma configuração.
 
 ## Gate de suficiência Jev (issue #92)
 
@@ -396,6 +410,7 @@ intencionalmente alguns deles:
 | `CONTEXTUAL_RETRIEVAL_ENABLED` | false | false | manter o contexto determinístico escolhido no benchmark da issue #16 |
 | `CONTEXTUAL_RETRIEVAL_MAX_TOKENS` | 150 | 250 | enriquecer chunks com mais contexto no perfil atual |
 | `CONTEXTUAL_RETRIEVAL_BATCH_SIZE` | 50 | 20 | reduzir a pressão por lote sobre o provider |
+| `JEV_RERANK_MODE` | pointwise | batch | preparar o caminho agrupado sem ativá-lo enquanto `RAG_RERANK_PROVIDER=existing` |
 
 Para conferir a configuração sem expor credenciais, use `!status`: o resumo
 mostra providers e modelos ativos, mas não mostra chaves.

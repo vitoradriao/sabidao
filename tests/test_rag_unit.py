@@ -648,6 +648,7 @@ class TestRerankPolicy(unittest.TestCase):
                 return SimpleNamespace(
                     ok=True, status="ok", model_requested="jev-1.13.0",
                     model_effective="jev-1.13.0", estimated_cost_usd=0.0001,
+                    call_id=f"call-{next(self.call_ids)}",
                     answers={"relevance": {"noul": next(self.scores)}},
                 )
 
@@ -655,6 +656,7 @@ class TestRerankPolicy(unittest.TestCase):
                 pass
 
         trace = {}
+        FakeClient.call_ids = iter(("a", "b"))
         with patch.multiple(
             config, RAG_ENABLE_RERANKING=True, RAG_RERANK_PROVIDER="jev",
             JEV_RERANK_MAX_CANDIDATES=2,

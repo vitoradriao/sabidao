@@ -264,6 +264,13 @@ O perfil registra essa diferença e o relatório deixa `gain_attribution` como
 `unavailable`; um eventual ganho de B não pode ser atribuído apenas ao modelo
 sem um controle de janela equivalente.
 
+O modo efetivo do reranker Jev (`JEV_RERANK_MODE=pointwise|batch`) participa da
+identidade experimental. O código batch preserva o mesmo pool, consulta e texto
+integral, mas a comparação explícita entre os dois modos, a cobertura top-20 e
+top-40 e os diagnósticos de estabilidade por ordem/composição pertencem à issue
+#115. Até essa extensão, não combine relatórios produzidos com modos diferentes
+nem interprete os testes sintéticos de batching como evidência de qualidade.
+
 O resultado desta issue não aprova adoção, custo ou operação. Revisão humana,
 ensaio operacional, orçamento e decisão de adoção continuam nas issues #53,
 #93 e #96. A variante B deve registrar a aplicação efetiva do Jev e o hash opaco

@@ -785,11 +785,12 @@ def _record_jev_decision(
     *,
     result: jev.DecisionResult,
     stage: str,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     """Registra Jev sem tratar candidatos como novas tentativas."""
     if model_calls is None:
         return
-    model_calls.append(result.to_trace(stage=stage))
+    model_calls.append({**result.to_trace(stage=stage), **(metadata or {})})
 
 
 def _summarize_model_calls(model_calls: list[dict[str, Any]]) -> dict[str, Any]:
@@ -3810,7 +3811,9 @@ def _reformulate_query_with_history(
 
 # -- Re-ranking com LLM (P1.1) -------------------------------------------------
 JEV_RERANK_PROMPT_VERSION = "jev-rerank-pt-v1"
-_JEV_RERANK_QUESTION = {
+JEV_RERANK_BATCH_PROMPT_VERSION = "jev-rerank-batch-pt-v1"
+JEV_RERANK_GROUPING_VERSION = "consecutive-greedy-v1"
+_JEV_RERANK_POINTWISE_QUESTION = {
     "relevance": {
         "type": "noul",
         "instructions": (
@@ -3841,6 +3844,133 @@ def _jev_candidate_id(chunk: dict) -> str:
     return hashlib.sha256(json.dumps(fields, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
+def _jev_rerank_candidate_state(chunk: dict, candidate_id: str) -> dict[str, str]:
+    return {
+        "candidate_id": candidate_id,
+        "trecho_documental": str(chunk.get("content") or ""),
+        "titulo": str(_chunk_analytical_value(chunk, "heading_path", "") or ""),
+        "fonte": str(chunk.get("filename") or ""),
+    }
+
+
+def _jev_batch_questions(entries: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    questions: dict[str, dict[str, Any]] = {}
+    for index, entry in enumerate(entries):
+        question_id = f"relevance_{index + 1:04d}"
+        entry["question_id"] = question_id
+        questions[question_id] = {
+            "type": "noul",
+            "instructions": {
+                "candidate_reference": (
+                    f"`candidatos[{index}]`, cujo `candidate_id` e "
+                    f"`{entry['transport_candidate_id']}`"
+                ),
+                "question": (
+                    "O candidato indicado e relevante para responder a `pergunta` do state? "
+                    "Considere instrucoes, campos, telas, erros e procedimentos especificos. "
+                    "A probabilidade da resposta sim serve apenas para ordenar; nao descarte trechos."
+                ),
+            },
+        }
+    return questions
+
+
+def _jev_rerank_call(
+    query: str,
+    entries: list[dict[str, Any]],
+    *,
+    mode: str,
+) -> dict[str, Any]:
+    if mode == "pointwise":
+        entry = entries[0]
+        entry["question_id"] = "relevance"
+        state: dict[str, Any] = {
+            "pergunta": query,
+            "trecho_documental": str(entry["chunk"].get("content") or ""),
+            "titulo": str(
+                _chunk_analytical_value(entry["chunk"], "heading_path", "") or ""
+            ),
+            "fonte": str(entry["chunk"].get("filename") or ""),
+        }
+        questions = _JEV_RERANK_POINTWISE_QUESTION
+    else:
+        state = {
+            "pergunta": query,
+            "candidatos": [
+                _jev_rerank_candidate_state(entry["chunk"], entry["transport_candidate_id"])
+                for entry in entries
+            ],
+        }
+        questions = _jev_batch_questions(entries)
+    estimated_tokens, estimator_version = _count_context_text(
+        json.dumps(state, ensure_ascii=False) + json.dumps(questions, ensure_ascii=False),
+        provider="typesafe",
+        model=config.JEV_MODEL,
+    )
+    state_sha256 = hashlib.sha256(
+        json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    batch_id = "batch-" + hashlib.sha256(
+        json.dumps(
+            [entry["transport_candidate_id"] for entry in entries],
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()[:24]
+    return {
+        "batch_id": batch_id,
+        "entries": entries,
+        "state": state,
+        "questions": questions,
+        "estimated_tokens": estimated_tokens,
+        "estimator_version": estimator_version,
+        "state_sha256": state_sha256,
+    }
+
+
+def _jev_rerank_calls(
+    query: str,
+    candidates: list[dict],
+    *,
+    mode: str,
+) -> tuple[list[dict[str, Any]], str | None]:
+    entries = [
+        {
+            "chunk": chunk,
+            "transport_candidate_id": _jev_candidate_id(chunk),
+            "candidate_id": _evaluation_candidate_id(chunk),
+            "original_index": index,
+        }
+        for index, chunk in enumerate(candidates)
+    ]
+    if len({entry["transport_candidate_id"] for entry in entries}) != len(entries):
+        return [], "duplicate_candidate_id"
+    if mode == "pointwise":
+        calls = [_jev_rerank_call(query, [entry], mode=mode) for entry in entries]
+        if any(
+            call["estimated_tokens"] > config.JEV_MAX_STATE_ESTIMATED_TOKENS
+            for call in calls
+        ):
+            return [], "state_limit"
+        return calls, None
+
+    calls: list[dict[str, Any]] = []
+    current: list[dict[str, Any]] = []
+    for entry in entries:
+        single = _jev_rerank_call(query, [dict(entry)], mode=mode)
+        if single["estimated_tokens"] > config.JEV_MAX_STATE_ESTIMATED_TOKENS:
+            return [], "state_limit"
+        proposed_entries = [*current, dict(entry)]
+        proposed = _jev_rerank_call(query, proposed_entries, mode=mode)
+        if proposed["estimated_tokens"] <= config.JEV_MAX_STATE_ESTIMATED_TOKENS:
+            current = proposed_entries
+            continue
+        calls.append(_jev_rerank_call(query, current, mode=mode))
+        current = [dict(entry)]
+    if current:
+        calls.append(_jev_rerank_call(query, current, mode=mode))
+    return calls, None
+
+
 def _rerank_chunks_with_jev(
     query: str,
     chunks: list[dict],
@@ -3851,6 +3981,7 @@ def _rerank_chunks_with_jev(
     """Aplica uma passagem Jev completa ou devolve a entrada sem alteracao."""
     started_at = _time.monotonic()
     config.validate_jev_config(active=True)
+    mode = config.JEV_RERANK_MODE
     deduped_chunks = _dedupe_chunks(chunks)
     candidates = deduped_chunks[: int(config.JEV_RERANK_MAX_CANDIDATES)]
     summary: dict[str, Any] = {
@@ -3861,9 +3992,16 @@ def _rerank_chunks_with_jev(
         "candidate_pool_count": len(deduped_chunks),
         "excluded_by_cap_count": len(deduped_chunks) - len(candidates),
         "decisions_completed": 0,
+        "calls_completed": 0,
         "decisions": [],
+        "calls": [],
         "fallback_reason": None,
-        "prompt_version": JEV_RERANK_PROMPT_VERSION,
+        "mode": mode,
+        "prompt_version": (
+            JEV_RERANK_BATCH_PROMPT_VERSION if mode == "batch" else JEV_RERANK_PROMPT_VERSION
+        ),
+        "grouping_version": JEV_RERANK_GROUPING_VERSION,
+        "estimator_version": TOKEN_COUNTER_VERSION,
         "model_requested": config.JEV_MODEL,
         "model_effective": None,
         "estimated_cost_usd": 0.0,
@@ -3883,54 +4021,69 @@ def _rerank_chunks_with_jev(
     if deadline is not None and deadline - started_at <= config.JEV_MIN_REMAINING_SECONDS:
         return fallback("deadline_reserve")
 
-    states: list[dict[str, str]] = []
-    for chunk in candidates:
-        state = {
-            "pergunta": query,
-            "trecho_documental": str(chunk.get("content") or ""),
-            "titulo": str(_chunk_analytical_value(chunk, "heading_path", "") or ""),
-            "fonte": str(chunk.get("filename") or ""),
-        }
-        estimate, _ = _count_context_text(
-            json.dumps(state, ensure_ascii=False) + json.dumps(_JEV_RERANK_QUESTION),
-            provider="typesafe",
-            model=config.JEV_MODEL,
-        )
-        if estimate > config.JEV_MAX_STATE_ESTIMATED_TOKENS:
-            return fallback("state_limit")
-        states.append(state)
-    state_hashes = [
-        hashlib.sha256(
-            json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        for state in states
-    ]
+    calls, call_error = _jev_rerank_calls(query, candidates, mode=mode)
+    if call_error:
+        return fallback(call_error)
+    summary["batch_count"] = len(calls)
 
-    scores: list[float] = []
-    effective_models: list[str] = []
+    scores: dict[int, float] = {}
+    effective_models: dict[int, str] = {}
+    state_hashes: dict[int, str] = {}
+    call_ids: dict[int, str] = {}
     client = None
     try:
         client = jev.TypeSafeClient()
-        for chunk, state, state_hash in zip(candidates, states, state_hashes):
+        for call in calls:
             remaining = config.JEV_STAGE_TIMEOUT_SECONDS - (_time.monotonic() - started_at)
             if remaining <= 0:
                 return fallback("stage_budget_exhausted")
             result = client.decide(
-                state,
-                _JEV_RERANK_QUESTION,
+                call["state"],
+                call["questions"],
                 stage="rerank",
                 request_id=request_id,
-                candidate_id=_jev_candidate_id(chunk),
+                candidate_id=(
+                    call["entries"][0]["transport_candidate_id"]
+                    if mode == "pointwise"
+                    else call["batch_id"]
+                ),
                 deadline=deadline,
                 stage_budget_seconds=remaining,
             )
-            _record_jev_decision(model_calls, result=result, stage="rerank")
-            summary["decisions"].append({
-                "candidate_id": _evaluation_candidate_id(chunk),
-                "state_sha256": state_hash,
+            candidate_ids = [entry["candidate_id"] for entry in call["entries"]]
+            question_ids = [entry["question_id"] for entry in call["entries"]]
+            _record_jev_decision(
+                model_calls,
+                result=result,
+                stage="rerank",
+                metadata={
+                    "candidate_ids": candidate_ids,
+                    "question_ids": question_ids,
+                    "state_sha256": call["state_sha256"],
+                    "mode": mode,
+                    "grouping_version": JEV_RERANK_GROUPING_VERSION,
+                    "estimator_version": call["estimator_version"],
+                    "estimated_input_tokens": call["estimated_tokens"],
+                },
+            )
+            summary["calls"].append({
+                "batch_id": call["batch_id"],
+                "call_id": result.call_id,
+                "candidate_ids": candidate_ids,
+                "question_ids": question_ids,
+                "state_sha256": call["state_sha256"],
                 "status": result.status,
-                "model_effective": result.model_effective,
+                "estimated_input_tokens": call["estimated_tokens"],
             })
+            for entry in call["entries"]:
+                summary["decisions"].append({
+                    "candidate_id": entry["candidate_id"],
+                    "question_id": entry["question_id"],
+                    "call_id": result.call_id,
+                    "state_sha256": call["state_sha256"],
+                    "status": result.status,
+                    "model_effective": result.model_effective,
+                })
             summary["model_effective"] = result.model_effective or result.model_requested
             if result.estimated_cost_usd is None:
                 summary["cost_complete"] = False
@@ -3939,13 +4092,36 @@ def _rerank_chunks_with_jev(
                 summary["estimated_cost_usd"] += result.estimated_cost_usd
             if not result.ok:
                 return fallback(result.status)
-            answer = result.answers.get("relevance")
-            score = answer.get("noul") if isinstance(answer, dict) else None
-            if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score) or not 0 <= score <= 1:
+            now = _time.monotonic()
+            if (
+                now - started_at > config.JEV_STAGE_TIMEOUT_SECONDS
+                or deadline is not None
+                and deadline - now <= config.JEV_MIN_REMAINING_SECONDS
+            ):
+                return fallback("stage_budget_exhausted")
+            if (
+                result.model_requested != config.JEV_MODEL
+                or result.model_effective != config.JEV_MODEL
+                or set(result.answers) != set(call["questions"])
+            ):
                 return fallback("invalid_response")
-            scores.append(float(score))
-            effective_models.append(result.model_effective or result.model_requested)
-            summary["decisions_completed"] += 1
+            for entry in call["entries"]:
+                answer = result.answers.get(entry["question_id"])
+                score = answer.get("noul") if isinstance(answer, dict) else None
+                if (
+                    isinstance(score, bool)
+                    or not isinstance(score, (int, float))
+                    or not math.isfinite(score)
+                    or not 0 <= score <= 1
+                ):
+                    return fallback("invalid_response")
+                index = entry["original_index"]
+                scores[index] = float(score)
+                effective_models[index] = result.model_effective
+                state_hashes[index] = call["state_sha256"]
+                call_ids[index] = result.call_id
+                summary["decisions_completed"] += 1
+            summary["calls_completed"] += 1
     except jev.JevConfigurationError:
         raise
     except Exception as exc:
@@ -3962,7 +4138,10 @@ def _rerank_chunks_with_jev(
         chunk["jev"] = {
             "relevance": scores[index],
             "model_effective": effective_models[index],
-            "prompt_version": JEV_RERANK_PROMPT_VERSION,
+            "mode": mode,
+            "prompt_version": summary["prompt_version"],
+            "grouping_version": JEV_RERANK_GROUPING_VERSION,
+            "call_id": call_ids[index],
             "state_sha256": state_hashes[index],
             "status": "ok",
             "original_rank": index + 1,

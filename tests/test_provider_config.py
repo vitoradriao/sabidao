@@ -169,6 +169,18 @@ class TestProviderIsolation(unittest.TestCase):
 
 
 class TestProviderValidation(unittest.TestCase):
+    def test_rejects_unknown_jev_rerank_mode(self):
+        with patch.multiple(
+            config,
+            JEV_RERANK_MODE="automatic",
+            DISCORD_TOKEN="discord-ficticio",
+            RAG_ENABLE_BUSINESS_RULES=False,
+        ), patch("config.validate_ai_config"), patch("config.validate_response_mode"):
+            with self.assertRaisesRegex(
+                EnvironmentError, "JEV_RERANK_MODE deve ser pointwise ou batch"
+            ):
+                config.validate()
+
     def test_rejects_unsupported_3072_dimension_profile(self):
         env = os.environ.copy()
         env["EMBEDDING_DIMENSIONS"] = "3072"
