@@ -33,7 +33,7 @@ import rag
 from bot_common import normalize_text
 
 
-EVALUATOR_SCHEMA_VERSION = 9
+EVALUATOR_SCHEMA_VERSION = 10
 METRIC_DEFINITIONS_VERSION = 3
 COMPARISON_PROFILE_VERSION = 1
 COMPARISON_SCHEMA_VERSION = 2
@@ -204,6 +204,7 @@ _CONFIG_FIELDS = (
     "RAG_RETRY_BASE_SECONDS",
     "JEV_MODEL",
     "JEV_EVIDENCE_GATE_ENABLED",
+    "JEV_SEMANTIC_GROUNDING_ENABLED",
     "JEV_MAX_CONCURRENCY",
     "JEV_REQUEST_TIMEOUT_SECONDS",
     "JEV_STAGE_TIMEOUT_SECONDS",
@@ -212,6 +213,7 @@ _CONFIG_FIELDS = (
     "JEV_RERANK_MODE",
     "JEV_MAX_STATE_ESTIMATED_TOKENS",
     "JEV_GROUNDING_MAX_CLAIMS",
+    "JEV_GROUNDING_MAX_REGENERATIONS",
 )
 
 AnswerProvider = Callable[[str, dict[str, Any]], tuple[str, list[dict], dict[str, Any]]]
@@ -1941,6 +1943,11 @@ def _jev_identity() -> dict[str, Any]:
             _canonical_sha256(json.loads(Path(config.JEV_POLICY_FILE).read_text(encoding="utf-8")))
             if config.JEV_POLICY_FILE else None
         ),
+        "semantic_grounding": {
+            "enabled": bool(config.JEV_SEMANTIC_GROUNDING_ENABLED),
+            "prompt_version": grounding.JUDGMENT_PROMPT_VERSION,
+            "prompt_sha256": _canonical_sha256(grounding.JUDGMENT_CONTRACT),
+        },
         "rerank": {
             "mode": config.JEV_RERANK_MODE,
             "pointwise_prompt_version": rag.JEV_RERANK_PROMPT_VERSION,

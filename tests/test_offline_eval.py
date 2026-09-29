@@ -413,7 +413,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIn("factual_correctness", summary["metric_definitions"])
         self.assertIn("evidence_discounted_coverage_at_10", summary["metric_definitions"])
         self.assertEqual(summary["metric_definitions_version"], 3)
-        self.assertEqual(summary["evaluator_schema_version"], 9)
+        self.assertEqual(summary["evaluator_schema_version"], 10)
         self.assertEqual(summary["score_evaluated"], 4)
 
     def test_false_absence_claim_is_measured_only_for_expected_answers(self):

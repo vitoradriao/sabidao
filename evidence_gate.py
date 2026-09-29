@@ -40,10 +40,10 @@ def fingerprint(value: dict) -> str:
     ).encode("utf-8")).hexdigest()
 
 
-def load_policy(path: str, *, model: str, development_run_id: str | None = None) -> dict:
-    """Carrega política local; provisional só vale para o development identificado."""
+def load_policy_file(path: str, *, model: str, development_run_id: str | None = None) -> dict:
+    """Carrega a política comum; seções são validadas apenas pelo consumidor ativo."""
     if not path:
-        raise EnvironmentError("JEV_POLICY_FILE é obrigatório para o gate ativo.")
+        raise EnvironmentError("JEV_POLICY_FILE é obrigatório quando Jev usa política.")
     try:
         policy = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -51,11 +51,11 @@ def load_policy(path: str, *, model: str, development_run_id: str | None = None)
     if (
         not isinstance(policy, dict)
         or type(policy.get("schema_version")) is not int
-        or policy["schema_version"] != 1
+        or policy["schema_version"] not in {1, 2}
     ):
-        raise EnvironmentError("Política Jev exige schema_version=1.")
-    if policy.get("model") != model or policy.get("prompt_version") != PROMPT_VERSION:
-        raise EnvironmentError("Política Jev incompatível com modelo/prompt.")
+        raise EnvironmentError("Política Jev exige schema_version=1 ou 2.")
+    if policy.get("model") != model:
+        raise EnvironmentError("Política Jev incompatível com o modelo.")
     run_id = policy.get("development_run_id")
     if not isinstance(run_id, str) or not run_id.strip():
         raise EnvironmentError("Política Jev exige development_run_id.")
@@ -64,7 +64,26 @@ def load_policy(path: str, *, model: str, development_run_id: str | None = None)
         raise EnvironmentError("Política Jev exige status provisional ou frozen.")
     if status == "provisional" and development_run_id != run_id:
         raise EnvironmentError("Política provisional exige ensaio development explicitamente identificado.")
-    thresholds = policy.get("thresholds")
+    return policy
+
+
+def load_policy(path: str, *, model: str, development_run_id: str | None = None) -> dict:
+    """Carrega a seção do gate; mantém compatibilidade com a política v1."""
+    policy = load_policy_file(
+        path, model=model, development_run_id=development_run_id,
+    )
+    if policy["schema_version"] == 1:
+        gate = policy
+        if policy.get("prompt_version") != PROMPT_VERSION:
+            raise EnvironmentError("Política Jev incompatível com modelo/prompt.")
+    else:
+        section = policy.get("gate")
+        if not isinstance(section, dict):
+            raise EnvironmentError("Política Jev v2 exige seção gate quando o gate está ativo.")
+        if section.get("prompt_version") != PROMPT_VERSION:
+            raise EnvironmentError("Política do gate incompatível com o prompt.")
+        gate = {**policy, **section, "_policy_version": fingerprint(policy)}
+    thresholds = gate.get("thresholds")
     if not isinstance(thresholds, dict) or set(thresholds) != set(NEGATIVE_DECISIONS):
         raise EnvironmentError("Política Jev exige thresholds para ambas as decisões negativas.")
     for decision in NEGATIVE_DECISIONS:
@@ -80,13 +99,16 @@ def load_policy(path: str, *, model: str, development_run_id: str | None = None)
                 or not 0 <= value <= 1
             ):
                 raise EnvironmentError(f"Threshold Jev {name} deve ser finito entre 0 e 1.")
-    return policy
+    return gate
 
 
 def empty_result(reason: str, *, policy: dict | None = None) -> dict:
     return {
         "status": "skipped", "decision": None, "confidence": None,
-        "probabilities": {}, "policy_version": fingerprint(policy) if policy else None,
+        "probabilities": {},
+        "policy_version": (
+            policy.get("_policy_version") or fingerprint(policy) if policy else None
+        ),
         "prompt_version": PROMPT_VERSION, "evidence_fingerprint": None,
         "reason": reason, "latency_ms": 0, "estimated_cost_usd": 0.0,
         "cost_complete": True,
