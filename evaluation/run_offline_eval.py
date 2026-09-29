@@ -191,8 +191,6 @@ _CONFIG_FIELDS = (
     "RAG_ENABLE_BUSINESS_RULES",
     "BUSINESS_RULES_MAX_CHARS",
     "FULL_CONTEXT_ENABLED",
-    "FULL_CONTEXT_MAX_CHARS",
-    "FULL_CONTEXT_EXTENSIONS",
     "CONTEXTUAL_RETRIEVAL_ENABLED",
     "CONTEXTUAL_RETRIEVAL_MODEL",
     "CONTEXTUAL_RETRIEVAL_MAX_DOC_CHARS",
@@ -1851,8 +1849,8 @@ def _vector_identity_metadata(database_identity: dict[str, Any]) -> dict[str, An
 def _prompt_and_policy_identity(
     baseline_config: dict[str, Any] | None,
 ) -> dict[str, Any]:
+    config.validate_response_mode()
     business_rules = rag._load_business_rules_context()
-    full_context = rag._load_full_context_docs() if config.FULL_CONTEXT_ENABLED else ""
     return {
         "system_prompt": _text_identity(config.SYSTEM_PROMPT),
         "no_answer_policy": _text_identity(config.NO_ANSWER_PHRASE),
@@ -1878,9 +1876,9 @@ def _prompt_and_policy_identity(
             "enabled": bool(config.RAG_ENABLE_BUSINESS_RULES),
             **_text_identity(business_rules),
         },
-        "full_context": {
-            "enabled": bool(config.FULL_CONTEXT_ENABLED),
-            **_text_identity(full_context),
+        "documentary_evidence_policy": {
+            "version": rag.DOCUMENTARY_EVIDENCE_POLICY_VERSION,
+            **_text_identity(rag.DOCUMENTARY_EVIDENCE_POLICY),
         },
         "baseline_policy_sha256": (
             _canonical_sha256(baseline_config)
@@ -1947,7 +1945,6 @@ def _experiment_identity(
                 "identity_aware": True,
             },
             "business_rules": "process_local_by_path_and_mtime",
-            "full_context": "process_local_by_max_mtime",
         },
         "evaluation_contract": {
             "evaluator_schema_version": EVALUATOR_SCHEMA_VERSION,
@@ -2451,6 +2448,7 @@ def run_evaluation(
     comparison_view: str = "end_to_end_same_snapshot",
     comparison_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    config.validate_response_mode()
     if comparison_view not in COMPARISON_VIEWS:
         raise VariantConfigurationError(
             f"Visão de comparação desconhecida: {comparison_view}."
@@ -3186,6 +3184,7 @@ def run_paired_comparison(
     pair_id: str | None = None,
     snapshot_id: str | None = None,
 ) -> dict[str, Any]:
+    config.validate_response_mode()
     profile = _comparison_profile(baseline_config)
     configured_variants = [str(value) for value in profile["variants"]]
     selected_variants = list(variants or configured_variants)
@@ -3495,6 +3494,7 @@ def prepare_comparison(
     pair_id: str | None = None,
     snapshot_id: str | None = None,
 ) -> dict[str, Any]:
+    config.validate_response_mode()
     profile = _comparison_profile(baseline_config)
     configured_variants = [str(value) for value in profile["variants"]]
     selected_variants = list(variants or configured_variants)

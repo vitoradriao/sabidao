@@ -24,7 +24,7 @@
       "same_dataset": true,
       "same_snapshot": true,
       "same_retrieval_pool_for_ranking_ablation": true,
-      "same_context_builder": "context-selection-v1",
+      "same_context_builder": "context-selection-v2",
       "same_evidence_window": true,
       "reranker_input_window": {
         "existing": "up_to_500_characters_per_candidate",
@@ -33,7 +33,7 @@
       },
       "evidence_window": {
         "policy": "equalized_to_final_context",
-        "builder": "context-selection-v1",
+        "builder": "context-selection-v2",
         "budget": "same_as_generation_context_budget",
         "raw_text_persisted": false
       },

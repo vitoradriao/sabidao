@@ -244,10 +244,8 @@ BUSINESS_RULES_FILE = os.getenv(
 )
 BUSINESS_RULES_MAX_CHARS = _env_int("BUSINESS_RULES_MAX_CHARS", 80000)
 
-# Full Context Mode — injeta todos os documentos no contexto (estilo Claude Projects)
+# Compatibilidade: ativação de full-context é rejeitada nesta versão.
 FULL_CONTEXT_ENABLED = _env_bool("FULL_CONTEXT_ENABLED", False)
-FULL_CONTEXT_MAX_CHARS = _env_int("FULL_CONTEXT_MAX_CHARS", 950000)
-FULL_CONTEXT_EXTENSIONS = os.getenv("FULL_CONTEXT_EXTENSIONS", ".md,.txt").split(",")
 
 # RAG — melhorias de precisao
 SIMILARITY_FLOOR_FACTOR = _env_float("SIMILARITY_FLOOR_FACTOR", 0.7)
@@ -441,12 +439,19 @@ def _validate_http_endpoint(name: str, value: str | None) -> None:
         )
 
 
+def validate_response_mode() -> None:
+    if FULL_CONTEXT_ENABLED:
+        raise EnvironmentError(
+            "FULL_CONTEXT_ENABLED=true não é suportado: o modo não compartilha "
+            "o envelope e a validação final. Configure FULL_CONTEXT_ENABLED=false."
+        )
+
+
 def validate_evidence_gate_config(*, development_run_id: str | None = None) -> dict:
     from evidence_gate import load_policy
 
+    validate_response_mode()
     validate_jev_config(active=True)
-    if FULL_CONTEXT_ENABLED:
-        raise EnvironmentError("Gate Jev exige FULL_CONTEXT_ENABLED=false até unificação do caminho full-context.")
     return load_policy(JEV_POLICY_FILE, model=JEV_MODEL, development_run_id=development_run_id)
 
 
@@ -533,6 +538,7 @@ def validate_ai_config() -> None:
 
 def validate():
     """Verifica as configuracoes obrigatorias do bot."""
+    validate_response_mode()
     validate_ai_config()
     if not DISCORD_TOKEN:
         raise EnvironmentError(

@@ -29,6 +29,16 @@ def _run_isolated_config(script: str, env: dict[str, str]) -> subprocess.Complet
 
 
 class TestEnvironmentPrecedence(unittest.TestCase):
+    def test_full_context_activation_fails_before_provider_validation(self):
+        for reranker, gate in (("existing", False), ("jev", False), ("jev", True)):
+            with self.subTest(reranker=reranker, gate=gate), patch.multiple(
+                config, FULL_CONTEXT_ENABLED=True, RAG_RERANK_PROVIDER=reranker,
+                JEV_EVIDENCE_GATE_ENABLED=gate,
+            ), patch("config.validate_ai_config") as validate_ai:
+                with self.assertRaisesRegex(EnvironmentError, "FULL_CONTEXT_ENABLED=true"):
+                    config.validate()
+                validate_ai.assert_not_called()
+
     def test_contextual_retrieval_is_opt_in(self):
         env = os.environ.copy()
         env.pop("CONTEXTUAL_RETRIEVAL_ENABLED", None)

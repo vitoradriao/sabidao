@@ -261,7 +261,7 @@ class TestJevReranking(unittest.TestCase):
         contexts = []
 
         def answer_from_context(**kwargs):
-            system = kwargs["system"]
+            system = kwargs["evidence_context"]
             contexts.append(system)
             a = system.index("Procedimento documental completo para a.")
             b = system.index("Procedimento documental completo para b.")

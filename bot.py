@@ -508,9 +508,12 @@ async def _handle_serialized_question(
             ),
         )
 
-        # Registrar knowledge gap se similaridade baixa
+        # Baixa similaridade só indica lacuna se a consulta não falhou operacionalmente.
         max_sim = rag._safe_similarity(trace.get("top_similarity", 0.0))
-        if max_sim < config.CONFIDENCE_THRESHOLD:
+        if (
+            trace.get("response_state") not in {"provider_error", "context_budget_exceeded"}
+            and max_sim < config.CONFIDENCE_THRESHOLD
+        ):
             asyncio.get_running_loop().run_in_executor(
                 None, rag.log_knowledge_gap, question, max_sim, "discord"
             )

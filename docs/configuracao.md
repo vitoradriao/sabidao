@@ -56,6 +56,51 @@ O bot valida providers, credenciais, modelos e URLs antes de iniciar. As
 mensagens de erro citam apenas o nome da configuração inválida; secrets não são
 incluídos nos avisos ou erros de validação.
 
+## Política e evidência documental (issue #17)
+
+Este contrato acompanha a entrega #17. Na branch de revisão, a disponibilidade
+é pendente de integração. A política confiável fica na mensagem de sistema.
+Pergunta, histórico e documentos ficam em mensagens separadas; no histórico,
+somente mensagens do assistente conservam esse papel. Outros papéis viram usuário.
+Documentos, feedback publicado e regras de negócio entram em
+`documentary_evidence` com `trust="untrusted"`. Corpo, nomes de fontes e
+metadados são escapados para não fecharem os delimitadores. A política proíbe
+que esses dados redefinam instruções, solicitem ferramentas ou segredos.
+Isso reduz ambiguidade de autoridade, mas não garante imunidade a prompt injection.
+
+`RAG_ENABLE_BUSINESS_RULES=true` carrega `BUSINESS_RULES_FILE` como documento,
+sem promover o arquivo inteiro a política. O corpo (sem YAML administrativo,
+quando canônico) mantém caminho, hash e spans de proveniência no envelope.
+Ele entra depois dos candidatos recuperados, sujeito aos mesmos limites de
+quantidade e tokens; pode ser excluído integralmente. `BUSINESS_RULES_MAX_CHARS`
+continua limitando a leitura. Regras excluídas não são enviadas ao gerador nem
+separadamente ao gate Jev, e sua fonte não fica autorizada por essa leitura.
+
+O envelope `context-selection-v2` conta política, pergunta, histórico retido,
+imagens, delimitadores da mensagem documental, saída e margem. Geração e
+regeneração recebem as mesmas evidências; o prompt final tem seu orçamento
+verificado antes da chamada. Só fontes de spans efetivamente retidos são aceitas
+na validação de citações. `context_budget_exceeded` e `provider_error` representam
+falhas operacionais, sem validar fontes ou inferir ausência de conhecimento.
+A sintaxe de uma citação válida continua com `semantic_support=not_verified`:
+esta entrega não verifica suporte factual por afirmação nem acrescenta classificador.
+
+Não há atalho de resposta curada em `rag.ask` nesta base: feedback publicado é
+recuperado como chunk, preservando as regras existentes de visibilidade e escopo,
+e passa pelo mesmo envelope e checagens finais. Não há skip semântico adicional.
+O gate Jev continua opcional e analisa suficiência antes da geração, não a resposta final.
+
+`FULL_CONTEXT_ENABLED=true` é rejeitado com erro claro antes da recuperação ou
+geração, com ou sem Jev, inclusive na avaliação. O carregador e o retorno
+antecipado desse modo foram removidos; mantenha `FULL_CONTEXT_ENABLED=false`.
+`FULL_CONTEXT_MAX_CHARS` e `FULL_CONTEXT_EXTENSIONS` não são mais usados.
+O avaliador registra versão/hash da política documental e a versão do envelope;
+resultados antigos não devem ser tratados como o mesmo experimento.
+
+Rollback exige reverter a entrega de composição/configuração e manter
+`FULL_CONTEXT_ENABLED=false`; não exige migração SQL ou reindexação. Testes
+sintéticos verificam o contrato, não demonstram qualidade factual operacional.
+
 ## Cliente TypeSafe/Jev (issue #89)
 
 O cliente JEV-01 está presente na `master` e é opcional: a
@@ -241,8 +286,8 @@ canônico inteiro, incluindo limiares, modelo, prompt e origem da calibração.
 Políticas `provisional` são aceitas somente pelo avaliador no split development,
 com `comparison.evidence_gate.development_run_id` igual ao da política. O bot e
 o holdout exigem `frozen`. Política inválida impede o modo solicitado antes de
-qualquer chamada. Até a unificação da #17, a combinação com
-`FULL_CONTEXT_ENABLED=true` é rejeitada explicitamente.
+qualquer chamada. `FULL_CONTEXT_ENABLED=true` é rejeitado independentemente
+da ativação do gate, conforme o contrato da #17.
 
 Depois do strict e do orçamento de contexto, uma única Choice avalia o texto
 exato retido, com separação de fontes, e as regras de negócio efetivamente

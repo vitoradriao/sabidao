@@ -76,6 +76,21 @@ class TestInFlightTaskLimiter(unittest.IsolatedAsyncioTestCase):
 
 
 class TestRequestDeadline(unittest.TestCase):
+    def test_final_prompt_overflow_never_calls_provider_including_regeneration(self):
+        for provider in ("openai", "gemini"):
+            for stage in ("generation", "regeneration"):
+                with self.subTest(provider=provider, stage=stage), patch(
+                    "rag._active_llm_provider", return_value=provider
+                ), patch.object(config, "RAG_MAX_INPUT_TOKENS", 100), patch(
+                    "rag._openai_chat_generate"
+                ) as openai, patch("rag._gemini_generate") as gemini:
+                    with self.assertRaises(rag.ContextBudgetError):
+                        rag._ask_model(question="Pergunta", system="Política",
+                                       evidence_context="E" * 1000, conversation_history=None,
+                                       images=None, stage=stage, max_tokens_override=1024)
+                    openai.assert_not_called()
+                    gemini.assert_not_called()
+
     def _set_deadline(self, deadline: float):
         token = rag._request_deadline.set(deadline)
         self.addCleanup(rag._request_deadline.reset, token)

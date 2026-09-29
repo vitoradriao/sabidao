@@ -423,3 +423,13 @@ caminhos, URLs nem conteúdo do corpus. Quando o cliente de embeddings não exp�
 tokens ou preço, os campos correspondentes permanecem desconhecidos e
 `cost_complete` fica falso. O comando ainda salva o relatório quando a ingestão fica
 incompleta, mas termina com código 1 e marca `ingestion.complete` como falso.
+
+### Identidade da política documental (#17)
+
+A entrega #17 usa `context-selection-v2` e registra a versão/hash de
+`documentary_evidence_policy` na identidade experimental. Documentos e regras
+retidas são dados separados da política de sistema. A variante C avalia o mesmo
+texto documental enviado à geração, sem incluir regras descartadas pelo envelope.
+`FULL_CONTEXT_ENABLED=true` é configuração inválida para todos os modos.
+Não compare resultados anteriores como identidade equivalente; delimitação e
+fixtures adversariais não medem resistência real a injeção nem suporte factual.
