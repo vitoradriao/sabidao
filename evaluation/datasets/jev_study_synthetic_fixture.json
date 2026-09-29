@@ -1,0 +1,677 @@
+[
+  {
+    "id": "jev-study-supported-claim",
+    "split": "development",
+    "question": "Qual valor habilita o recurso?",
+    "answerability": "answerable",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "expected_facts": [
+      "O valor S habilita o recurso"
+    ],
+    "reference_evidence": [
+      {
+        "source": "parametros.md",
+        "contains": [
+          "valor S"
+        ]
+      }
+    ],
+    "fixture_variants": {
+      "existing": {
+        "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "s",
+            "filename": "parametros.md",
+            "content": "O valor S habilita o recurso."
+          }
+        ],
+        "trace": {
+          "query_plan": {
+            "intent": "configuration"
+          },
+          "abstained": false,
+          "cited_files": [
+            "parametros.md"
+          ],
+          "grounding_errors": [],
+          "model_calls": [],
+          "external_calls": [],
+          "retrieval_stages": {
+            "sections": {
+              "status": "available",
+              "ids": [
+                "sec"
+              ]
+            },
+            "candidate_pool": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ],
+              "chunks": [
+                {
+                  "candidate_id": "s",
+                  "filename": "parametros.md",
+                  "content": "O valor S habilita o recurso."
+                },
+                {
+                  "candidate_id": "n",
+                  "filename": "parametros.md",
+                  "content": "O valor N desabilita o recurso."
+                }
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ]
+            },
+            "post_gate": {
+              "status": "not_applicable"
+            },
+            "final_context": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            }
+          },
+          "comparison": {
+            "effective_variant": "existing"
+          }
+        }
+      },
+      "existing+evidence_gate": {
+        "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "s",
+            "filename": "parametros.md",
+            "content": "O valor S habilita o recurso."
+          }
+        ],
+        "trace": {
+          "query_plan": {
+            "intent": "configuration"
+          },
+          "abstained": false,
+          "cited_files": [
+            "parametros.md"
+          ],
+          "grounding_errors": [],
+          "model_calls": [],
+          "external_calls": [],
+          "evidence_gate": {
+            "status": "applied",
+            "decision": "answer",
+            "policy_version": null
+          },
+          "retrieval_stages": {
+            "sections": {
+              "status": "available",
+              "ids": [
+                "sec"
+              ]
+            },
+            "candidate_pool": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ],
+              "chunks": [
+                {
+                  "candidate_id": "s",
+                  "filename": "parametros.md",
+                  "content": "O valor S habilita o recurso."
+                },
+                {
+                  "candidate_id": "n",
+                  "filename": "parametros.md",
+                  "content": "O valor N desabilita o recurso."
+                }
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ]
+            },
+            "post_gate": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            },
+            "final_context": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            }
+          },
+          "comparison": {
+            "effective_variant": "existing+evidence_gate"
+          }
+        }
+      },
+      "jev_rerank": {
+        "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "s",
+            "filename": "parametros.md",
+            "content": "O valor S habilita o recurso."
+          }
+        ],
+        "trace": {
+          "query_plan": {
+            "intent": "configuration"
+          },
+          "abstained": false,
+          "cited_files": [
+            "parametros.md"
+          ],
+          "grounding_errors": [],
+          "model_calls": [],
+          "external_calls": [],
+          "retrieval_stages": {
+            "sections": {
+              "status": "available",
+              "ids": [
+                "sec"
+              ]
+            },
+            "candidate_pool": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ],
+              "chunks": [
+                {
+                  "candidate_id": "s",
+                  "filename": "parametros.md",
+                  "content": "O valor S habilita o recurso."
+                },
+                {
+                  "candidate_id": "n",
+                  "filename": "parametros.md",
+                  "content": "O valor N desabilita o recurso."
+                }
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ]
+            },
+            "post_gate": {
+              "status": "not_applicable"
+            },
+            "final_context": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            }
+          },
+          "comparison": {
+            "effective_variant": "jev_rerank"
+          }
+        }
+      },
+      "jev_rerank+evidence_gate": {
+        "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "s",
+            "filename": "parametros.md",
+            "content": "O valor S habilita o recurso."
+          }
+        ],
+        "trace": {
+          "query_plan": {
+            "intent": "configuration"
+          },
+          "abstained": false,
+          "cited_files": [
+            "parametros.md"
+          ],
+          "grounding_errors": [],
+          "model_calls": [],
+          "external_calls": [],
+          "evidence_gate": {
+            "status": "applied",
+            "decision": "answer",
+            "policy_version": null
+          },
+          "retrieval_stages": {
+            "sections": {
+              "status": "available",
+              "ids": [
+                "sec"
+              ]
+            },
+            "candidate_pool": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ],
+              "chunks": [
+                {
+                  "candidate_id": "s",
+                  "filename": "parametros.md",
+                  "content": "O valor S habilita o recurso."
+                },
+                {
+                  "candidate_id": "n",
+                  "filename": "parametros.md",
+                  "content": "O valor N desabilita o recurso."
+                }
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ]
+            },
+            "post_gate": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            },
+            "final_context": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            }
+          },
+          "comparison": {
+            "effective_variant": "jev_rerank+evidence_gate"
+          }
+        }
+      },
+      "jev_rerank_pointwise": {
+        "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "s",
+            "filename": "parametros.md",
+            "content": "O valor S habilita o recurso."
+          }
+        ],
+        "trace": {
+          "query_plan": {
+            "intent": "configuration"
+          },
+          "abstained": false,
+          "cited_files": [
+            "parametros.md"
+          ],
+          "grounding_errors": [],
+          "model_calls": [],
+          "external_calls": [],
+          "retrieval_stages": {
+            "sections": {
+              "status": "available",
+              "ids": [
+                "sec"
+              ]
+            },
+            "candidate_pool": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ],
+              "chunks": [
+                {
+                  "candidate_id": "s",
+                  "filename": "parametros.md",
+                  "content": "O valor S habilita o recurso."
+                },
+                {
+                  "candidate_id": "n",
+                  "filename": "parametros.md",
+                  "content": "O valor N desabilita o recurso."
+                }
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ]
+            },
+            "post_gate": {
+              "status": "not_applicable"
+            },
+            "final_context": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            }
+          },
+          "comparison": {
+            "effective_variant": "jev_rerank_pointwise",
+            "order_sensitivity_audit": {
+              "deterministic_replay": true,
+              "compositions": [
+                {
+                  "name": "original",
+                  "output_order_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "applied": true
+                },
+                {
+                  "name": "reversed",
+                  "output_order_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "applied": true
+                }
+              ]
+            }
+          }
+        }
+      },
+      "jev_rerank_batch": {
+        "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "s",
+            "filename": "parametros.md",
+            "content": "O valor S habilita o recurso."
+          }
+        ],
+        "trace": {
+          "query_plan": {
+            "intent": "configuration"
+          },
+          "abstained": false,
+          "cited_files": [
+            "parametros.md"
+          ],
+          "grounding_errors": [],
+          "model_calls": [],
+          "external_calls": [],
+          "retrieval_stages": {
+            "sections": {
+              "status": "available",
+              "ids": [
+                "sec"
+              ]
+            },
+            "candidate_pool": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ],
+              "chunks": [
+                {
+                  "candidate_id": "s",
+                  "filename": "parametros.md",
+                  "content": "O valor S habilita o recurso."
+                },
+                {
+                  "candidate_id": "n",
+                  "filename": "parametros.md",
+                  "content": "O valor N desabilita o recurso."
+                }
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ]
+            },
+            "post_gate": {
+              "status": "not_applicable"
+            },
+            "final_context": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            }
+          },
+          "comparison": {
+            "effective_variant": "jev_rerank_batch",
+            "order_sensitivity_audit": {
+              "deterministic_replay": true,
+              "compositions": [
+                {
+                  "name": "original",
+                  "output_order_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "applied": true
+                },
+                {
+                  "name": "reversed",
+                  "output_order_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "applied": true
+                }
+              ]
+            }
+          }
+        }
+      },
+      "grounding_d0": {
+        "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "s",
+            "filename": "parametros.md",
+            "content": "O valor S habilita o recurso."
+          }
+        ],
+        "trace": {
+          "query_plan": {
+            "intent": "configuration"
+          },
+          "abstained": false,
+          "cited_files": [
+            "parametros.md"
+          ],
+          "grounding_errors": [],
+          "model_calls": [],
+          "external_calls": [],
+          "evidence_gate": {
+            "status": "applied",
+            "decision": "answer",
+            "policy_version": null
+          },
+          "retrieval_stages": {
+            "sections": {
+              "status": "available",
+              "ids": [
+                "sec"
+              ]
+            },
+            "candidate_pool": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ],
+              "chunks": [
+                {
+                  "candidate_id": "s",
+                  "filename": "parametros.md",
+                  "content": "O valor S habilita o recurso."
+                },
+                {
+                  "candidate_id": "n",
+                  "filename": "parametros.md",
+                  "content": "O valor N desabilita o recurso."
+                }
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ]
+            },
+            "post_gate": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            },
+            "final_context": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            }
+          },
+          "comparison": {
+            "effective_variant": "grounding_d0",
+            "fixed_response_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "fixed_envelope_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          }
+        }
+      },
+      "grounding_d1": {
+        "answer": "O valor S habilita o recurso. [Fonte: parametros.md]",
+        "chunks": [
+          {
+            "candidate_id": "s",
+            "filename": "parametros.md",
+            "content": "O valor S habilita o recurso."
+          }
+        ],
+        "trace": {
+          "query_plan": {
+            "intent": "configuration"
+          },
+          "abstained": false,
+          "cited_files": [
+            "parametros.md"
+          ],
+          "grounding_errors": [],
+          "model_calls": [
+            {
+              "call_id": "judge-1",
+              "stage": "semantic_grounding",
+              "status": "success",
+              "usage": {
+                "input_tokens": 10,
+                "cached_input_tokens": 0,
+                "output_tokens": 2,
+                "reasoning_tokens": 0,
+                "total_tokens": 12
+              },
+              "estimated_cost_usd": 0.001
+            }
+          ],
+          "external_calls": [],
+          "evidence_gate": {
+            "status": "applied",
+            "decision": "answer",
+            "policy_version": null
+          },
+          "semantic_grounding": {
+            "status": "supported",
+            "reason": null,
+            "claim_support": [
+              {
+                "claim_id": "claim-raw",
+                "status": "supported",
+                "support_probability": 0.95,
+                "contradiction_probability": 0.05,
+                "call_id": "judge-1",
+                "question_ids": [
+                  "support",
+                  "contradiction"
+                ]
+              }
+            ],
+            "counts": {
+              "supported": 1,
+              "unsupported": 0,
+              "contradicted": 0,
+              "conflicting_evidence": 0,
+              "inconclusive": 0
+            },
+            "extraction": {
+              "status": "complete",
+              "claim_count": 1
+            },
+            "regenerations": 0,
+            "rounds": []
+          },
+          "retrieval_stages": {
+            "sections": {
+              "status": "available",
+              "ids": [
+                "sec"
+              ]
+            },
+            "candidate_pool": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ],
+              "chunks": [
+                {
+                  "candidate_id": "s",
+                  "filename": "parametros.md",
+                  "content": "O valor S habilita o recurso."
+                },
+                {
+                  "candidate_id": "n",
+                  "filename": "parametros.md",
+                  "content": "O valor N desabilita o recurso."
+                }
+              ]
+            },
+            "post_rerank": {
+              "status": "available",
+              "ids": [
+                "s",
+                "n"
+              ]
+            },
+            "post_gate": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            },
+            "final_context": {
+              "status": "available",
+              "ids": [
+                "s"
+              ]
+            }
+          },
+          "comparison": {
+            "effective_variant": "grounding_d1",
+            "fixed_response_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "fixed_envelope_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          }
+        }
+      }
+    }
+  }
+]

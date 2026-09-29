@@ -44,6 +44,69 @@
       "human_and_operational_validation": "#53",
       "adoption_decision": "#93/#96",
       "prepare_only_has_no_external_calls": true
+    },
+    "jev_study": {
+      "schema_version": 1,
+      "dataset_role": "development",
+      "known_historical_dataset_ids": [
+        "maxpedido_baseline_v1",
+        "jev_paired_synthetic_fixture"
+      ],
+      "rerank": {
+        "arms": ["jev_rerank_pointwise", "jev_rerank_batch"],
+        "same_candidate_pool": true,
+        "same_reformulated_query": true,
+        "full_candidate_text": true,
+        "same_state_cap": true,
+        "pointwise_prompt_version": "jev-rerank-pt-v1",
+        "batch_prompt_version": "jev-rerank-batch-pt-v1",
+        "grouping_version": "consecutive-greedy-v1",
+        "estimator_version": "utf8-bytes-div2-ceil-v1",
+        "batch_composition": "ordered_groups_under_state_cap",
+        "historical_prompt_confounder": {
+          "present": true,
+          "reason": "Os prompts pointwise e batch têm contratos históricos distintos; a diferença permanece identificada como confundidor."
+        },
+        "coverage_cuts": [20, 40],
+        "order_sensitivity_audit": {
+          "split": "development",
+          "compositions": ["original", "reversed", "stable_rotation"],
+          "policy_effect": "diagnostic_only"
+        }
+      },
+      "gate": {
+        "arms": ["existing", "existing+evidence_gate"]
+      },
+      "grounding": {
+        "arms": ["grounding_d0", "grounding_d1"],
+        "base_variant": "existing",
+        "base_selection_development_run_id": null,
+        "development_run_id": null,
+        "frozen": {
+          "base_pipeline": true,
+          "gate_policy": true,
+          "models": true,
+          "common_prompts": true,
+          "corpus": true,
+          "feedback": true,
+          "strict_mode": true,
+          "budgets": true
+        },
+        "allowed_changes": ["claim_extraction", "judgment", "regeneration"],
+        "fixed_response_judgment": {
+          "enabled": true,
+          "same_response": true,
+          "same_exact_envelope": true,
+          "label": "fixed_baseline_response_exact_envelope"
+        }
+      },
+      "confirmation": {
+        "independent_dataset_id": null,
+        "preregistered_comparisons": [],
+        "policy_frozen": false,
+        "policy_status": "not_frozen",
+        "status": "not_preregistered"
+      }
     }
   },
   "decision_policy": {

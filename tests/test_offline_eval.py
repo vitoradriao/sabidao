@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from evaluation import build_dataset, run_offline_eval
+from tests.test_semantic_grounding import policy_v2
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -412,8 +413,8 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIsNotNone(summary["p95_latency_ms"])
         self.assertIn("factual_correctness", summary["metric_definitions"])
         self.assertIn("evidence_discounted_coverage_at_10", summary["metric_definitions"])
-        self.assertEqual(summary["metric_definitions_version"], 3)
-        self.assertEqual(summary["evaluator_schema_version"], 10)
+        self.assertEqual(summary["metric_definitions_version"], 4)
+        self.assertEqual(summary["evaluator_schema_version"], 11)
         self.assertEqual(summary["score_evaluated"], 4)
 
     def test_false_absence_claim_is_measured_only_for_expected_answers(self):
@@ -641,7 +642,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(metrics["ndcg_at_10"], 0.7896)
         self.assertEqual(details["ndcg_at_10"]["judged_universe_id"], "pool-v1")
         self.assertEqual(details["ndcg_at_10"]["judged_count"], 3)
-        self.assertEqual(details["ndcg_at_10"]["definition_version"], 3)
+        self.assertEqual(details["ndcg_at_10"]["definition_version"], 4)
         self.assertEqual(metrics["evidence_discounted_coverage_at_10"], 0.6309)
 
         ideal_metrics, _ = run_offline_eval._retrieval_metrics(
@@ -935,6 +936,53 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertEqual(summary["external_call_count"], 1)
         self.assertEqual(summary["calls_without_usage"], 1)
         self.assertFalse(summary["cost_complete"])
+
+    def test_model_usage_deduplicates_call_id_and_tracks_deadline(self):
+        shared = {
+            "call_id": "shared-call",
+            "stage": "semantic_grounding",
+            "status": "deadline_expired",
+            "error_code": "deadline_expired",
+            "late_completion": True,
+            "usage": {
+                "input_tokens": 10,
+                "cached_input_tokens": 0,
+                "output_tokens": 2,
+                "reasoning_tokens": 0,
+                "total_tokens": 12,
+            },
+            "estimated_cost_usd": 0.01,
+        }
+        summary = run_offline_eval._summarize_model_usage([
+            {"trace": {"model_calls": [shared], "external_calls": [shared]}}
+        ])
+        self.assertEqual(summary["call_count"], 1)
+        self.assertEqual(summary["deduplicated_call_record_count"], 1)
+        self.assertEqual(summary["late_completion_count"], 1)
+        self.assertEqual(summary["deadline_call_count"], 1)
+        self.assertTrue(summary["call_ledger"][0]["call_id"].startswith("call-"))
+
+    def test_coverage_diagnostics_expose_cuts_20_and_40_without_fake_ndcg(self):
+        chunks = [
+            {
+                "candidate_id": f"candidate-{index}",
+                "filename": "doc.md",
+                "content": "evidencia alvo" if index == 21 else f"ruido {index}",
+            }
+            for index in range(1, 22)
+        ]
+        values, details = run_offline_eval._retrieval_metrics(
+            chunks,
+            [{"source": "doc.md", "contains": ["evidencia alvo"]}],
+        )
+        self.assertEqual(values["evidence_coverage_at_20"], 0.0)
+        self.assertEqual(values["evidence_coverage_at_40"], 1.0)
+        self.assertEqual(details["evidence_coverage_at_40"]["reference_count"], 1)
+        self.assertIsNone(values["ndcg_at_10"])
+        self.assertEqual(
+            details["ndcg_at_10"]["unavailable_reason"],
+            "missing_qrels",
+        )
 
     def test_query_embedding_records_provider_call_and_cache_hit(self):
         calls = []
@@ -1688,6 +1736,261 @@ class TestOfflineEvaluator(unittest.TestCase):
                     snapshot_id="drift-snapshot",
                 )
         self.assertEqual(calls, ["existing"])
+
+    def test_jev_study_prepare_is_local_and_rejects_holdout(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_study_synthetic_fixture.json"
+        )
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(encoding="utf-8")
+        )
+        with (
+            patch.object(run_offline_eval.rag, "ask") as ask,
+            patch.object(run_offline_eval, "_database_identity") as identity,
+            patch.object(run_offline_eval.config, "TYPESAFE_API_KEY", ""),
+        ):
+            prepared = run_offline_eval.prepare_jev_study(
+                dataset=dataset,
+                dataset_name="jev-study-fixture",
+                baseline_config=baseline_config,
+                split="development",
+            )
+        self.assertEqual(prepared["external_calls"], 0)
+        self.assertEqual(prepared["database_writes"], 0)
+        self.assertIn("jev_study_requires_TYPESAFE_API_KEY", prepared["blockers"])
+        ask.assert_not_called()
+        identity.assert_not_called()
+        with self.assertRaisesRegex(
+            run_offline_eval.VariantConfigurationError, "holdout #93",
+        ):
+            run_offline_eval.prepare_jev_study(
+                dataset=dataset,
+                dataset_name="jev-study-fixture",
+                baseline_config=baseline_config,
+                split="holdout",
+            )
+
+    def test_confirmation_rejects_historical_dataset_as_independent(self):
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(encoding="utf-8")
+        )
+        study = baseline_config["comparison"]["jev_study"]
+        study["dataset_role"] = "confirmation"
+        study["confirmation"] = {
+            "independent_dataset_id": "maxpedido_baseline_v1",
+            "preregistered_comparisons": ["grounding_d0_vs_d1"],
+            "policy_frozen": True,
+        }
+        with self.assertRaisesRegex(
+            run_offline_eval.VariantConfigurationError, "dataset independente",
+        ):
+            run_offline_eval._validate_jev_study_profile(
+                baseline_config["comparison"],
+                variants=[run_offline_eval.VARIANT_GROUNDING_D0, run_offline_eval.VARIANT_GROUNDING_D1],
+            )
+
+    def test_confirmation_rejects_provisional_policy(self):
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(encoding="utf-8")
+        )
+        study = baseline_config["comparison"]["jev_study"]
+        study["dataset_role"] = "confirmation"
+        study["confirmation"] = {
+            "independent_dataset_id": "confirmation-new-v1",
+            "preregistered_comparisons": ["grounding_d0_vs_d1"],
+            "policy_frozen": True,
+            "policy_status": "provisional",
+        }
+        with self.assertRaisesRegex(
+            run_offline_eval.VariantConfigurationError, "política provisional",
+        ):
+            run_offline_eval._validate_jev_study_profile(
+                baseline_config["comparison"],
+                variants=[run_offline_eval.VARIANT_GROUNDING_D0, run_offline_eval.VARIANT_GROUNDING_D1],
+            )
+
+    def test_grounding_observation_preserves_outcomes_and_human_omissions(self):
+        expected = {
+            "supported": False,
+            "rejected": False,
+            "inconclusive": False,
+        }
+        for status, qualified in expected.items():
+            with self.subTest(status=status):
+                observation = run_offline_eval._semantic_grounding_observation(
+                    {
+                        "semantic_grounding": {
+                            "status": status,
+                            "reason": "conflicting_evidence" if status == "rejected" else None,
+                            "claim_support": [{
+                                "claim_id": "claim-safe",
+                                "status": (
+                                    "conflicting_evidence"
+                                    if status == "rejected"
+                                    else "inconclusive"
+                                    if status == "inconclusive"
+                                    else "supported"
+                                ),
+                                "support_probability": "high",
+                                "contradiction_probability": (
+                                    "high" if status == "rejected" else "low"
+                                ),
+                            }],
+                            "counts": {},
+                            "extraction": {
+                                "status": "incomplete" if status == "inconclusive" else "complete"
+                            },
+                            "rounds": [{"status": status}],
+                            "regenerations": 1 if status == "rejected" else 0,
+                        }
+                    },
+                    {},
+                )
+                self.assertEqual(observation["qualified_response"], qualified)
+                self.assertEqual(observation["human_review"]["status"], "not_performed")
+                self.assertTrue(observation["human_review"]["omissions"])
+                self.assertEqual(observation["rounds"]["original"]["status"], status)
+
+    def test_jev_study_fixture_covers_abc_and_d0_d1(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_study_synthetic_fixture.json"
+        )
+        variants = set(dataset[0]["fixture_variants"])
+        self.assertTrue({
+            "existing", "jev_rerank", "jev_rerank+evidence_gate",
+            "grounding_d0", "grounding_d1",
+        }.issubset(variants))
+
+    def test_jev_study_runs_gate_rerank_grounding_and_fixed_response(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_study_synthetic_fixture.json"
+        )
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(encoding="utf-8")
+        )
+
+        def provider(variant):
+            def answer_provider(question, scope):
+                self.assertEqual(question, dataset[0]["question"])
+                response = dataset[0]["fixture_variants"][variant]
+                return _paired_fixture_response(response, scope)
+            return answer_provider
+
+        variants = (
+            "existing", "existing+evidence_gate",
+            "jev_rerank_pointwise", "jev_rerank_batch",
+            "grounding_d0", "grounding_d1",
+        )
+        providers = {variant: provider(variant) for variant in variants}
+        with (
+            patch.object(
+                run_offline_eval,
+                "_database_identity",
+                return_value=self._verified_database_identity(),
+            ),
+            patch.object(run_offline_eval.evidence_gate, "load_policy", return_value={}),
+            patch.object(run_offline_eval.evidence_gate, "load_policy_file", return_value=policy_v2()),
+        ):
+            report = run_offline_eval.run_jev_study(
+                dataset=dataset,
+                dataset_name="jev-study-fixture",
+                dry_run=True,
+                limit=None,
+                baseline_config=baseline_config,
+                split="development",
+                answer_providers=providers,
+                fixed_response_providers={
+                    variant: providers[variant]
+                    for variant in ("grounding_d0", "grounding_d1")
+                },
+                snapshot_id="fixture-snapshot-v1",
+            )
+        self.assertEqual(report["status"], "complete", report)
+        self.assertTrue(report["fixed_response_judgment"]["judge_error_isolated"])
+        self.assertEqual(report["order_sensitivity_audit"]["status"], "complete")
+        d1 = report["comparisons"]["grounding"]["summaries"]["grounding_d1"]["results"][0]
+        observation = d1["semantic_grounding_observation"]
+        self.assertFalse(observation["qualified_response"])
+        self.assertEqual(observation["human_review"]["status"], "not_performed")
+        self.assertEqual(observation["rounds"]["count"], 0)
+        self.assertTrue(observation["claim_decisions"][0]["claim_id"].startswith("claim-"))
+        serialized = json.dumps(report, ensure_ascii=False)
+        self.assertNotIn("claim-raw", serialized)
+        self.assertNotIn("judge-1", serialized)
+        self.assertNotIn("O valor S habilita", serialized)
+
+    def test_d0_d1_rejects_unauthorized_rerank_mode_difference(self):
+        dataset = run_offline_eval._load_dataset(
+            ROOT_DIR / "evaluation" / "datasets" / "jev_study_synthetic_fixture.json"
+        )
+        baseline_config = json.loads(
+            (ROOT_DIR / "evaluation" / "baseline_config.json").read_text(encoding="utf-8")
+        )
+        variants = ["grounding_d0", "grounding_d1"]
+        subconfig = run_offline_eval._study_subconfig(
+            baseline_config,
+            variants=variants,
+            views=["end_to_end_same_snapshot"],
+            pair_id="d0-d1-identity",
+        )
+
+        def provider(variant):
+            def answer_provider(_question, scope):
+                return _paired_fixture_response(
+                    dataset[0]["fixture_variants"][variant], scope,
+                )
+            return answer_provider
+
+        original_settings = run_offline_eval._variant_settings
+
+        def divergent_settings(variant_id, profile=None):
+            settings = original_settings(variant_id, profile)
+            if variant_id == "grounding_d1":
+                settings = {**settings, "rerank_mode": "batch"}
+            return settings
+
+        with (
+            patch.object(
+                run_offline_eval,
+                "_database_identity",
+                return_value=self._verified_database_identity(),
+            ),
+            patch.object(run_offline_eval.evidence_gate, "load_policy", return_value={}),
+            patch.object(run_offline_eval.evidence_gate, "load_policy_file", return_value=policy_v2()),
+            patch.object(run_offline_eval, "_variant_settings", side_effect=divergent_settings),
+        ):
+            with self.assertRaisesRegex(
+                run_offline_eval.VariantConfigurationError,
+                "runtime diverge",
+            ):
+                run_offline_eval.run_paired_comparison(
+                    dataset=dataset,
+                    dataset_name="d0-d1-identity",
+                    dry_run=True,
+                    limit=None,
+                    baseline_config=subconfig,
+                    split="development",
+                    variants=variants,
+                    answer_providers={variant: provider(variant) for variant in variants},
+                    snapshot_id="fixture-snapshot-v1",
+                )
+
+    def test_order_audit_publishes_only_hashes_counts_and_declared_metadata(self):
+        sanitized = run_offline_eval._sanitize_order_sensitivity_audit({
+            "deterministic_replay": True,
+            "compositions": [{
+                "name": "Original",
+                "candidate_count": 2,
+                "input_order_sha256": "a" * 64,
+                "output_order_sha256": "b" * 64,
+                "candidate_ids": ["segredo-1", "segredo-2"],
+                "raw_text": "conteudo privado",
+            }],
+        })
+        serialized = json.dumps(sanitized, ensure_ascii=False)
+        self.assertNotIn("segredo", serialized)
+        self.assertNotIn("conteudo privado", serialized)
+        self.assertEqual(sanitized["compositions"][0]["candidate_count"], 2)
 
 
 if __name__ == "__main__":
