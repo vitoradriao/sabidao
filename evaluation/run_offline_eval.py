@@ -27,12 +27,13 @@ if str(ROOT_DIR) not in sys.path:
 
 import config
 import evidence_gate
+import grounding
 import jev
 import rag
 from bot_common import normalize_text
 
 
-EVALUATOR_SCHEMA_VERSION = 8
+EVALUATOR_SCHEMA_VERSION = 9
 METRIC_DEFINITIONS_VERSION = 3
 COMPARISON_PROFILE_VERSION = 1
 COMPARISON_SCHEMA_VERSION = 2
@@ -209,6 +210,7 @@ _CONFIG_FIELDS = (
     "JEV_MIN_REMAINING_SECONDS",
     "JEV_RERANK_MAX_CANDIDATES",
     "JEV_MAX_STATE_ESTIMATED_TOKENS",
+    "JEV_GROUNDING_MAX_CLAIMS",
 )
 
 AnswerProvider = Callable[[str, dict[str, Any]], tuple[str, list[dict], dict[str, Any]]]
@@ -1600,6 +1602,31 @@ def _score_case(
     return round(score, 4)
 
 
+def _claim_extraction_observation(trace: dict[str, Any]) -> dict[str, Any]:
+    extraction = trace.get("claim_extraction")
+    if not isinstance(extraction, dict):
+        return {
+            "status": "not_run",
+            "complete": None,
+            "reason": "consumer_not_enabled",
+        }
+    status = str(extraction.get("status") or "unavailable")
+    return {
+        "status": status,
+        "complete": status == "complete",
+        "reason": extraction.get("reason"),
+        "claim_count": extraction.get("claim_count"),
+        "review_token_count": extraction.get("review_token_count"),
+        "covered_token_count": extraction.get("covered_token_count"),
+        "uncovered_span_count": extraction.get("uncovered_span_count"),
+        "invalid_reference_count": extraction.get("invalid_reference_count"),
+        "quote_mismatch_count": extraction.get("quote_mismatch_count"),
+        "prompt_version": extraction.get("prompt_version"),
+        "extractor_model": extraction.get("extractor_model"),
+        "evidence_fingerprint": extraction.get("evidence_fingerprint"),
+    }
+
+
 def _evaluate_response(
     *,
     case: dict[str, Any],
@@ -1680,6 +1707,7 @@ def _evaluate_response(
         "false_abstention": false_abstention,
         "false_absence_claim": false_absence_claim,
         "unsupported_claims": unsupported_claims,
+        "claim_extraction": _claim_extraction_observation(trace),
         "score": score,
         "stage_metrics": stage_metrics,
         "metric_details": {
@@ -1879,6 +1907,12 @@ def _prompt_and_policy_identity(
         "documentary_evidence_policy": {
             "version": rag.DOCUMENTARY_EVIDENCE_POLICY_VERSION,
             **_text_identity(rag.DOCUMENTARY_EVIDENCE_POLICY),
+        },
+        "claim_extraction": {
+            "prompt_version": grounding.PROMPT_VERSION,
+            "prompt_sha256": _text_identity(grounding.PROMPT)["sha256"],
+            "coverage_basis": grounding.COVERAGE_BASIS,
+            "configured_generation_model": rag._resolve_generation_model()[0],
         },
         "baseline_policy_sha256": (
             _canonical_sha256(baseline_config)

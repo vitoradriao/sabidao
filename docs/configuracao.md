@@ -76,8 +76,9 @@ quantidade e tokens; pode ser excluído integralmente. `BUSINESS_RULES_MAX_CHARS
 continua limitando a leitura. Regras excluídas não são enviadas ao gerador nem
 separadamente ao gate Jev, e sua fonte não fica autorizada por essa leitura.
 
-O envelope `context-selection-v2` conta política, pergunta, histórico retido,
-imagens, delimitadores da mensagem documental, saída e margem. Geração e
+Após a integração da #94, o envelope `context-selection-v3` conta política,
+pergunta, histórico retido, imagens, delimitadores da mensagem documental,
+saída e margem. Geração e
 regeneração recebem as mesmas evidências; o prompt final tem seu orçamento
 verificado antes da chamada. Só fontes de spans efetivamente retidos são aceitas
 na validação de citações. `context_budget_exceeded` e `provider_error` representam
@@ -318,6 +319,36 @@ fingerprint da evidência, latência e custo conhecido/completo; nunca o state.
 Rollback: `JEV_EVIDENCE_GATE_ENABLED=false`. Não exige migração ou reindexação.
 A entrega é de implementação com fixtures; calibração, ensaio real, revisão
 humana e adoção permanecem na #93.
+
+## Extração de afirmações para grounding (issue #94)
+
+Esta seção acompanha a entrega pendente da #94 e passa a valer após sua integração.
+O módulo `grounding.py` e o helper `_extract_answer_claims` preparam o contrato
+para a verificação semântica da #95. Ainda não são chamados por `rag.ask`, não
+alteram respostas e não fazem chamadas pagas no fluxo normal. A #95 decidirá
+quando acioná-los e como tratar um resultado incompleto ou indisponível.
+
+`JEV_GROUNDING_MAX_CLAIMS=12` limita a saída estruturada a 1–30 afirmações. Se
+o modelo retornar mais do que o limite, a extração fica `incomplete`; nenhuma
+lista é truncada para parecer completa. O extrator usa o provider e o modelo de
+geração efetivos, com uma chamada sem nova tentativa automática, sob o deadline
+e o orçamento de contexto da pergunta. Não usa uma credencial TypeSafe nova.
+
+Cada afirmação inclui texto literal e offsets Unicode da resposta original,
+tipo `factual|instruction|non_factual` e IDs sugeridos do envelope final.
+Referências são resolvidas por ID, hash e spans retidos, inclusive quando duas
+fontes têm o mesmo nome. Uma citação literal pode coincidir com o texto enviado
+sem que a afirmação esteja semanticamente sustentada. O resumo seguro da
+extração guarda contagens, status, hashes e modelo; o texto das afirmações não
+deve entrar em `ASK_TRACE`. A cobertura determinística sinaliza omissões e
+trechos técnicos rotulados como não factuais, mas não comprova atomicidade nem
+substitui revisão humana (#96).
+
+O envelope `context-selection-v3` calcula `content_hash` sobre o conteúdo
+original do chunk e usa `spans` para indicar a parte enviada, sem reutilizar o
+hash do documento inteiro que pode estar em `metadata.content_hash`. O perfil
+de comparação foi versionado para impedir
+equivalência silenciosa com relatórios produzidos pelo envelope v2.
 
 ## Compatibilidade com nomes antigos
 

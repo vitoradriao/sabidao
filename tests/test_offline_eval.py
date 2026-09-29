@@ -26,6 +26,32 @@ def _paired_fixture_response(response, scope, *, comparison=None):
 
 
 class TestOfflineEvaluator(unittest.TestCase):
+    def test_claim_extraction_observation_does_not_imply_semantic_support(self):
+        absent = run_offline_eval._claim_extraction_observation({})
+        self.assertEqual(absent["status"], "not_run")
+        self.assertIsNone(absent["complete"])
+        observed = run_offline_eval._claim_extraction_observation({
+            "claim_extraction": {
+                "status": "incomplete", "reason": "uncovered_answer_spans",
+                "claim_count": 2, "uncovered_span_count": 1,
+                "extractor_model": "fake-model", "evidence_fingerprint": "hash",
+            }
+        })
+        self.assertFalse(observed["complete"])
+        self.assertEqual(observed["uncovered_span_count"], 1)
+        self.assertNotIn("semantic_support", observed)
+
+    def test_claim_extraction_identity_includes_prompt_and_cap(self):
+        with patch.object(run_offline_eval, "_database_identity", return_value=self._verified_database_identity()):
+            initial = run_offline_eval._experiment_identity(None)
+            with patch.object(run_offline_eval.config, "JEV_GROUNDING_MAX_CLAIMS", 15):
+                changed = run_offline_eval._experiment_identity(None)
+        self.assertNotEqual(initial["fingerprint_sha256"], changed["fingerprint_sha256"])
+        self.assertEqual(
+            initial["prompts_and_policies"]["claim_extraction"]["prompt_version"],
+            "claim-extraction-pt-v1",
+        )
+
     def test_git_commit_accepts_explicit_runtime_identity(self):
         with patch.dict(
             run_offline_eval.os.environ,
@@ -371,7 +397,7 @@ class TestOfflineEvaluator(unittest.TestCase):
         self.assertIn("factual_correctness", summary["metric_definitions"])
         self.assertIn("evidence_discounted_coverage_at_10", summary["metric_definitions"])
         self.assertEqual(summary["metric_definitions_version"], 3)
-        self.assertEqual(summary["evaluator_schema_version"], 8)
+        self.assertEqual(summary["evaluator_schema_version"], 9)
         self.assertEqual(summary["score_evaluated"], 4)
 
     def test_false_absence_claim_is_measured_only_for_expected_answers(self):

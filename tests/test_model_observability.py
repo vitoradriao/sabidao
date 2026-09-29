@@ -1,8 +1,10 @@
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import config
+import grounding
 import rag
 
 
@@ -288,6 +290,23 @@ class TestRequestModelTrace(unittest.TestCase):
             },
         )
         self.assertTrue(trace["model_usage"]["cost_complete"])
+
+
+class TestClaimExtractionObservability(unittest.TestCase):
+    def test_trace_keeps_counts_and_hashes_without_claim_or_source_text(self):
+        claim_set = grounding.empty_claim_set(
+            "Parâmetro secreto 42", "hash-evidencia", "modelo-fake",
+            "incomplete", "missing_evidence_refs",
+        )
+        claim_set["claims"] = [{
+            "id": "c1", "text": "Parâmetro secreto 42",
+            "evidence_refs": [{"legacy_locator": {"filename": "cliente.md"}}],
+        }]
+        serialized = json.dumps(grounding.claim_set_trace(claim_set), ensure_ascii=False)
+        self.assertNotIn("Parâmetro secreto", serialized)
+        self.assertNotIn("cliente.md", serialized)
+        self.assertIn("hash-evidencia", serialized)
+        self.assertIn('"claim_count": 1', serialized)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ from google.genai import types as _gtypes
 
 import config
 import evidence_gate
+import grounding
 import jev
 from canonical_docs import (
     load_canonical_document,
@@ -64,7 +65,7 @@ class ContextBudgetError(ValueError):
         self.details = details
 
 
-CONTEXT_SELECTION_VERSION = "context-selection-v2"
+CONTEXT_SELECTION_VERSION = "context-selection-v3"
 TOKEN_COUNTER_VERSION = "utf8-bytes-div2-ceil-v1"
 
 
@@ -1051,16 +1052,20 @@ def _openai_chat_generate(
     stage: str = "unspecified",
     model_calls: list[dict[str, Any]] | None = None,
     routing_reason: str = "configured_stage_model",
+    retry_transient: bool = True,
 ) -> _GeneratedTextResponse:
     started_at = _time.monotonic()
-    try:
-        response = _retry_on_transient(
-            lambda: _openai_chat_generate_request(
-                model=model,
-                messages=messages,
-                max_tokens=max_tokens,
-            )
+
+    def request() -> _GeneratedTextResponse:
+        return _openai_chat_generate_request(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            allow_compatibility_fallback=retry_transient,
         )
+
+    try:
+        response = _retry_on_transient(request) if retry_transient else request()
     except Exception as exc:
         _record_model_call(
             model_calls,
@@ -1095,6 +1100,7 @@ def _openai_chat_generate_request(
     model: str,
     messages: list[dict],
     max_tokens: int = 2048,
+    allow_compatibility_fallback: bool = True,
 ) -> _GeneratedTextResponse:
     payload = {
         "model": model,
@@ -1107,7 +1113,11 @@ def _openai_chat_generate_request(
         json=payload,
         timeout=_remaining_request_timeout(120),
     )
-    if resp.status_code == 400 and "max_completion_tokens" in (resp.text or "").lower():
+    if (
+        allow_compatibility_fallback
+        and resp.status_code == 400
+        and "max_completion_tokens" in (resp.text or "").lower()
+    ):
         _ensure_request_active("openai_compatibility_fallback")
         payload.pop("max_completion_tokens", None)
         payload["max_tokens"] = max_tokens
@@ -1170,6 +1180,7 @@ def _gemini_generate(
     stage: str = "unspecified",
     model_calls: list[dict[str, Any]] | None = None,
     routing_reason: str = "configured_stage_model",
+    retry_transient: bool = True,
 ):
     """
     Wrapper retrocompativel de geracao:
@@ -1201,6 +1212,7 @@ def _gemini_generate(
             stage=stage,
             model_calls=model_calls,
             routing_reason=routing_reason,
+            retry_transient=retry_transient,
         )
 
     resolved_model = _resolve_text_model(
@@ -1225,7 +1237,10 @@ def _gemini_generate(
 
     started_at = _time.monotonic()
     try:
-        raw_response = _retry_on_transient(_generate_content)
+        raw_response = (
+            _retry_on_transient(_generate_content)
+            if retry_transient else _generate_content()
+        )
         try:
             text = raw_response.text or ""
         except (AttributeError, ValueError):
@@ -1270,6 +1285,81 @@ def _gemini_generate(
         routing_reason=routing_reason,
     )
     return response
+
+
+def _extract_answer_claims(
+    *,
+    question: str,
+    answer: str,
+    selection: ContextSelection,
+    request_id: str | None = None,
+    model_calls: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Prepara claims para o consumidor semântico futuro, sem alterar a resposta."""
+    model, routing_reason = _resolve_generation_model()
+    try:
+        evidence_index, fingerprint = grounding.build_evidence_index(
+            selection.evidence, selection.retained_chunks, selection.rendered_text,
+        )
+    except ValueError as exc:
+        return grounding.empty_claim_set(
+            answer, None, model, "invalid", str(exc),
+        )
+
+    contents = grounding.extraction_input(question, answer, evidence_index)
+    provider = _active_llm_provider()
+    max_tokens = _effective_output_token_budget(
+        provider,
+        min(int(config.ASK_MAX_TOKENS), 512 + 256 * config.JEV_GROUNDING_MAX_CLAIMS),
+    )
+    parts, _methods = _prompt_token_parts(
+        system=grounding.PROMPT,
+        question=contents,
+        conversation_history=[],
+        images=None,
+        provider=provider,
+        model=model,
+    )
+    max_input = min(
+        int(config.RAG_MAX_INPUT_TOKENS),
+        int(config.RAG_MODEL_CONTEXT_TOKENS) - max_tokens - int(config.RAG_CONTEXT_MARGIN_TOKENS),
+    )
+    if sum(parts.values()) > max_input:
+        return grounding.empty_claim_set(
+            answer, fingerprint, model, "unavailable", "extraction_prompt_budget_exceeded",
+        )
+
+    try:
+        _ensure_request_active("claim_extraction")
+        response = _gemini_generate(
+            model,
+            system=grounding.PROMPT,
+            contents=contents,
+            max_tokens=max_tokens,
+            request_id=request_id,
+            stage="claim_extraction",
+            model_calls=model_calls,
+            routing_reason=routing_reason,
+            retry_transient=False,
+        )
+    except RequestDeadlineExceeded:
+        return grounding.empty_claim_set(
+            answer, fingerprint, model, "unavailable", "deadline_exceeded",
+        )
+    except Exception as exc:
+        logger.warning("Extração de claims indisponível (%s).", type(exc).__name__)
+        return grounding.empty_claim_set(
+            answer, fingerprint, model, "unavailable", "provider_error",
+        )
+
+    return grounding.parse_claim_set(
+        answer=answer,
+        raw_json=response.text,
+        evidence_index=evidence_index,
+        evidence_fingerprint=fingerprint,
+        extractor_model=response.model or model,
+        max_claims=config.JEV_GROUNDING_MAX_CLAIMS,
+    )
 
 
 def _anthropic_msgs_to_gemini(messages: list[dict]) -> list[_gtypes.Content]:
@@ -3271,16 +3361,14 @@ def _evidence_message(context: str) -> str:
 
 
 def _context_chunk_hash(chunk: dict) -> str:
-    metadata = chunk.get("metadata") if isinstance(chunk.get("metadata"), dict) else {}
-    configured_hash = str(metadata.get("content_hash") or "").strip()
-    if configured_hash:
-        return configured_hash
     content = str(chunk.get("content") or "")
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 def _context_chunk_key(chunk: dict) -> str:
-    content_hash = _context_chunk_hash(chunk)
+    # Preserva a chave de deduplicação anterior; o envelope usa hash do chunk.
+    metadata = chunk.get("metadata") if isinstance(chunk.get("metadata"), dict) else {}
+    content_hash = str(metadata.get("content_hash") or "").strip() or _context_chunk_hash(chunk)
     chunk_id = str(chunk.get("id") or "").strip()
     if chunk_id:
         return f"id:{chunk_id}"
