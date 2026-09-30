@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-09-30",
+  "status": "frozen_before_new_dataset_provider_calls",
+  "dataset": "confirmation-v1.json",
+  "dataset_sha256": "6d38bfb2b7ef48278061efb11ab5940d870397566f6abacc85bf43ffa016e3ce",
+  "human_case_review": {
+    "reviewer": "vitoradriao",
+    "date": "2026-09-30",
+    "cases": 12,
+    "status": "approved_after_correction"
+  },
+  "population": {
+    "answerable": 8,
+    "ambiguous": 2,
+    "no_evidence": 2
+  },
+  "sampling": "Casos documentais propostos pelo assistente e revisados pelo responsável; 12 novas perguntas, não tickets aleatórios. Independência de tuning, não independência de corpus nem prova estatística ampla.",
+  "non_overlap": "Nenhuma pergunta/ID histórica reutilizada; assuntos/fatos novos em relação aos 19 de development. Mesma base documental permitida.",
+  "model_and_config_source": "snapshot-v5.json; configuração coletada antes da execução e revalidada por prepare_comparison",
+  "gate_policy": "gate-policy-frozen-confirmation-v1.json",
+  "gate_policy_sha256": "fee91b34245b9c29f1894a1a2061bc6725679c6937a07ddc8253bb20d45074ba",
+  "thresholds": {
+    "insufficient": {
+      "min_confidence": 0.5,
+      "min_probability_margin": 0.3
+    },
+    "clarification_needed": {
+      "min_confidence": 0.5,
+      "min_probability_margin": 0.3
+    }
+  },
+  "rerank_mode": "batch",
+  "candidate_cap": 20,
+  "preregistered_comparisons": [
+    "existing_vs_jev_rerank",
+    "jev_rerank_vs_jev_rerank+evidence_gate"
+  ],
+  "minimum_correct_answer_gain_absolute": 0.05,
+  "critical_new_errors_max": 0,
+  "quality_and_operational_criteria_source": "protocol-v5.json; não relaxar por resultado ou orçamento ampliado",
+  "budget_working_ceiling_usd": 10,
+  "historical_costs_carried": true,
+  "grounding_96": {
+    "base_D0": "existing",
+    "reason": "Seleção conservadora em development antes da abertura, mantendo existing enquanto Jev/gate não satisfazem todos os gates; sem adoção por inferência.",
+    "execution_status": "outside_issue93_scope",
+    "D0_D1_comparison_plan": "D0=existing; D1=mesma base+grounding. Não executar como confirmação sem calibração/revisão/protocolo próprios da #96. Este conjunto não será reutilizado para ajustar ou confirmar grounding após abertura."
+  },
+  "rules": [
+    "Não retocar parâmetros, prompts, fatos ou casos após abertura.",
+    "Falha operacional e custo desconhecido não contam como sucesso ou custo zero.",
+    "Publicar todos os casos e resultados, incluindo rejeição. Revisão das respostas reais permanece distinta da aprovação dos casos.",
+    "Nenhuma adoção/default/deploy automático."
+  ]
+}

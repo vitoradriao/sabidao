@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "model": "jev-1.13.0",
+  "prompt_version": "jev-evidence-gate-pt-v1",
+  "status": "frozen",
+  "development_run_id": "jev93-gate-calibration-v4",
+  "thresholds": {
+    "insufficient": {
+      "min_confidence": 0.5,
+      "min_probability_margin": 0.3
+    },
+    "clarification_needed": {
+      "min_confidence": 0.5,
+      "min_probability_margin": 0.3
+    }
+  },
+  "frozen_at": "2026-09-30",
+  "freeze_reason": "Mesmo candidato de development, sem tuning após B/C. Congelamento experimental não aprova adoção; development esclarece só 3/4."
+}

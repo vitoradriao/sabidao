@@ -1,0 +1,862 @@
+[
+  {
+    "id": "dev-fluxo-tabela-nuvem",
+    "question": "Em qual tabela da nuvem o pedido do maxPedido e gravado?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "sql_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "fluxo",
+      "sql"
+    ],
+    "expected_facts": [
+      "MXSINTEGRACAOPEDIDO"
+    ],
+    "reference_evidence": [
+      {
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
+        "contains": [
+          "Server grava na",
+          "MXSINTEGRACAOPEDIDO"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "MXSHISTORICOPEDC recebe primeiro o pedido"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-fluxo-status-inicial",
+    "question": "Com qual status o Server grava inicialmente o pedido em MXSINTEGRACAOPEDIDO?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "fluxo",
+      "status"
+    ],
+    "expected_facts": [
+      "status 0"
+    ],
+    "reference_evidence": [
+      {
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
+        "contains": [
+          "Server grava",
+          "status 0"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "status 9"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-fluxo-get-erp",
+    "question": "Quem realiza o GET para buscar o pedido depois que ele chega a nuvem?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "integration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "fluxo",
+      "integracao"
+    ],
+    "expected_facts": [
+      "ERP realiza GET"
+    ],
+    "reference_evidence": [
+      {
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
+        "contains": [
+          "ERP faz um GET",
+          "StatusPedidos"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "APK realiza GET"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-fluxo-put-status",
+    "question": "Quais status o ERP devolve no PUT para sucesso e erro de processamento?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "integration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "fluxo",
+      "erro"
+    ],
+    "expected_facts": [
+      "status 4",
+      "status 5"
+    ],
+    "reference_evidence": [
+      {
+        "source": "01-LAYOUT-INTEGRACAO.md",
+        "contains": [
+          "StatusPedidos (PUT)",
+          "4 (processado) ou 5 (erro)"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "status 9 para erro"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-parametros-cliente-bloqueado",
+    "question": "Quais parametros principais controlam venda para cliente bloqueado?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "parametros",
+      "cliente-bloqueado"
+    ],
+    "expected_facts": [
+      "BLOQUEAR_CONFECCAO_PEDIDO_CLIENTE_BLOQ",
+      "ACEITAVENDAAVISTACLIBLOQ",
+      "CON_ACEITAVENDABLOQ"
+    ],
+    "reference_evidence": [
+      {
+        "source": "05-PEDIDOS-E-VENDAS.md",
+        "contains": [
+          "Cliente bloqueado",
+          "ACEITAVENDAAVISTACLIBLOQ",
+          "CON_ACEITAVENDABLOQ"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "USAGRADE controla cliente bloqueado"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-parametros-filial-retira",
+    "question": "Quais parametros definem a filial retira e o desmembramento do pedido?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "parametros",
+      "filial-retira"
+    ],
+    "expected_facts": [
+      "DEFINE_FILIAL_RETIRA_PADRAO",
+      "DESMEMBRAR_PED_FILIAL_RETIRA"
+    ],
+    "reference_evidence": [
+      {
+        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
+        "contains": [
+          "DEFINE_FILIAL_RETIRA_PADRAO"
+        ]
+      },
+      {
+        "source": "05-PEDIDOS-E-VENDAS.md",
+        "contains": [
+          "DESMEMBRAR_PED_FILIAL_RETIRA",
+          "habilitar"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "USAR_CAMPANHA_DESCONTO_PROGRESSIVO"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-parametros-conta-corrente",
+    "question": "Quais parametros estao relacionados a conta corrente do RCA?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "parametros",
+      "conta-corrente"
+    ],
+    "expected_facts": [
+      "CON_USACREDRCA",
+      "EXIBIR_SALDOCC_DISPONIVEL",
+      "GERAR_DADOS_CC_RCA",
+      "IMPEDIR_ABATIMENTO_SEMSALDORCA"
+    ],
+    "reference_evidence": [
+      {
+        "source": "02-CONHECIMENTOS-GERAIS.md",
+        "contains": [
+          "Conta Corrente",
+          "CON_USACREDRCA",
+          "EXIBIR_SALDOCC_DISPONIVEL"
+        ]
+      },
+      {
+        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
+        "contains": [
+          "GERAR_DADOS_CC_RCA"
+        ]
+      },
+      {
+        "source": "04-PARAMETROS-E-CONFIGURACAO.md",
+        "contains": [
+          "IMPEDIR_ABATIMENTO_SEMSALDORCA"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "CON_ACEITAVENDABLOQ habilita conta corrente"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-status-zero",
+    "question": "O que significa o status 0 em MXSINTEGRACAOPEDIDO?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "status",
+      "erro"
+    ],
+    "expected_facts": [
+      "RecebidoPeloServer"
+    ],
+    "reference_evidence": [
+      {
+        "source": "05-SQL-BANCO-E-INTEGRACAO.md",
+        "contains": [
+          "0 | RecebidoPeloServer"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "ProcessadoPeloErp"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-status-cinco",
+    "question": "O que representa o status 5 do pedido na integracao?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "status",
+      "erro"
+    ],
+    "expected_facts": [
+      "ErroProcessamentoErp"
+    ],
+    "reference_evidence": [
+      {
+        "source": "05-SQL-BANCO-E-INTEGRACAO.md",
+        "contains": [
+          "5 | ErroProcessamentoErp"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "PedidoAprovado"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-timeline-data-abertura",
+    "question": "O que precisa acontecer com DTABERTURAPEDPALM para a timeline consolidar em outros ERPs?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "timeline",
+      "erro"
+    ],
+    "expected_facts": [
+      "DTABERTURAPEDPALM",
+      "ERP deve devolver o mesmo"
+    ],
+    "reference_evidence": [
+      {
+        "source": "02-CONHECIMENTOS-GERAIS.md",
+        "contains": [
+          "Clientes Outros ERPs",
+          "DTABERTURAPEDPALM",
+          "ERP não está devolvendo"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "a data pode ser omitida"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-critica-historico",
+    "question": "Qual integracao deve ser validada ao reenviar uma critica de pedido?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "critica",
+      "erro"
+    ],
+    "expected_facts": [
+      "MXSHISTORICOCRITICA"
+    ],
+    "reference_evidence": [
+      {
+        "source": "00-DOCUMENTO-PRINCIPAL.md",
+        "contains": [
+          "MXSHISTORICOCRITICA",
+          "Histórico de Críticas dos Pedidos"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "apagar a MXSINTEGRACAOPEDIDO"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    }
+  },
+  {
+    "id": "dev-followup-tabelas-log",
+    "question": "E quais tabelas de log ajudam nesse diagnostico?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "sql_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "follow-up",
+      "sql"
+    ],
+    "expected_facts": [
+      "MXSINTEGRACAOPEDIDO_LOGST",
+      "MXSINTEGRACAOPEDIDOLOG",
+      "MXSHISTORICOCRITICA"
+    ],
+    "reference_evidence": [
+      {
+        "source": "02-CONHECIMENTOS-GERAIS.md",
+        "contains": [
+          "MXSINTEGRACAOPEDIDO_LOGST",
+          "MXSINTEGRACAOPEDIDOLOG",
+          "MXSHISTORICOCRITICA"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "DROP TABLE"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados."
+      ]
+    },
+    "conversation_history": [
+      {
+        "role": "user",
+        "content": "Estou investigando o fluxo de integracao de pedidos."
+      },
+      {
+        "role": "assistant",
+        "content": "Comece pela MXSINTEGRACAOPEDIDO e pelo status atual."
+      }
+    ]
+  },
+  {
+    "id": "dev-followup-status-erro",
+    "question": "E se o retorno for de erro?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17",
+    "tags": [
+      "follow-up",
+      "erro"
+    ],
+    "expected_facts": [
+      "status 5"
+    ],
+    "reference_evidence": [
+      {
+        "source": "01-LAYOUT-INTEGRACAO.md",
+        "contains": [
+          "StatusPedidos (PUT)",
+          "4 (processado) ou 5 (erro)"
+        ]
+      }
+    ],
+    "forbidden_facts": [
+      "status 9"
+    ],
+    "split": "development",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Fontes e expressões registradas em reference_evidence; vínculos revistos na sessão de 30/09/2026."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "session_human_source_binding_review",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Identidade de fonte e âncoras atualizadas; fatos e comportamento esperado preservados.",
+        "Fonte de títulos/status 51 descartada; referência StatusPedidos (PUT) aprovada explicitamente."
+      ]
+    },
+    "conversation_history": [
+      {
+        "role": "user",
+        "content": "Qual status o ERP devolve quando processa o pedido com sucesso?"
+      },
+      {
+        "role": "assistant",
+        "content": "No sucesso, o ERP devolve status 4."
+      }
+    ]
+  },
+  {
+    "id": "dev-ambigua-status",
+    "question": "Qual status devo usar?",
+    "expected_behavior": "clarify",
+    "expected_intent": "general",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade"
+    ],
+    "forbidden_facts": [
+      "use o status 4"
+    ],
+    "split": "development",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_entity",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-21",
+      "divergences": []
+    }
+  },
+  {
+    "id": "dev-ambigua-erro",
+    "question": "Como corrijo esse erro no pedido?",
+    "expected_behavior": "clarify",
+    "expected_intent": "troubleshooting",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade",
+      "erro"
+    ],
+    "forbidden_facts": [
+      "reinicie o extrator"
+    ],
+    "split": "development",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_error",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-21",
+      "divergences": []
+    }
+  },
+  {
+    "id": "dev-ambigua-parametro",
+    "question": "Qual parametro habilita isso no aplicativo?",
+    "expected_behavior": "clarify",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade",
+      "parametro"
+    ],
+    "forbidden_facts": [
+      "USAGRADE"
+    ],
+    "split": "development",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_feature",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-21",
+      "divergences": []
+    }
+  },
+  {
+    "id": "dev-ambigua-followup-sem-historico",
+    "question": "E depois disso, o que eu faco?",
+    "expected_behavior": "clarify",
+    "expected_intent": "general",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "ambiguidade",
+      "follow-up"
+    ],
+    "forbidden_facts": [
+      "execute um DELETE"
+    ],
+    "split": "development",
+    "answerability": "ambiguous",
+    "provenance": {
+      "kind": "synthetic_ambiguity",
+      "design_reference": "BM-17"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "ambiguity_by_missing_history",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-21",
+      "divergences": []
+    }
+  },
+  {
+    "id": "dev-sem-evidencia-erp-xptos",
+    "question": "Qual menu do ERP XPTOS abre a tela secreta de integracao Z99?",
+    "expected_behavior": "no_answer",
+    "expected_intent": "configuration",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "sem-evidencia"
+    ],
+    "forbidden_facts": [
+      "menu Z99"
+    ],
+    "split": "development",
+    "answerability": "no_evidence",
+    "provenance": {
+      "kind": "synthetic_negative",
+      "design_reference": "BM-17",
+      "invented_entity": "ERP XPTOS"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "invented_entity_negative",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-21",
+      "divergences": []
+    }
+  },
+  {
+    "id": "dev-sem-evidencia-modo-turbo",
+    "question": "Qual coluna oculta de MXSPARAMETROVALOR habilita o modo turbo?",
+    "expected_behavior": "no_answer",
+    "expected_intent": "sql_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "bm-17-synthetic",
+    "tags": [
+      "sem-evidencia",
+      "sql"
+    ],
+    "forbidden_facts": [
+      "MODO_TURBO"
+    ],
+    "split": "development",
+    "answerability": "no_evidence",
+    "provenance": {
+      "kind": "synthetic_negative",
+      "design_reference": "BM-17",
+      "invented_feature": "modo turbo"
+    },
+    "review": {
+      "status": "automated_scenario_review",
+      "reviewer": "Codex",
+      "method": "invented_feature_negative",
+      "reviewed_at": "2026-09-19",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-21",
+      "divergences": []
+    }
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "status": "pending",
+  "response_count": 72,
+  "case_review_status": "approved_12_updated_cases_before_collection",
+  "response_review_distinct": true,
+  "requested_artifact_sha256": "72f6a51c984362a68056434bb94c20ff0d83027161ea71e2c96460a9b33f63a2",
+  "limitation": "Aprovação dos casos não equivale à revisão das 72 respostas; análise documental do assistente identificada separadamente."
+}

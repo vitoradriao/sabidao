@@ -1,0 +1,4212 @@
+{
+  "schema_version": 1,
+  "author": "Codex",
+  "review_kind": "assistant_documentary_review_requested_by_user",
+  "human_review_inferred": false,
+  "summaries": {
+    "jev_rerank": {
+      "answerable": {
+        "correct": 12,
+        "n": 13
+      },
+      "ambiguous": {
+        "correct": 3,
+        "n": 4
+      },
+      "no_evidence": {
+        "correct": 2,
+        "n": 2
+      }
+    },
+    "jev_rerank+evidence_gate": {
+      "answerable": {
+        "correct": 12,
+        "n": 13
+      },
+      "ambiguous": {
+        "correct": 3,
+        "n": 4
+      },
+      "no_evidence": {
+        "correct": 2,
+        "n": 2
+      }
+    }
+  },
+  "limitation": "Núcleo semântico e achados explícitos; não é julgamento humano independente nem auditoria exaustiva claim a claim.",
+  "results": [
+    {
+      "case_id": "dev-fluxo-tabela-nuvem",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "a0c26ba4a010ad030fa56b006e01650b1be97df4e3820b5258a3310b346bcc9a",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "e090e6683fc089f1be4018cc67ce2a6809602641074e2771475608812daf4958",
+          "characters": 385
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "0b54d815ced383e2e75f7418bd97b1ac6f8c04b2c543fd0a1538b97e2b371710",
+          "characters": 287
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "58b95bcca04b1d9940265c2612d62cf104bd0dbd3641c65ad65241f9abb4952b",
+          "characters": 160
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "32e0038fcd09285c3c60c58393cae65f5c6d5d9a996b547375e622a0266c8799",
+          "characters": 673
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5edcaa4203e6f60b4ad7be5b50158138b8f5c336432e91ae71bf38d66d4684e8",
+          "characters": 19
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "a57d9fe225a27809d948a1bdf9aee2a3da97e61cc0dfa859b6db5d67c956aa68",
+          "characters": 47
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7be6a7d78655d8cab7a71d3248e74ae6959faf65cba0c5d4022167bdeae38ea1",
+          "characters": 40
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "1bee07015ded462fe61d253dc04c41be7fb7b54e2e2b247dc01f321a2d1199b7",
+          "characters": 446
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "d295580578b01f0de29231eb2d888c89b3e821e6e2ef7c1c4504116bc92aadae",
+          "characters": 309
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "7f5b74c174a9e476dad013f60b2560bb5f8ac2060bf22e65c500dc39e878865e",
+          "characters": 98
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "66781847ee0063245a3033a1d7b2c369bb235d46a7bf8b00395ab99e834bda24",
+          "characters": 326
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "37dc12d1c38909b918a6c7605e1373f30758e565a04c57d790a34b6db319f800",
+          "characters": 282
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "ce46f980088fa65f43adfa63912a9fc89ab87a11d6cb1a2cc844049637588200",
+          "characters": 29
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-fluxo-tabela-nuvem",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "33a864f07d5fd7998e0fb5df3f44570000c01be6c163a89410174cf93c706fc9",
+      "core_appropriate": true,
+      "flags": [
+        "unsupported_status_alias"
+      ],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta. Afirmação adicional indevida: equipara status 0 a NUVEM_GRAVADO, embora outro mapa enumere NUVEM_GRAVADO=1; o gate de contexto não verifica a resposta final.",
+      "evidence": [
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "0b54d815ced383e2e75f7418bd97b1ac6f8c04b2c543fd0a1538b97e2b371710",
+          "characters": 287
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "e090e6683fc089f1be4018cc67ce2a6809602641074e2771475608812daf4958",
+          "characters": 385
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "58b95bcca04b1d9940265c2612d62cf104bd0dbd3641c65ad65241f9abb4952b",
+          "characters": 160
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "32e0038fcd09285c3c60c58393cae65f5c6d5d9a996b547375e622a0266c8799",
+          "characters": 673
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5edcaa4203e6f60b4ad7be5b50158138b8f5c336432e91ae71bf38d66d4684e8",
+          "characters": 19
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "a57d9fe225a27809d948a1bdf9aee2a3da97e61cc0dfa859b6db5d67c956aa68",
+          "characters": 47
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7be6a7d78655d8cab7a71d3248e74ae6959faf65cba0c5d4022167bdeae38ea1",
+          "characters": 40
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "1bee07015ded462fe61d253dc04c41be7fb7b54e2e2b247dc01f321a2d1199b7",
+          "characters": 446
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "d295580578b01f0de29231eb2d888c89b3e821e6e2ef7c1c4504116bc92aadae",
+          "characters": 309
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "66781847ee0063245a3033a1d7b2c369bb235d46a7bf8b00395ab99e834bda24",
+          "characters": 326
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "7f5b74c174a9e476dad013f60b2560bb5f8ac2060bf22e65c500dc39e878865e",
+          "characters": 98
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "37dc12d1c38909b918a6c7605e1373f30758e565a04c57d790a34b6db319f800",
+          "characters": 282
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "ce46f980088fa65f43adfa63912a9fc89ab87a11d6cb1a2cc844049637588200",
+          "characters": 29
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-fluxo-status-inicial",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "c78314dc1cb5d24bd06d453b891c6a7633f4f3c61599d07fea6310a347b6288f",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5c8a4f47e47e884515d9e0faea5e7a61da309d9476d87b447274d4f028bb2748",
+          "characters": 137
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "32e0038fcd09285c3c60c58393cae65f5c6d5d9a996b547375e622a0266c8799",
+          "characters": 673
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "58b95bcca04b1d9940265c2612d62cf104bd0dbd3641c65ad65241f9abb4952b",
+          "characters": 160
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "fd66881db83765f74343d036ee78e44f13e7f11da0ef3d18f9f04ad9b071000f",
+          "characters": 185
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "0b54d815ced383e2e75f7418bd97b1ac6f8c04b2c543fd0a1538b97e2b371710",
+          "characters": 287
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6738a53caba253a0460b0104a3dc0aee085bb5ab4255d6eb2ded81c863a5f98d",
+          "characters": 311
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "37dc12d1c38909b918a6c7605e1373f30758e565a04c57d790a34b6db319f800",
+          "characters": 282
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "47089cd02da15853a37eeca92cc6c1b21bcc0dfe5ee139ae79c86f682e871f14",
+          "characters": 34
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "0cf33551f4d768cb25af68cd9fb3f74e6089717559ecc578eb1cbd4523f30008",
+          "characters": 19
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "71513d06e2ad1bea4f6d071c23bb620c736c7bc943e37c906e53970c658ba559",
+          "characters": 139
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "175e752a568d069286e8a4e65e54868527088a817a675ab7f32a0e11382f0e08",
+          "characters": 233
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "1bee07015ded462fe61d253dc04c41be7fb7b54e2e2b247dc01f321a2d1199b7",
+          "characters": 446
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-fluxo-status-inicial",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "cdddd3eee12d8326e6f73c13c10722a76c5355af3b4000a17c6b17dd7fa5422c",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5c8a4f47e47e884515d9e0faea5e7a61da309d9476d87b447274d4f028bb2748",
+          "characters": 137
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "32e0038fcd09285c3c60c58393cae65f5c6d5d9a996b547375e622a0266c8799",
+          "characters": 673
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "58b95bcca04b1d9940265c2612d62cf104bd0dbd3641c65ad65241f9abb4952b",
+          "characters": 160
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "fd66881db83765f74343d036ee78e44f13e7f11da0ef3d18f9f04ad9b071000f",
+          "characters": 185
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "0b54d815ced383e2e75f7418bd97b1ac6f8c04b2c543fd0a1538b97e2b371710",
+          "characters": 287
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6738a53caba253a0460b0104a3dc0aee085bb5ab4255d6eb2ded81c863a5f98d",
+          "characters": 311
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "37dc12d1c38909b918a6c7605e1373f30758e565a04c57d790a34b6db319f800",
+          "characters": 282
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "0cf33551f4d768cb25af68cd9fb3f74e6089717559ecc578eb1cbd4523f30008",
+          "characters": 19
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "47089cd02da15853a37eeca92cc6c1b21bcc0dfe5ee139ae79c86f682e871f14",
+          "characters": 34
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "71513d06e2ad1bea4f6d071c23bb620c736c7bc943e37c906e53970c658ba559",
+          "characters": 139
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "175e752a568d069286e8a4e65e54868527088a817a675ab7f32a0e11382f0e08",
+          "characters": 233
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "1bee07015ded462fe61d253dc04c41be7fb7b54e2e2b247dc01f321a2d1199b7",
+          "characters": 446
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-fluxo-get-erp",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "355284f195d63b8e4bb65698b6cdbbb885ce14bb2ac465ec47bed8a5f1f28259",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7be6a7d78655d8cab7a71d3248e74ae6959faf65cba0c5d4022167bdeae38ea1",
+          "characters": 40
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "61a968f079f965d98d654160c127c79d54a81193adc65f731243bcf0aa434e17",
+          "characters": 495
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "ca603b47c1c9077f2b434fe338009553d580b91bbc0268765593f739b4566f53",
+          "characters": 42
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "a57d9fe225a27809d948a1bdf9aee2a3da97e61cc0dfa859b6db5d67c956aa68",
+          "characters": 47
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5edcaa4203e6f60b4ad7be5b50158138b8f5c336432e91ae71bf38d66d4684e8",
+          "characters": 19
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c1bf9501353d838da421f22fc269337a9b198fd7ee55ce44c62e8430e0e2e747",
+          "characters": 53
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "00dabefb10efefefd47ec81d392e8ca939c226aa0c3fa59f1c6e4247b5a915af",
+          "characters": 33
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "0b54d815ced383e2e75f7418bd97b1ac6f8c04b2c543fd0a1538b97e2b371710",
+          "characters": 287
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "9d7583b08723716f4b6c6fefd44217d1c08d3f9c92fdec7e67d80d46a25becae",
+          "characters": 626
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "3b88335be6d8a60f2fc1e412d34454d256db6bc7159d07b6dc8ec2e955ccf4a8",
+          "characters": 170
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "a1647be3d88ed61542eaf3b8f7cab8dc3e6d87ae4a3ad628e054cc634632e1be",
+          "characters": 30
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "a601f4ec1fa0ebd142cb1f4f66dd772396827ae10e4b7f3d0d7ca590c6707ed5",
+          "characters": 371
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "13c2d231de7809db89b61c14ef4ae3a31a9ac88c83812a554988934aac790692",
+          "characters": 219
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "ab281498a70f7989861de497a635995887db9494f5b8efdea310d34dcf9189d2",
+          "characters": 124
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "c99828e9cef20e9c07954ee6d7629f2d6f343604a1d922076614b71e8f279291",
+          "characters": 227
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "ec6023637f44c66dbc43e885cc708e4ff89e58aa020b2f0d75ed6b51bf835343",
+          "characters": 137
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "994f0eb5221f2af9ae8cae793682195563332f80ff05dfbe7c6c485d63bc1b32",
+          "characters": 207
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "eff5d8896807c38f03829a8d4928edfdd20465aa3d3c4890b0cbd5bfb0292aa1",
+          "characters": 357
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "75fbd9d4941e27737f83105e66d848d3d21ab4240bd9f302d446935d5c0763fd",
+          "characters": 156
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "b301857d62842ff1892cdff4b13c255b08e1129eefe89b780e2e676cde9ac66b",
+          "characters": 333
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-fluxo-get-erp",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "15cc75fa1a6bdde8e8644e70fbd017715a8e1838e9c070d658599155cccccf61",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "61a968f079f965d98d654160c127c79d54a81193adc65f731243bcf0aa434e17",
+          "characters": 495
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7be6a7d78655d8cab7a71d3248e74ae6959faf65cba0c5d4022167bdeae38ea1",
+          "characters": 40
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "ca603b47c1c9077f2b434fe338009553d580b91bbc0268765593f739b4566f53",
+          "characters": 42
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "a57d9fe225a27809d948a1bdf9aee2a3da97e61cc0dfa859b6db5d67c956aa68",
+          "characters": 47
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5edcaa4203e6f60b4ad7be5b50158138b8f5c336432e91ae71bf38d66d4684e8",
+          "characters": 19
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c1bf9501353d838da421f22fc269337a9b198fd7ee55ce44c62e8430e0e2e747",
+          "characters": 53
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "00dabefb10efefefd47ec81d392e8ca939c226aa0c3fa59f1c6e4247b5a915af",
+          "characters": 33
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "0b54d815ced383e2e75f7418bd97b1ac6f8c04b2c543fd0a1538b97e2b371710",
+          "characters": 287
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "9d7583b08723716f4b6c6fefd44217d1c08d3f9c92fdec7e67d80d46a25becae",
+          "characters": 626
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "a1647be3d88ed61542eaf3b8f7cab8dc3e6d87ae4a3ad628e054cc634632e1be",
+          "characters": 30
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "3b88335be6d8a60f2fc1e412d34454d256db6bc7159d07b6dc8ec2e955ccf4a8",
+          "characters": 170
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "ab281498a70f7989861de497a635995887db9494f5b8efdea310d34dcf9189d2",
+          "characters": 124
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "a601f4ec1fa0ebd142cb1f4f66dd772396827ae10e4b7f3d0d7ca590c6707ed5",
+          "characters": 371
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "13c2d231de7809db89b61c14ef4ae3a31a9ac88c83812a554988934aac790692",
+          "characters": 219
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "ec6023637f44c66dbc43e885cc708e4ff89e58aa020b2f0d75ed6b51bf835343",
+          "characters": 137
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "994f0eb5221f2af9ae8cae793682195563332f80ff05dfbe7c6c485d63bc1b32",
+          "characters": 207
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "c99828e9cef20e9c07954ee6d7629f2d6f343604a1d922076614b71e8f279291",
+          "characters": 227
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "eff5d8896807c38f03829a8d4928edfdd20465aa3d3c4890b0cbd5bfb0292aa1",
+          "characters": 357
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "75fbd9d4941e27737f83105e66d848d3d21ab4240bd9f302d446935d5c0763fd",
+          "characters": 156
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "b301857d62842ff1892cdff4b13c255b08e1129eefe89b780e2e676cde9ac66b",
+          "characters": 333
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-fluxo-put-status",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "5abd38453dde793d71e3c511b7eb1dc8750904548840ffea4fb8327e048b180b",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "5a8c44d16bb2fd793da421da7799aaa2797bbcb76954c6bfe04466032f11d945",
+          "characters": 1176
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "eaff4a8139b024ae4d0341e5c0c2d805fd2ede23c88381211b51e54204162857",
+          "characters": 515
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "fc2dfb41d337395e3506f905f6b7550de8203408ae7b144e6a1be0882f80db0f",
+          "characters": 511
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "a998527a0dbc288cefa4ff8946baa79a729870a4152c36ee5c0675a11076446e",
+          "characters": 1140
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "1d81f7a77da84628f6e979e0f96624090a496dcedea204d45e62d74ebfedb09a",
+          "characters": 987
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "c41b2da78e903252f50ce990bfd4510697004f73c922a0c31453714e3a820e1a",
+          "characters": 514
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "d8e73735e57f8941596342b84f5b5e3b2e169bd0f9d3ed063850e5781b08586c",
+          "characters": 370
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "eff5d8896807c38f03829a8d4928edfdd20465aa3d3c4890b0cbd5bfb0292aa1",
+          "characters": 357
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "ca603b47c1c9077f2b434fe338009553d580b91bbc0268765593f739b4566f53",
+          "characters": 42
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "be6d2403357a86af00dbddb7976516b8770d7c55830ad75f4be1fad396177e2a",
+          "characters": 464
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "b301857d62842ff1892cdff4b13c255b08e1129eefe89b780e2e676cde9ac66b",
+          "characters": 333
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "d7ef358d8a41712edc297759e793ec26d7ed4410e414449fafbbfade6ef1b91f",
+          "characters": 343
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-fluxo-put-status",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "e73be89c317a22b480520699bf14175d829033055ce5046b908e0e0c20d6afd6",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "5a8c44d16bb2fd793da421da7799aaa2797bbcb76954c6bfe04466032f11d945",
+          "characters": 1176
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "eaff4a8139b024ae4d0341e5c0c2d805fd2ede23c88381211b51e54204162857",
+          "characters": 515
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "fc2dfb41d337395e3506f905f6b7550de8203408ae7b144e6a1be0882f80db0f",
+          "characters": 511
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "a998527a0dbc288cefa4ff8946baa79a729870a4152c36ee5c0675a11076446e",
+          "characters": 1140
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "1d81f7a77da84628f6e979e0f96624090a496dcedea204d45e62d74ebfedb09a",
+          "characters": 987
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "c41b2da78e903252f50ce990bfd4510697004f73c922a0c31453714e3a820e1a",
+          "characters": 514
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "d8e73735e57f8941596342b84f5b5e3b2e169bd0f9d3ed063850e5781b08586c",
+          "characters": 370
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "eff5d8896807c38f03829a8d4928edfdd20465aa3d3c4890b0cbd5bfb0292aa1",
+          "characters": 357
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "ca603b47c1c9077f2b434fe338009553d580b91bbc0268765593f739b4566f53",
+          "characters": 42
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "be6d2403357a86af00dbddb7976516b8770d7c55830ad75f4be1fad396177e2a",
+          "characters": 464
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "b301857d62842ff1892cdff4b13c255b08e1129eefe89b780e2e676cde9ac66b",
+          "characters": 333
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "d7ef358d8a41712edc297759e793ec26d7ed4410e414449fafbbfade6ef1b91f",
+          "characters": 343
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-parametros-cliente-bloqueado",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "5dc2821a1ac469a1d36d46e7a0a7df819225000b2d8d2772f895f1b6a4e2db0c",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "668efd12a408106ca895b240f28606ab80e6cc80ca637efcc3473d433810e6b5",
+          "characters": 1167
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "87cf81e863812516d1f9cb2e528366624ec5a6f80f4fbfb0bccae790dddf719c",
+          "characters": 237
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "776ef73e9d7915060ab9fd1c20a77b2fd132059043a31244953cbddc0c809a86",
+          "characters": 1042
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "dd6415a48e3a51bae6c9d09049fe60b6662be2762fa0109dedd491dfa2cd1101",
+          "characters": 180
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "da6a4742c5e5a8d3e063f8547dfdd1b53f36cb245a1578aae7e3b73d8eea96f1",
+          "characters": 680
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "2396d755812c9a6c851e43183e3b3dda4a7123c00ac68bb4173ef80931527c72",
+          "characters": 271
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "968785605794ac2ab7d84e7b362d18c6776ff6eb79cd9032029f3d3c4fcfd447",
+          "characters": 309
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "591fcc12b1c83cf39394b9c4c21c9c3f3aac8760a5f92ab8c16ee3a1f2de86be",
+          "characters": 31
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "7dcbcc536033ecb57e96454ef419dfad5e9ac405ac85d2987b98b6274c0de562",
+          "characters": 216
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "837acacf9bf6f723cde0a7c8b3093be4f5a71c0cc775aada9be16cc1a43d6844",
+          "characters": 31
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7f213abedfde10045dc371694c13532665f92a905ef6834a479549c08e271a74",
+          "characters": 416
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "009f1c8c3895de486e79d3cdb1249f1247358da448f556e6106bb242d34e7657",
+          "characters": 241
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "93fb6f6b75fb5332d85ac15c20c2ef7f46bbcfc195de1bcf6de9fc15541d0afd",
+          "characters": 447
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "38c0f99e11e8197ed48a35512ee51fb7c77cb4a891526ec887b15ecc330b6a74",
+          "characters": 869
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "93a72dfd58c0b3cace7518bba4867b1386e130c379b507f4e7455dd7b6d6b73b",
+          "characters": 429
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-parametros-cliente-bloqueado",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "bf51606c046e2b36bdf4aee828445095d7e6b1af3c600c779071d543596a608b",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "668efd12a408106ca895b240f28606ab80e6cc80ca637efcc3473d433810e6b5",
+          "characters": 1167
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "776ef73e9d7915060ab9fd1c20a77b2fd132059043a31244953cbddc0c809a86",
+          "characters": 1042
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "87cf81e863812516d1f9cb2e528366624ec5a6f80f4fbfb0bccae790dddf719c",
+          "characters": 237
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "dd6415a48e3a51bae6c9d09049fe60b6662be2762fa0109dedd491dfa2cd1101",
+          "characters": 180
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "da6a4742c5e5a8d3e063f8547dfdd1b53f36cb245a1578aae7e3b73d8eea96f1",
+          "characters": 680
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "968785605794ac2ab7d84e7b362d18c6776ff6eb79cd9032029f3d3c4fcfd447",
+          "characters": 309
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "2396d755812c9a6c851e43183e3b3dda4a7123c00ac68bb4173ef80931527c72",
+          "characters": 271
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "591fcc12b1c83cf39394b9c4c21c9c3f3aac8760a5f92ab8c16ee3a1f2de86be",
+          "characters": 31
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "7dcbcc536033ecb57e96454ef419dfad5e9ac405ac85d2987b98b6274c0de562",
+          "characters": 216
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "161910b1883ac516c3ded7021368a174daf832f5eac4b6ecc8a71fecc333fe30",
+          "characters": 499
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7f213abedfde10045dc371694c13532665f92a905ef6834a479549c08e271a74",
+          "characters": 416
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "009f1c8c3895de486e79d3cdb1249f1247358da448f556e6106bb242d34e7657",
+          "characters": 241
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "93fb6f6b75fb5332d85ac15c20c2ef7f46bbcfc195de1bcf6de9fc15541d0afd",
+          "characters": 447
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "38c0f99e11e8197ed48a35512ee51fb7c77cb4a891526ec887b15ecc330b6a74",
+          "characters": 869
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "93a72dfd58c0b3cace7518bba4867b1386e130c379b507f4e7455dd7b6d6b73b",
+          "characters": 429
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-parametros-filial-retira",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "75f957d70f19a6e6e89533e581772743ee3fea34ef9c1ef49159a715aa299b09",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "8fdddd301d1622ca2d629af8e112fbb7f4d39513dfc39ec436d8dff9cd470092",
+          "characters": 262
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "d09d7458f1a86fac706a893635a6802c5aa470a45dd4252dee23a734b4d1d7d8",
+          "characters": 415
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "b5ac587140c0b7fb87b1910805914f22cfc23a97d356de238331a90ab2cd62e7",
+          "characters": 244
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "3c42f8e3910606d67451994e2e82ec0b87d0c68f1da32cf59b92fc4033394b9b",
+          "characters": 494
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "71e881fab90377f5ed910f00127bca111ce9cb22d5871cf3ad769a317a540e14",
+          "characters": 384
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "3aad085afcb941551c83b056ef85ad79d85dc985381c0c5c10e918e94ae55d30",
+          "characters": 381
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "d2c4137304a78b3911ddd6be6d802dd268632cb3b505843da7ae2951de958237",
+          "characters": 338
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "2062962e28a9503f806f7c6a4a4ec31cfcb6d90ec90e70c0d2d4498cbf727c89",
+          "characters": 45
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "3709f9d75f6a151e28ba2c5881c461385726d2c0a96a323f421ff02e1cbbc920",
+          "characters": 245
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "950ed0e1e5f52daf6080e5af8491b2af27c4492bc28a787ba2b1ac8c69e77b41",
+          "characters": 343
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "bafc34806587aacbac2d59cf915252ed071f617ac6418b4df6a11675789cbb88",
+          "characters": 209
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "780b9e4442f6dc67085ba32b21d5b8d6636d8e0eec97030721af58d621093db0",
+          "characters": 255
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "bf532081d06c4fccf3feb78e2da06d2c83ba3099b3fd3afb9d782b307c556381",
+          "characters": 551
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "c4969ed20dde651219fd563ea50d20946958eac4e7bcda0b9688d61e6a8504bb",
+          "characters": 384
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "539e82d1774769ed5177edaa8a0c80f9191a5484a4b8e5bdaf75d3002dad8bd1",
+          "characters": 39
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "4732b6d1589f145b05838e775611240184c4e02c2ecd55c65a08aaf14437f667",
+          "characters": 258
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "96f87a7db38d740847926232d17aa1e27756fdcf3c28121924f8b5d3d3617260",
+          "characters": 969
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-parametros-filial-retira",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "be0ac64fc70cc40732e38dd6498f598ce3777da63325b5d5213072d043b30696",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "8fdddd301d1622ca2d629af8e112fbb7f4d39513dfc39ec436d8dff9cd470092",
+          "characters": 262
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "d09d7458f1a86fac706a893635a6802c5aa470a45dd4252dee23a734b4d1d7d8",
+          "characters": 415
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "b5ac587140c0b7fb87b1910805914f22cfc23a97d356de238331a90ab2cd62e7",
+          "characters": 244
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "3c42f8e3910606d67451994e2e82ec0b87d0c68f1da32cf59b92fc4033394b9b",
+          "characters": 494
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "71e881fab90377f5ed910f00127bca111ce9cb22d5871cf3ad769a317a540e14",
+          "characters": 384
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "3aad085afcb941551c83b056ef85ad79d85dc985381c0c5c10e918e94ae55d30",
+          "characters": 381
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "d2c4137304a78b3911ddd6be6d802dd268632cb3b505843da7ae2951de958237",
+          "characters": 338
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "3709f9d75f6a151e28ba2c5881c461385726d2c0a96a323f421ff02e1cbbc920",
+          "characters": 245
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "2062962e28a9503f806f7c6a4a4ec31cfcb6d90ec90e70c0d2d4498cbf727c89",
+          "characters": 45
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "950ed0e1e5f52daf6080e5af8491b2af27c4492bc28a787ba2b1ac8c69e77b41",
+          "characters": 343
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "bafc34806587aacbac2d59cf915252ed071f617ac6418b4df6a11675789cbb88",
+          "characters": 209
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "780b9e4442f6dc67085ba32b21d5b8d6636d8e0eec97030721af58d621093db0",
+          "characters": 255
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "bf532081d06c4fccf3feb78e2da06d2c83ba3099b3fd3afb9d782b307c556381",
+          "characters": 551
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "c4969ed20dde651219fd563ea50d20946958eac4e7bcda0b9688d61e6a8504bb",
+          "characters": 384
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "4732b6d1589f145b05838e775611240184c4e02c2ecd55c65a08aaf14437f667",
+          "characters": 258
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "539e82d1774769ed5177edaa8a0c80f9191a5484a4b8e5bdaf75d3002dad8bd1",
+          "characters": 39
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "96f87a7db38d740847926232d17aa1e27756fdcf3c28121924f8b5d3d3617260",
+          "characters": 969
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-parametros-conta-corrente",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "a2a372fc5c9107b23427d3a291c39f7d7e5f0f153d8860371174295b6454658f",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "08-SCRIPTS-UTILITARIOS.md",
+          "sha256": "271b4d2ae03964f3174fa2a52bbc314aa6ec424c9a792c4fb8d1c11930b9cb7c",
+          "characters": 428
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "75b8c79735a9f20912183706238cba423f9909c7eb091491b230cc3d8751d0bd",
+          "characters": 183
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "3e8497686dc9cc4ff6c00ad81ed099b0cb4a5f6d80fc71ae4ec89138e1c14b01",
+          "characters": 214
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "e7f285907dd682b2779ca2f30354d1b15a6aa15e6785c9ad3cadda4403d70dc7",
+          "characters": 370
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "84897726986bfc08c3faa5db32b3c0ae7155a6d53c38abaa36bf90ef72a2da60",
+          "characters": 501
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "6886a7d5bd82235b6d705e104e0aaa09527ace140ae63df1d8825a373e1cdcde",
+          "characters": 316
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "22f1b3da86e7b3b8b09e587fa7afc44c21b9020a102ce146ece45786800ce033",
+          "characters": 384
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "15e8be0101ff1f1be741b974bbc87798599eccd69656a95fb3f0afd2417e3ee8",
+          "characters": 223
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "0465ed1e7b8b474ecf8de9dce2587963fa0681273daeabde43f4a740130d178b",
+          "characters": 434
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "c9a2930e3bb704a4fe34f7bd6e57edc33ff857d85f2a2179aebe28b58bed2d44",
+          "characters": 41
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "02936cac719e5c12c5d52fba149cc60acee9799cacd18954d23ab08818dd4a78",
+          "characters": 599
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "6031ec2519c6e3b6abd132ffe75549c975092d1a446401bb84668c86daaecd03",
+          "characters": 516
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "f704e803b972abc7ae30aa359b5d6e59392b3b0524b01f553531de008da1b2f7",
+          "characters": 741
+        },
+        {
+          "filename": "08-SCRIPTS-UTILITARIOS.md",
+          "sha256": "2314d5ce0f0eb17c086661f12b0546d9292554f7b1f4a1cd3e42f5a193459006",
+          "characters": 1124
+        },
+        {
+          "filename": "08-SCRIPTS-UTILITARIOS.md",
+          "sha256": "f3bed23b6849c87e62b65b7aa4c00018ecce43f333384ad70186784ea033e202",
+          "characters": 249
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-parametros-conta-corrente",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "96f021816b2c0c5eac8ad2ad32d21dce7e86a29e4f3468737d97979d279c4e13",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "08-SCRIPTS-UTILITARIOS.md",
+          "sha256": "271b4d2ae03964f3174fa2a52bbc314aa6ec424c9a792c4fb8d1c11930b9cb7c",
+          "characters": 428
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "75b8c79735a9f20912183706238cba423f9909c7eb091491b230cc3d8751d0bd",
+          "characters": 183
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "e7f285907dd682b2779ca2f30354d1b15a6aa15e6785c9ad3cadda4403d70dc7",
+          "characters": 370
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "3e8497686dc9cc4ff6c00ad81ed099b0cb4a5f6d80fc71ae4ec89138e1c14b01",
+          "characters": 214
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "22f1b3da86e7b3b8b09e587fa7afc44c21b9020a102ce146ece45786800ce033",
+          "characters": 384
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "6886a7d5bd82235b6d705e104e0aaa09527ace140ae63df1d8825a373e1cdcde",
+          "characters": 316
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "84897726986bfc08c3faa5db32b3c0ae7155a6d53c38abaa36bf90ef72a2da60",
+          "characters": 501
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "15e8be0101ff1f1be741b974bbc87798599eccd69656a95fb3f0afd2417e3ee8",
+          "characters": 223
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "0465ed1e7b8b474ecf8de9dce2587963fa0681273daeabde43f4a740130d178b",
+          "characters": 434
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "c9a2930e3bb704a4fe34f7bd6e57edc33ff857d85f2a2179aebe28b58bed2d44",
+          "characters": 41
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "6031ec2519c6e3b6abd132ffe75549c975092d1a446401bb84668c86daaecd03",
+          "characters": 516
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "f704e803b972abc7ae30aa359b5d6e59392b3b0524b01f553531de008da1b2f7",
+          "characters": 741
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "02936cac719e5c12c5d52fba149cc60acee9799cacd18954d23ab08818dd4a78",
+          "characters": 599
+        },
+        {
+          "filename": "08-SCRIPTS-UTILITARIOS.md",
+          "sha256": "2314d5ce0f0eb17c086661f12b0546d9292554f7b1f4a1cd3e42f5a193459006",
+          "characters": 1124
+        },
+        {
+          "filename": "08-SCRIPTS-UTILITARIOS.md",
+          "sha256": "f3bed23b6849c87e62b65b7aa4c00018ecce43f333384ad70186784ea033e202",
+          "characters": 249
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-status-zero",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "55a90d35c3e7ad57fcacc90b63956b408dfef4d88037d7bec7c6eec56b2e1bdc",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "1d81f7a77da84628f6e979e0f96624090a496dcedea204d45e62d74ebfedb09a",
+          "characters": 987
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5c8a4f47e47e884515d9e0faea5e7a61da309d9476d87b447274d4f028bb2748",
+          "characters": 137
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "a57d9fe225a27809d948a1bdf9aee2a3da97e61cc0dfa859b6db5d67c956aa68",
+          "characters": 47
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7be6a7d78655d8cab7a71d3248e74ae6959faf65cba0c5d4022167bdeae38ea1",
+          "characters": 40
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "4954645f53d536cedc3b0b037a5de56b993e7bb52bd9d5be54a4ba8da902e9c8",
+          "characters": 413
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "58b95bcca04b1d9940265c2612d62cf104bd0dbd3641c65ad65241f9abb4952b",
+          "characters": 160
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "a71c97f2b931bd263e1d837f852d0c2cdf067351ae195eec5c5ec925ebca93a8",
+          "characters": 426
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "fd66881db83765f74343d036ee78e44f13e7f11da0ef3d18f9f04ad9b071000f",
+          "characters": 185
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "9bd63dfc295afeaca62c6687d68a366a91af8bbff904057b8b29868f20ae8e15",
+          "characters": 422
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "37dc12d1c38909b918a6c7605e1373f30758e565a04c57d790a34b6db319f800",
+          "characters": 282
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "27b9a63246f50de0f69e7f338b08680a24f2bec5d20c7137c90dce8eb9e7bf8f",
+          "characters": 275
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "2f744c4a8eb216691480ab9cef3d566f48d5c8a473e00a1807260d5a0f889fc6",
+          "characters": 803
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-status-zero",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "1dff6ed5c46c7e4babf281bc7964ce44455d7c0f9b03ca35feb6fc25767edf0b",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "1d81f7a77da84628f6e979e0f96624090a496dcedea204d45e62d74ebfedb09a",
+          "characters": 987
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5c8a4f47e47e884515d9e0faea5e7a61da309d9476d87b447274d4f028bb2748",
+          "characters": 137
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "a57d9fe225a27809d948a1bdf9aee2a3da97e61cc0dfa859b6db5d67c956aa68",
+          "characters": 47
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7be6a7d78655d8cab7a71d3248e74ae6959faf65cba0c5d4022167bdeae38ea1",
+          "characters": 40
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "4954645f53d536cedc3b0b037a5de56b993e7bb52bd9d5be54a4ba8da902e9c8",
+          "characters": 413
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "58b95bcca04b1d9940265c2612d62cf104bd0dbd3641c65ad65241f9abb4952b",
+          "characters": 160
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "fd66881db83765f74343d036ee78e44f13e7f11da0ef3d18f9f04ad9b071000f",
+          "characters": 185
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "9bd63dfc295afeaca62c6687d68a366a91af8bbff904057b8b29868f20ae8e15",
+          "characters": 422
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "a71c97f2b931bd263e1d837f852d0c2cdf067351ae195eec5c5ec925ebca93a8",
+          "characters": 426
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "37dc12d1c38909b918a6c7605e1373f30758e565a04c57d790a34b6db319f800",
+          "characters": 282
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "27b9a63246f50de0f69e7f338b08680a24f2bec5d20c7137c90dce8eb9e7bf8f",
+          "characters": 275
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "2f744c4a8eb216691480ab9cef3d566f48d5c8a473e00a1807260d5a0f889fc6",
+          "characters": 803
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-status-cinco",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "25a8ded7e387183b3e726d8f1e78dbd8a7b28407fe1e4349bddd69392d075150",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "a998527a0dbc288cefa4ff8946baa79a729870a4152c36ee5c0675a11076446e",
+          "characters": 1140
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5c8a4f47e47e884515d9e0faea5e7a61da309d9476d87b447274d4f028bb2748",
+          "characters": 137
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "c41b2da78e903252f50ce990bfd4510697004f73c922a0c31453714e3a820e1a",
+          "characters": 514
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c1bf9501353d838da421f22fc269337a9b198fd7ee55ce44c62e8430e0e2e747",
+          "characters": 53
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "ca603b47c1c9077f2b434fe338009553d580b91bbc0268765593f739b4566f53",
+          "characters": 42
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "9bd63dfc295afeaca62c6687d68a366a91af8bbff904057b8b29868f20ae8e15",
+          "characters": 422
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "99d45c606d638833378760e6f0a008c5e098c742c520170cf1fe31af28270774",
+          "characters": 240
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "781163a405636393e2d46f6f3b7787f8581b22c82f4980016c0288bc0bdaa5b8",
+          "characters": 671
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "76330084992050a61638e071439505b05575c98abcb5d74274aae7e4bbc51af2",
+          "characters": 408
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c2fef6aa4aface5ad7b2cb03f8d9a6a030c5b27c7b93fe5eee5f0cead92ba5c2",
+          "characters": 371
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "71513d06e2ad1bea4f6d071c23bb620c736c7bc943e37c906e53970c658ba559",
+          "characters": 139
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5edcaa4203e6f60b4ad7be5b50158138b8f5c336432e91ae71bf38d66d4684e8",
+          "characters": 19
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "3b88335be6d8a60f2fc1e412d34454d256db6bc7159d07b6dc8ec2e955ccf4a8",
+          "characters": 170
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-status-cinco",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "79cb35e1bef017369428c913cd930ffddc94dc852b0b681d60e9b30fd3638de9",
+      "core_appropriate": true,
+      "flags": [
+        "unsupported_terminal_status_inference"
+      ],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta. Chama status 5 de terminal/não fila normal, conclusão não demonstrada; a própria resposta inclui 5 na consulta de pendentes.",
+      "evidence": [
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "a998527a0dbc288cefa4ff8946baa79a729870a4152c36ee5c0675a11076446e",
+          "characters": 1140
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5c8a4f47e47e884515d9e0faea5e7a61da309d9476d87b447274d4f028bb2748",
+          "characters": 137
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "c41b2da78e903252f50ce990bfd4510697004f73c922a0c31453714e3a820e1a",
+          "characters": 514
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c1bf9501353d838da421f22fc269337a9b198fd7ee55ce44c62e8430e0e2e747",
+          "characters": 53
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "9bd63dfc295afeaca62c6687d68a366a91af8bbff904057b8b29868f20ae8e15",
+          "characters": 422
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "ca603b47c1c9077f2b434fe338009553d580b91bbc0268765593f739b4566f53",
+          "characters": 42
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "99d45c606d638833378760e6f0a008c5e098c742c520170cf1fe31af28270774",
+          "characters": 240
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "781163a405636393e2d46f6f3b7787f8581b22c82f4980016c0288bc0bdaa5b8",
+          "characters": 671
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "76330084992050a61638e071439505b05575c98abcb5d74274aae7e4bbc51af2",
+          "characters": 408
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "3aad085afcb941551c83b056ef85ad79d85dc985381c0c5c10e918e94ae55d30",
+          "characters": 381
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "71513d06e2ad1bea4f6d071c23bb620c736c7bc943e37c906e53970c658ba559",
+          "characters": 139
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5edcaa4203e6f60b4ad7be5b50158138b8f5c336432e91ae71bf38d66d4684e8",
+          "characters": 19
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "3b88335be6d8a60f2fc1e412d34454d256db6bc7159d07b6dc8ec2e955ccf4a8",
+          "characters": 170
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-timeline-data-abertura",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "ccb52d4f3d6415332a8efe0dcce6459403a42879dc1f6fb30d30b2fedab2dec6",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "0f45aa66d0535d0bc3f47595189b408b92a16a1bbe29b607907356d869b93704",
+          "characters": 845
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "2d87681527143eb7877d921a41199a5e26d777f9af6875b38078255a041be8a5",
+          "characters": 358
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "37dc12d1c38909b918a6c7605e1373f30758e565a04c57d790a34b6db319f800",
+          "characters": 282
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "175e752a568d069286e8a4e65e54868527088a817a675ab7f32a0e11382f0e08",
+          "characters": 233
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6738a53caba253a0460b0104a3dc0aee085bb5ab4255d6eb2ded81c863a5f98d",
+          "characters": 311
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c1bf9501353d838da421f22fc269337a9b198fd7ee55ce44c62e8430e0e2e747",
+          "characters": 53
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7be6a7d78655d8cab7a71d3248e74ae6959faf65cba0c5d4022167bdeae38ea1",
+          "characters": 40
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "d7ef358d8a41712edc297759e793ec26d7ed4410e414449fafbbfade6ef1b91f",
+          "characters": 343
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "54ba7de849a573509c2dc231a00abf3d6fe56151de9b41f6f92737c1ad453189",
+          "characters": 44
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "00dabefb10efefefd47ec81d392e8ca939c226aa0c3fa59f1c6e4247b5a915af",
+          "characters": 33
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "b7ec21d03e4465cdf99cce33e0ef03c4f7aa9348f1248bf82d27da59920c302b",
+          "characters": 87
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "dadfdb099c1bbfc4ff8e99be44187e4fa4adf9899261494f41612751bb8e1518",
+          "characters": 640
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "1b1888a479bcfaaeba82611fc4f0d3a239e7a3153dcb865b4afc0c67c634e46a",
+          "characters": 697
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c2fef6aa4aface5ad7b2cb03f8d9a6a030c5b27c7b93fe5eee5f0cead92ba5c2",
+          "characters": 371
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-timeline-data-abertura",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "e92706afd6a6d681cf5fc85738e125fdf1579cda4f16c56a3d43bb35e790a200",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "0f45aa66d0535d0bc3f47595189b408b92a16a1bbe29b607907356d869b93704",
+          "characters": 845
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "cda2ef6b88e45dd93bee55c837b534ff333623f38463518f478a8df4e57865cd",
+          "characters": 388
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "2d87681527143eb7877d921a41199a5e26d777f9af6875b38078255a041be8a5",
+          "characters": 358
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "37dc12d1c38909b918a6c7605e1373f30758e565a04c57d790a34b6db319f800",
+          "characters": 282
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "175e752a568d069286e8a4e65e54868527088a817a675ab7f32a0e11382f0e08",
+          "characters": 233
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6738a53caba253a0460b0104a3dc0aee085bb5ab4255d6eb2ded81c863a5f98d",
+          "characters": 311
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c1bf9501353d838da421f22fc269337a9b198fd7ee55ce44c62e8430e0e2e747",
+          "characters": 53
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7be6a7d78655d8cab7a71d3248e74ae6959faf65cba0c5d4022167bdeae38ea1",
+          "characters": 40
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "d7ef358d8a41712edc297759e793ec26d7ed4410e414449fafbbfade6ef1b91f",
+          "characters": 343
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "54ba7de849a573509c2dc231a00abf3d6fe56151de9b41f6f92737c1ad453189",
+          "characters": 44
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "00dabefb10efefefd47ec81d392e8ca939c226aa0c3fa59f1c6e4247b5a915af",
+          "characters": 33
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "b7ec21d03e4465cdf99cce33e0ef03c4f7aa9348f1248bf82d27da59920c302b",
+          "characters": 87
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "dadfdb099c1bbfc4ff8e99be44187e4fa4adf9899261494f41612751bb8e1518",
+          "characters": 640
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "1b1888a479bcfaaeba82611fc4f0d3a239e7a3153dcb865b4afc0c67c634e46a",
+          "characters": 697
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c2fef6aa4aface5ad7b2cb03f8d9a6a030c5b27c7b93fe5eee5f0cead92ba5c2",
+          "characters": 371
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-critica-historico",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "096f031fbd59acd118a48237a7a92cd53dd9693f0355539adcdc86cf64b9aee6",
+      "core_appropriate": false,
+      "flags": [
+        "missing_required_evidence"
+      ],
+      "reason": "MXSHISTORICOCRITICA não retida; resposta desvia para timeline/reenvio genérico e não entrega o vínculo esperado.",
+      "evidence": [
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "5a8c44d16bb2fd793da421da7799aaa2797bbcb76954c6bfe04466032f11d945",
+          "characters": 1176
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "fc2dfb41d337395e3506f905f6b7550de8203408ae7b144e6a1be0882f80db0f",
+          "characters": 511
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "eff5d8896807c38f03829a8d4928edfdd20465aa3d3c4890b0cbd5bfb0292aa1",
+          "characters": 357
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "2d87681527143eb7877d921a41199a5e26d777f9af6875b38078255a041be8a5",
+          "characters": 358
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "dd7bddbb31d730591c279d0e8e473e63a8325bd175678683274281e16c4388a3",
+          "characters": 635
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "d8e73735e57f8941596342b84f5b5e3b2e169bd0f9d3ed063850e5781b08586c",
+          "characters": 370
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "cfceaa1ddaf9d812427916bab27eca07b025e09ccbdfc90d12f4f078a272d301",
+          "characters": 620
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "674746f28d158aa8c9cf4cf004023652135ed9d9ededc2a8ab219fc0d4b0394a",
+          "characters": 257
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "1e870148da46bff90e599c733f78e366c5834d71a2f17419c52f59858144293c",
+          "characters": 475
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "781163a405636393e2d46f6f3b7787f8581b22c82f4980016c0288bc0bdaa5b8",
+          "characters": 671
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "c5789f2195e4e45a1cd420fdc32e83982258ca8df279dc58425d92979926282a",
+          "characters": 501
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c1bf9501353d838da421f22fc269337a9b198fd7ee55ce44c62e8430e0e2e747",
+          "characters": 53
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "cf130039bdbadd2c2f171bca827fee6ea3e95d6cb2f4d718f80dc95782bae051",
+          "characters": 112
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "bfd7cd9f6f4212bcc5fe762eee20e6918bf7e64635150d2333b2c306ee63333e",
+          "characters": 56
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-critica-historico",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "af06cc8f397a728626dce09b0b2ac26d40f297d47e0946314e3627860ce7e10e",
+      "core_appropriate": false,
+      "flags": [
+        "missing_required_evidence"
+      ],
+      "reason": "MXSHISTORICOCRITICA não retida; resposta desvia para timeline/reenvio genérico e não entrega o vínculo esperado.",
+      "evidence": [
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "5a8c44d16bb2fd793da421da7799aaa2797bbcb76954c6bfe04466032f11d945",
+          "characters": 1176
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "fc2dfb41d337395e3506f905f6b7550de8203408ae7b144e6a1be0882f80db0f",
+          "characters": 511
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "2d87681527143eb7877d921a41199a5e26d777f9af6875b38078255a041be8a5",
+          "characters": 358
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "eff5d8896807c38f03829a8d4928edfdd20465aa3d3c4890b0cbd5bfb0292aa1",
+          "characters": 357
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "dd7bddbb31d730591c279d0e8e473e63a8325bd175678683274281e16c4388a3",
+          "characters": 635
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "d8e73735e57f8941596342b84f5b5e3b2e169bd0f9d3ed063850e5781b08586c",
+          "characters": 370
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "cfceaa1ddaf9d812427916bab27eca07b025e09ccbdfc90d12f4f078a272d301",
+          "characters": 620
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "1e870148da46bff90e599c733f78e366c5834d71a2f17419c52f59858144293c",
+          "characters": 475
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "674746f28d158aa8c9cf4cf004023652135ed9d9ededc2a8ab219fc0d4b0394a",
+          "characters": 257
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "781163a405636393e2d46f6f3b7787f8581b22c82f4980016c0288bc0bdaa5b8",
+          "characters": 671
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "c5789f2195e4e45a1cd420fdc32e83982258ca8df279dc58425d92979926282a",
+          "characters": 501
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "c1bf9501353d838da421f22fc269337a9b198fd7ee55ce44c62e8430e0e2e747",
+          "characters": 53
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "fa0c6b5553f6afe821b10b6ded052c12d46e179ca001c0f6689b7d3050c4b31b",
+          "characters": 245
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "cf130039bdbadd2c2f171bca827fee6ea3e95d6cb2f4d718f80dc95782bae051",
+          "characters": 112
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "bfd7cd9f6f4212bcc5fe762eee20e6918bf7e64635150d2333b2c306ee63333e",
+          "characters": 56
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-followup-tabelas-log",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "11a24feb2148e9d6c3d2b6ee5c78b6d036098dd10c41ace6a59e896c1f1ad2b4",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "781163a405636393e2d46f6f3b7787f8581b22c82f4980016c0288bc0bdaa5b8",
+          "characters": 671
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "32e0038fcd09285c3c60c58393cae65f5c6d5d9a996b547375e622a0266c8799",
+          "characters": 673
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "f023a35855440a020f16b2405731d3d39285e6fa68e7067db18e8f1d102b0b51",
+          "characters": 495
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "d237fd3c5d772a455130961f238d78346f2ddc62c55c63fd0312709fb69e138a",
+          "characters": 236
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "063b1926ddd1619b62cfeffb7a3c9307eb588d6c0af8bd435fa75ddb8621c0c9",
+          "characters": 126
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "be6d2403357a86af00dbddb7976516b8770d7c55830ad75f4be1fad396177e2a",
+          "characters": 464
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "226c5133146164cfd523dd6da598265b6c005b3d346cbbd8f197afc405fe43c9",
+          "characters": 189
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "02e7d3dc2fb8d6464314410d1baed9ec80b3e20785a55aed9e930f6635f48d93",
+          "characters": 323
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "7aa8ea388ba335cacdf7905dddb3488a3d7da7c679993e4055f80d9499b2e480",
+          "characters": 162
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "6ed8491997394a5e0bc27b5505170a26e666592d048f6ee1d87847ee1f6fe7d8",
+          "characters": 1144
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "eff5d8896807c38f03829a8d4928edfdd20465aa3d3c4890b0cbd5bfb0292aa1",
+          "characters": 357
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "21b00a6b91f5ebd023c1a8ee27ac4705174845b177d8b1d5c66297d6ea1b27fb",
+          "characters": 731
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "4210735aeb02d006744aa4376a668c56852d67b753a16bbf43e57aa826c26b87",
+          "characters": 26
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "a6d74bbf228585545ccf7b93b3e1ad24eeee14a73720364c7d12239c6c693ced",
+          "characters": 609
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "c864e86e64125ef1337a199e443e06617fe17fbe9f7a302ae5bb4cf4f82cdff8",
+          "characters": 147
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "e1f9534a8c8587262884a09f9b2e7e1693a3552880de197e08cd2938944b0e6d",
+          "characters": 386
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "a2dba9504988bdc96ae28600e1c3472e2dfec5e2c30e44666a745df94f6e537d",
+          "characters": 259
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "83da2fffbf614dfd38ead55b1bd77b9c4ebf5b6a2b6ac8064b6a49fb42a2bd26",
+          "characters": 433
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "2aa505f09885ca87f5f1bfa4ce08e2288498fddd5c43dd8643d60a6fd0a372fc",
+          "characters": 52
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "e2c7d7a121346bc00a992f05cf78e79934492a2e6e3bbec8337ddaa0cabf80a9",
+          "characters": 757
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "9baac7664f0777641716f6602181ec01d7be6f02db42e6684e23f57271df5d3d",
+          "characters": 463
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-followup-tabelas-log",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "9146634577d0c9aa9541829a82c515338724aec671d6681a052874835c4d503c",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "781163a405636393e2d46f6f3b7787f8581b22c82f4980016c0288bc0bdaa5b8",
+          "characters": 671
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "32e0038fcd09285c3c60c58393cae65f5c6d5d9a996b547375e622a0266c8799",
+          "characters": 673
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "d237fd3c5d772a455130961f238d78346f2ddc62c55c63fd0312709fb69e138a",
+          "characters": 236
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "f023a35855440a020f16b2405731d3d39285e6fa68e7067db18e8f1d102b0b51",
+          "characters": 495
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "063b1926ddd1619b62cfeffb7a3c9307eb588d6c0af8bd435fa75ddb8621c0c9",
+          "characters": 126
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "226c5133146164cfd523dd6da598265b6c005b3d346cbbd8f197afc405fe43c9",
+          "characters": 189
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "be6d2403357a86af00dbddb7976516b8770d7c55830ad75f4be1fad396177e2a",
+          "characters": 464
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "02e7d3dc2fb8d6464314410d1baed9ec80b3e20785a55aed9e930f6635f48d93",
+          "characters": 323
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "7aa8ea388ba335cacdf7905dddb3488a3d7da7c679993e4055f80d9499b2e480",
+          "characters": 162
+        },
+        {
+          "filename": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+          "sha256": "6ed8491997394a5e0bc27b5505170a26e666592d048f6ee1d87847ee1f6fe7d8",
+          "characters": 1144
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "21b00a6b91f5ebd023c1a8ee27ac4705174845b177d8b1d5c66297d6ea1b27fb",
+          "characters": 731
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "4210735aeb02d006744aa4376a668c56852d67b753a16bbf43e57aa826c26b87",
+          "characters": 26
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "eff5d8896807c38f03829a8d4928edfdd20465aa3d3c4890b0cbd5bfb0292aa1",
+          "characters": 357
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "a6d74bbf228585545ccf7b93b3e1ad24eeee14a73720364c7d12239c6c693ced",
+          "characters": 609
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "c864e86e64125ef1337a199e443e06617fe17fbe9f7a302ae5bb4cf4f82cdff8",
+          "characters": 147
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "a2dba9504988bdc96ae28600e1c3472e2dfec5e2c30e44666a745df94f6e537d",
+          "characters": 259
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "83da2fffbf614dfd38ead55b1bd77b9c4ebf5b6a2b6ac8064b6a49fb42a2bd26",
+          "characters": 433
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "e1f9534a8c8587262884a09f9b2e7e1693a3552880de197e08cd2938944b0e6d",
+          "characters": 386
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "2aa505f09885ca87f5f1bfa4ce08e2288498fddd5c43dd8643d60a6fd0a372fc",
+          "characters": 52
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "e2c7d7a121346bc00a992f05cf78e79934492a2e6e3bbec8337ddaa0cabf80a9",
+          "characters": 757
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "9baac7664f0777641716f6602181ec01d7be6f02db42e6684e23f57271df5d3d",
+          "characters": 463
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-followup-status-erro",
+      "variant": "jev_rerank",
+      "answerability": "answerable",
+      "answer_sha256": "c102ebcb348d64048f86be6806c1d4b3613789e18bc497bf81d25d00de56b88a",
+      "core_appropriate": true,
+      "flags": [
+        "unjustified_resolution_of_status_conflict"
+      ],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta. Transforma mapas divergentes em equivalência entre retorno imediato 5 e tabela 6 sem vínculo que comprove a transição; precisa qualificar a divergência.",
+      "evidence": [
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "1d81f7a77da84628f6e979e0f96624090a496dcedea204d45e62d74ebfedb09a",
+          "characters": 987
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "781163a405636393e2d46f6f3b7787f8581b22c82f4980016c0288bc0bdaa5b8",
+          "characters": 671
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "d421eb3546927fdd43efac81b2604a56b08b39ab325721efa209afe94f69bbfd",
+          "characters": 634
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "e033c4adad21804a99c8e179c9ed3b91162a8049890350be8c93bf61bac4dd74",
+          "characters": 861
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "659a188b36f9c3262a28539e24c345df4edc9657f59b116b0a1d9887cf2e28e0",
+          "characters": 18
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "00dabefb10efefefd47ec81d392e8ca939c226aa0c3fa59f1c6e4247b5a915af",
+          "characters": 33
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "9d7583b08723716f4b6c6fefd44217d1c08d3f9c92fdec7e67d80d46a25becae",
+          "characters": 626
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "286eb26cb53f81bd55dd0eae6f2f98978c8d0b084144a398c7cda2257c0fe4ab",
+          "characters": 29
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "4caf5ae4e94cd8ee76f957bb41118ff0c498c8fa0668213fbee2e246789c6a37",
+          "characters": 274
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "e6f3c767b87508ceac2f1104273826d11a86fafcc7eab1cc55044f655a687934",
+          "characters": 26
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "aed346734dab10816391bf4c1ef1f4d64b91eddb63de8d1e41155c4c7d9e7b52",
+          "characters": 499
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "8259f36d89c595801474cb07214e2218128f46ed7ccf6c40c67aa3d1cda24b27",
+          "characters": 160
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "83dda7ea08340be3217ce2d164bfc3b24b036e9f629afa33824256f52cd9f70a",
+          "characters": 1054
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "dd9702fdcb8e4213a64b5b9eaad5a4078f6d95d22baea5f24141bac9445fb7be",
+          "characters": 440
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "c33bedae5e83986147a2eaad2275570ca220795c62558ab8042c44d11436c615",
+          "characters": 92
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "7be6a7d78655d8cab7a71d3248e74ae6959faf65cba0c5d4022167bdeae38ea1",
+          "characters": 40
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-followup-status-erro",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "answerable",
+      "answer_sha256": "1143fbaa6a6b5ef53130cc57e18aa8aba9629947dcb1ae8e1a311f90750f4e65",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Núcleo esperado presente nos trechos retidos e na resposta.",
+      "evidence": [
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "04ef1eaf03230a0c2aff8936a24e518d59242814a949159d628268992fc76e18",
+          "characters": 959
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "08b3547f9e481df8140aaefe846c4e8da4ab22fd784889b53f25ff3ed71b8903",
+          "characters": 697
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "1d81f7a77da84628f6e979e0f96624090a496dcedea204d45e62d74ebfedb09a",
+          "characters": 987
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "781163a405636393e2d46f6f3b7787f8581b22c82f4980016c0288bc0bdaa5b8",
+          "characters": 671
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "e033c4adad21804a99c8e179c9ed3b91162a8049890350be8c93bf61bac4dd74",
+          "characters": 861
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "d421eb3546927fdd43efac81b2604a56b08b39ab325721efa209afe94f69bbfd",
+          "characters": 634
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "13dcb964bea189e8f951d93ec53fc55618e78ca42ed0efe8fc6318b1dd228e1a",
+          "characters": 268
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "659a188b36f9c3262a28539e24c345df4edc9657f59b116b0a1d9887cf2e28e0",
+          "characters": 18
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "00dabefb10efefefd47ec81d392e8ca939c226aa0c3fa59f1c6e4247b5a915af",
+          "characters": 33
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "9d7583b08723716f4b6c6fefd44217d1c08d3f9c92fdec7e67d80d46a25becae",
+          "characters": 626
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "286eb26cb53f81bd55dd0eae6f2f98978c8d0b084144a398c7cda2257c0fe4ab",
+          "characters": 29
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "4caf5ae4e94cd8ee76f957bb41118ff0c498c8fa0668213fbee2e246789c6a37",
+          "characters": 274
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "e6f3c767b87508ceac2f1104273826d11a86fafcc7eab1cc55044f655a687934",
+          "characters": 26
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "aed346734dab10816391bf4c1ef1f4d64b91eddb63de8d1e41155c4c7d9e7b52",
+          "characters": 499
+        },
+        {
+          "filename": "21-MS-HUB-GERA-MAXPEDIDO.md",
+          "sha256": "8259f36d89c595801474cb07214e2218128f46ed7ccf6c40c67aa3d1cda24b27",
+          "characters": 160
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "83dda7ea08340be3217ce2d164bfc3b24b036e9f629afa33824256f52cd9f70a",
+          "characters": 1054
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "dd9702fdcb8e4213a64b5b9eaad5a4078f6d95d22baea5f24141bac9445fb7be",
+          "characters": 440
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "c33bedae5e83986147a2eaad2275570ca220795c62558ab8042c44d11436c615",
+          "characters": 92
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-ambigua-status",
+      "variant": "jev_rerank",
+      "answerability": "ambiguous",
+      "answer_sha256": "aa3d72a9efa19a31f070446b6058cd7d0a5ea1b6a58162fd5399df15608c41b5",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Pede identificação do antecedente/funcionalidade/fluxo; três esclarecimentos semanticamente adequados por braço.",
+      "evidence": [
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "912894d84356e82c5f1527f27139ad790c9115a0029665e016360f5b58fa61f2",
+          "characters": 173
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "a57d9fe225a27809d948a1bdf9aee2a3da97e61cc0dfa859b6db5d67c956aa68",
+          "characters": 47
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "1bee07015ded462fe61d253dc04c41be7fb7b54e2e2b247dc01f321a2d1199b7",
+          "characters": 446
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "fd66881db83765f74343d036ee78e44f13e7f11da0ef3d18f9f04ad9b071000f",
+          "characters": 185
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "eaff4a8139b024ae4d0341e5c0c2d805fd2ede23c88381211b51e54204162857",
+          "characters": 515
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5c8a4f47e47e884515d9e0faea5e7a61da309d9476d87b447274d4f028bb2748",
+          "characters": 137
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "c952e34b9aa4d7306f5e536c19328c459eb3e9fdd85f6257caadba7593fda06b",
+          "characters": 330
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "ce46f980088fa65f43adfa63912a9fc89ab87a11d6cb1a2cc844049637588200",
+          "characters": 29
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5edcaa4203e6f60b4ad7be5b50158138b8f5c336432e91ae71bf38d66d4684e8",
+          "characters": 19
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "e7e73ccc262106cf2bb4086d36269b28371f4f2cb14867eca5d7becbb3278486",
+          "characters": 128
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "48a0fc8cc984975edb3b8d6f1737c23d0a205b50f6dc39f4924fe9a40d5bad95",
+          "characters": 175
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "c379d3583ad258a7d2e38bc4b5bf7d347438b060bc8493db273b191725b3112a",
+          "characters": 616
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "a99ea0965965aad65c8e62ad972bd0d70778cbdef2b4b05c4f95e2baa9ebb145",
+          "characters": 205
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "7766af942d5d5a17a70a72f2747bb74aa6eece6c39b41b021ffd2cd3f05f5319",
+          "characters": 42
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "330636eb2102140258c288f24730bc3f1ea391348938b93d5c38abb4298aea2c",
+          "characters": 280
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "3be1b713df38f9f7e16e7807b3aba1c73edded120ceabf3dd759828b0f5fb538",
+          "characters": 285
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "d6149c3a4e13aca27714220e749dd04b4996e3466cc6d9f641a0c80d1e51f2bb",
+          "characters": 31
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "54d94d2b117754f9d50cfa78e77b18ed4d1480969f29a6aec05128b28de22d0d",
+          "characters": 1195
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "00dabefb10efefefd47ec81d392e8ca939c226aa0c3fa59f1c6e4247b5a915af",
+          "characters": 33
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "9f7097141138de058eff2fe9a699681bac68fd72d607226f7fb5643cba13344b",
+          "characters": 555
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-ambigua-status",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "ambiguous",
+      "answer_sha256": "984b1a412b5c5e75ab9e2371da2121e788c5314504772fd2aabe4f0c8ae65f1a",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Pede identificação do antecedente/funcionalidade/fluxo; três esclarecimentos semanticamente adequados por braço.",
+      "evidence": [
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "bfb57e69fc7a2382a7cae0aa7ba3a2a195fef79968bc7097983fa1fbf0b7f3c9",
+          "characters": 608
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "f8e375f78c786736aee54cfad0ce1f0fd2709623a12091a150c284d90bce91c4",
+          "characters": 944
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "f7b7fb6be9d10248cf1c9f5836f91bea2ee052de9e0ceeaeff1ce106bbfb39f3",
+          "characters": 439
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "912894d84356e82c5f1527f27139ad790c9115a0029665e016360f5b58fa61f2",
+          "characters": 173
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "a57d9fe225a27809d948a1bdf9aee2a3da97e61cc0dfa859b6db5d67c956aa68",
+          "characters": 47
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "fd66881db83765f74343d036ee78e44f13e7f11da0ef3d18f9f04ad9b071000f",
+          "characters": 185
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "1bee07015ded462fe61d253dc04c41be7fb7b54e2e2b247dc01f321a2d1199b7",
+          "characters": 446
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "eaff4a8139b024ae4d0341e5c0c2d805fd2ede23c88381211b51e54204162857",
+          "characters": 515
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5c8a4f47e47e884515d9e0faea5e7a61da309d9476d87b447274d4f028bb2748",
+          "characters": 137
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "c952e34b9aa4d7306f5e536c19328c459eb3e9fdd85f6257caadba7593fda06b",
+          "characters": 330
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "ce46f980088fa65f43adfa63912a9fc89ab87a11d6cb1a2cc844049637588200",
+          "characters": 29
+        },
+        {
+          "filename": "05-SQL-BANCO-E-INTEGRACAO.md",
+          "sha256": "5edcaa4203e6f60b4ad7be5b50158138b8f5c336432e91ae71bf38d66d4684e8",
+          "characters": 19
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "fea52a09a3b6b7478e22487a1ce6f1c127be8500c30362132de9b1d7c5ba4c96",
+          "characters": 346
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "e7e73ccc262106cf2bb4086d36269b28371f4f2cb14867eca5d7becbb3278486",
+          "characters": 128
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "48a0fc8cc984975edb3b8d6f1737c23d0a205b50f6dc39f4924fe9a40d5bad95",
+          "characters": 175
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "c379d3583ad258a7d2e38bc4b5bf7d347438b060bc8493db273b191725b3112a",
+          "characters": 616
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "a99ea0965965aad65c8e62ad972bd0d70778cbdef2b4b05c4f95e2baa9ebb145",
+          "characters": 205
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "7766af942d5d5a17a70a72f2747bb74aa6eece6c39b41b021ffd2cd3f05f5319",
+          "characters": 42
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "330636eb2102140258c288f24730bc3f1ea391348938b93d5c38abb4298aea2c",
+          "characters": 280
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "3be1b713df38f9f7e16e7807b3aba1c73edded120ceabf3dd759828b0f5fb538",
+          "characters": 285
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "d6149c3a4e13aca27714220e749dd04b4996e3466cc6d9f641a0c80d1e51f2bb",
+          "characters": 31
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "54d94d2b117754f9d50cfa78e77b18ed4d1480969f29a6aec05128b28de22d0d",
+          "characters": 1195
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "00dabefb10efefefd47ec81d392e8ca939c226aa0c3fa59f1c6e4247b5a915af",
+          "characters": 33
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "9f7097141138de058eff2fe9a699681bac68fd72d607226f7fb5643cba13344b",
+          "characters": 555
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-ambigua-erro",
+      "variant": "jev_rerank",
+      "answerability": "ambiguous",
+      "answer_sha256": "2481990935e661c81332cc5fc6a553cba27c77c0fa287ff96971578d2eb2db65",
+      "core_appropriate": false,
+      "flags": [
+        "unsupported_scenario_assumption"
+      ],
+      "reason": "Presume que a maior cobertura sobre PDF/XLS indica a causa provável do erro não especificado; recomenda ação antes de obter mensagem e etapa.",
+      "evidence": [
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "dadfdb099c1bbfc4ff8e99be44187e4fa4adf9899261494f41612751bb8e1518",
+          "characters": 640
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "4ea80a33d90f6f707f5a384f009029a0040e62223553bd5dad88e77450a72dc0",
+          "characters": 41
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "5555cd8e48ffc626e4c981bddf32c86984618aa32724bc2708a2bbaae7dc543e",
+          "characters": 307
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "bfd7cd9f6f4212bcc5fe762eee20e6918bf7e64635150d2333b2c306ee63333e",
+          "characters": 56
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "2125de2ad555993fdd00a7ae998a9a715b941ca2dfd49e9fa501c04e45d63a56",
+          "characters": 350
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "e7585b91c5a4aa7cb08f24b1b37805a60d8c2676d2cbdc2314b96bd4f880c90f",
+          "characters": 154
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "40b90c471e6130d6516308d595fecdbe4e0c11da4f03a565eb15d18f98c7dcbd",
+          "characters": 222
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "af66244d31b524efc047ccd62c853fe358c4bdc6a39f2a1971c088a718ad35ce",
+          "characters": 331
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "91818f0c19f7bf0a178252acc2087feb8231efbaed727fd814a98ee49fe5bbf5",
+          "characters": 624
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "83dda7ea08340be3217ce2d164bfc3b24b036e9f629afa33824256f52cd9f70a",
+          "characters": 1054
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "9d7583b08723716f4b6c6fefd44217d1c08d3f9c92fdec7e67d80d46a25becae",
+          "characters": 626
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "2de4e2cd219b83eac8c0ba48e7b12538fefb087e9558bbb3f9029c61f2114d62",
+          "characters": 429
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "4f1def748b6149a52cda305c8677ce6bdd17a6530f40231fe91611826e0758ad",
+          "characters": 179
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "9bd6fe3cdcdd4af972488d1aef670aea5b1031c2e212f174707b9022b870f39f",
+          "characters": 405
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "0f0f23ff2a663408cbc7d1842a731e72e96aeb1acd08f740f1d52e72c2233606",
+          "characters": 586
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "8abf9fbbd7dc0db41156fcca03d5cb3bb96ad5790d6105d5212ba24fff55878c",
+          "characters": 478
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-ambigua-erro",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "ambiguous",
+      "answer_sha256": "dd4ec80a8d0283909274655d4d99e0a7d3ee49bb0e57a9ba0ef53ff9d470689a",
+      "core_appropriate": false,
+      "flags": [
+        "unsupported_scenario_assumption"
+      ],
+      "reason": "Presume que a maior cobertura sobre PDF/XLS indica a causa provável do erro não especificado; recomenda ação antes de obter mensagem e etapa.",
+      "evidence": [
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "dadfdb099c1bbfc4ff8e99be44187e4fa4adf9899261494f41612751bb8e1518",
+          "characters": 640
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "4ea80a33d90f6f707f5a384f009029a0040e62223553bd5dad88e77450a72dc0",
+          "characters": 41
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "5555cd8e48ffc626e4c981bddf32c86984618aa32724bc2708a2bbaae7dc543e",
+          "characters": 307
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "bfd7cd9f6f4212bcc5fe762eee20e6918bf7e64635150d2333b2c306ee63333e",
+          "characters": 56
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "2125de2ad555993fdd00a7ae998a9a715b941ca2dfd49e9fa501c04e45d63a56",
+          "characters": 350
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "e7585b91c5a4aa7cb08f24b1b37805a60d8c2676d2cbdc2314b96bd4f880c90f",
+          "characters": 154
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "315d3d7d559a6010f0a5de63cb64c7ac6a1a3d801484d007d979041b98c2a096",
+          "characters": 244
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "af66244d31b524efc047ccd62c853fe358c4bdc6a39f2a1971c088a718ad35ce",
+          "characters": 331
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "91818f0c19f7bf0a178252acc2087feb8231efbaed727fd814a98ee49fe5bbf5",
+          "characters": 624
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "83dda7ea08340be3217ce2d164bfc3b24b036e9f629afa33824256f52cd9f70a",
+          "characters": 1054
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "9d7583b08723716f4b6c6fefd44217d1c08d3f9c92fdec7e67d80d46a25becae",
+          "characters": 626
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "2de4e2cd219b83eac8c0ba48e7b12538fefb087e9558bbb3f9029c61f2114d62",
+          "characters": 429
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "4f1def748b6149a52cda305c8677ce6bdd17a6530f40231fe91611826e0758ad",
+          "characters": 179
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "9bd6fe3cdcdd4af972488d1aef670aea5b1031c2e212f174707b9022b870f39f",
+          "characters": 405
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "0f0f23ff2a663408cbc7d1842a731e72e96aeb1acd08f740f1d52e72c2233606",
+          "characters": 586
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "8abf9fbbd7dc0db41156fcca03d5cb3bb96ad5790d6105d5212ba24fff55878c",
+          "characters": 478
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-ambigua-parametro",
+      "variant": "jev_rerank",
+      "answerability": "ambiguous",
+      "answer_sha256": "7657d6e2f927e50a7f0752840bc5a1b1d648055a65779137bbd38152071b6578",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Pede identificação do antecedente/funcionalidade/fluxo; três esclarecimentos semanticamente adequados por braço.",
+      "evidence": [
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "5e5be2fb583c6bf2fabf1fdc5f15df26c8cdf7a3297fc972023d86926162b218",
+          "characters": 468
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "0830da5d905bb2257c2743a4ddfd68a6fcf8f37dc04e2393a85893b5b39c68f5",
+          "characters": 457
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "6035ef9ff95ef27cca61c0c05ce7e24afa2e40b607d994858b8afcfcc9205b6c",
+          "characters": 580
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "3f4a263953c92eac03711fcb116ac04d60884bf138e99cbec1917b295aa2f4ba",
+          "characters": 1039
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "ce65ae34d0728fdc1d1cf833646843ff3d7b39392a46e14106dd339545f4911e",
+          "characters": 175
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "93a72dfd58c0b3cace7518bba4867b1386e130c379b507f4e7455dd7b6d6b73b",
+          "characters": 429
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "a948557d64c5347b91c25e41c83a39c8443522dc102f47d45f88e5a25ce430e8",
+          "characters": 302
+        },
+        {
+          "filename": "06-CAMPANHAS-E-DESCONTOS.md",
+          "sha256": "8c7a5fa697c2ab286af76cff407f16643ccf462be53499069358002410eccc91",
+          "characters": 353
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "d74cab99cc064cdcbf65f086443a8de7f8263f10cf91aa5059349494d10c047c",
+          "characters": 398
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "bac5603a98d0c987cfa86aae95dd112899ba9f00417a7b778045a885647783b1",
+          "characters": 452
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "3420c75f83200fdf18dc08fc676f7a1dd6a399ff584a54193445f3f917b4deff",
+          "characters": 206
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "5e53e71051bc617edc4ba040aa101388bd49b3cc16441177a24bdcfb4b44e5d3",
+          "characters": 374
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "267d99f60f83929981c244a737f4af522f72fb1805fb3c4a763a0c9a3d6676fb",
+          "characters": 216
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "88871015d922c941e605254bcd13fbcdf69d889cd707045142cb91d2a12d8c29",
+          "characters": 203
+        },
+        {
+          "filename": "06-CAMPANHAS-E-DESCONTOS.md",
+          "sha256": "fbf74c628633d30f5903ad11f8d9682efba3d590b33a175acd66d3cecda9a818",
+          "characters": 43
+        },
+        {
+          "filename": "06-CAMPANHAS-E-DESCONTOS.md",
+          "sha256": "d6ecfce380bb4a9d48c353cf80edd95851585dd605eb6c09e1b451a9a4771725",
+          "characters": 33
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "426087a17c3a477fb85486136fcd917472e46dd90dd07e27876c1838256d268f",
+          "characters": 46
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "4817b73950e0798eab5496150d2a010e7943884079d5cba04c8d3fbff3b108c0",
+          "characters": 359
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-ambigua-parametro",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "ambiguous",
+      "answer_sha256": "984b1a412b5c5e75ab9e2371da2121e788c5314504772fd2aabe4f0c8ae65f1a",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Pede identificação do antecedente/funcionalidade/fluxo; três esclarecimentos semanticamente adequados por braço.",
+      "evidence": [
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "5e5be2fb583c6bf2fabf1fdc5f15df26c8cdf7a3297fc972023d86926162b218",
+          "characters": 468
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "0830da5d905bb2257c2743a4ddfd68a6fcf8f37dc04e2393a85893b5b39c68f5",
+          "characters": 457
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "3f4a263953c92eac03711fcb116ac04d60884bf138e99cbec1917b295aa2f4ba",
+          "characters": 1039
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "93a72dfd58c0b3cace7518bba4867b1386e130c379b507f4e7455dd7b6d6b73b",
+          "characters": 429
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "d74cab99cc064cdcbf65f086443a8de7f8263f10cf91aa5059349494d10c047c",
+          "characters": 398
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "ce65ae34d0728fdc1d1cf833646843ff3d7b39392a46e14106dd339545f4911e",
+          "characters": 175
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "6035ef9ff95ef27cca61c0c05ce7e24afa2e40b607d994858b8afcfcc9205b6c",
+          "characters": 580
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "a948557d64c5347b91c25e41c83a39c8443522dc102f47d45f88e5a25ce430e8",
+          "characters": 302
+        },
+        {
+          "filename": "06-CAMPANHAS-E-DESCONTOS.md",
+          "sha256": "8c7a5fa697c2ab286af76cff407f16643ccf462be53499069358002410eccc91",
+          "characters": 353
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "bac5603a98d0c987cfa86aae95dd112899ba9f00417a7b778045a885647783b1",
+          "characters": 452
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "5e53e71051bc617edc4ba040aa101388bd49b3cc16441177a24bdcfb4b44e5d3",
+          "characters": 374
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "3420c75f83200fdf18dc08fc676f7a1dd6a399ff584a54193445f3f917b4deff",
+          "characters": 206
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "267d99f60f83929981c244a737f4af522f72fb1805fb3c4a763a0c9a3d6676fb",
+          "characters": 216
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "88871015d922c941e605254bcd13fbcdf69d889cd707045142cb91d2a12d8c29",
+          "characters": 203
+        },
+        {
+          "filename": "06-CAMPANHAS-E-DESCONTOS.md",
+          "sha256": "fbf74c628633d30f5903ad11f8d9682efba3d590b33a175acd66d3cecda9a818",
+          "characters": 43
+        },
+        {
+          "filename": "06-CAMPANHAS-E-DESCONTOS.md",
+          "sha256": "d6ecfce380bb4a9d48c353cf80edd95851585dd605eb6c09e1b451a9a4771725",
+          "characters": 33
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "426087a17c3a477fb85486136fcd917472e46dd90dd07e27876c1838256d268f",
+          "characters": 46
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "4817b73950e0798eab5496150d2a010e7943884079d5cba04c8d3fbff3b108c0",
+          "characters": 359
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-ambigua-followup-sem-historico",
+      "variant": "jev_rerank",
+      "answerability": "ambiguous",
+      "answer_sha256": "5ddceffefc3b92de5514a783e3ca02db11430b2b3a594e06226a9083293f9ed5",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Pede identificação do antecedente/funcionalidade/fluxo; três esclarecimentos semanticamente adequados por braço.",
+      "evidence": [
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "fcf9b142967f3786c5f22ddd77508536bd16e3e4ddcfd85dac6edf7248460664",
+          "characters": 232
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "a8c3b16d10750256882aaea6fd3282e201d3a5a170fb55e8f5dc95523e7aa9da",
+          "characters": 161
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "32e5c2cf60f0c672b70716298161fca40c05cdfc4f89de66f7c8c331e5cbf88c",
+          "characters": 312
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "3032e1acf68240a5e4a4cd9553284fb5a263b138e1a386035a281a00496f3aec",
+          "characters": 109
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "a2dba9504988bdc96ae28600e1c3472e2dfec5e2c30e44666a745df94f6e537d",
+          "characters": 259
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "58c5776318a38684e3c95491f75d39a85522a5406527a60efe8296964677a85b",
+          "characters": 396
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "4a574bccd110becbd2d92ad5ff51760f82435baa4f786b20fd25b62b9c300a3d",
+          "characters": 109
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "095a0d6567dff04efec36de1f341a38955fca801dc6a3cebfc570688a05650b2",
+          "characters": 199
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "95fa39e9112bad46ee024c1d39e953ad59b5f5c77f254036c994f9be9cb9ddc5",
+          "characters": 369
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "a6d74bbf228585545ccf7b93b3e1ad24eeee14a73720364c7d12239c6c693ced",
+          "characters": 609
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "551f1f411d5a0c9940d2656d3249f595ddefc866d3d68cd7ed9dd0310ac5dd23",
+          "characters": 762
+        },
+        {
+          "filename": "19-MS-RASTRO.md",
+          "sha256": "b7501f665cc303a6f8e5ba965577dd6f04c1128ac61d2ac5692db537c57e5328",
+          "characters": 607
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "486cc860671859c75bf22de4e5e11958cfcf252aaecfd91981bbd13d3ae44ed6",
+          "characters": 162
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "994f0eb5221f2af9ae8cae793682195563332f80ff05dfbe7c6c485d63bc1b32",
+          "characters": 207
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "9194a94e34f782fe202303d502353cd711cedc7d721699d29c60a679e873f1b7",
+          "characters": 200
+        },
+        {
+          "filename": "19-MS-RASTRO.md",
+          "sha256": "9bddc55eb6335e5322e8e752b23085139a3377d7af9bb8a7c606de8472a0fb87",
+          "characters": 633
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "d21bbbefb8ed45703970260c9e458f86d821780717eab3ed8185ad6b9882c45d",
+          "characters": 41
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "7efd2b50ec796462cc45253cc1a165be3b886148591fd6240bfd1e905bca4578",
+          "characters": 328
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "7236abf94d58616b72d7ebf2ceb7581f7bddfbb92f55be96bbcfd6508297d158",
+          "characters": 276
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "0ffe374fe1335acdbaec19517758ee8d0365f9744f0e1da043468471124907b9",
+          "characters": 256
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "75fbd9d4941e27737f83105e66d848d3d21ab4240bd9f302d446935d5c0763fd",
+          "characters": 156
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "4d66b576975650505cec42d4ea1538037c982424588f59e6fc07964478c063ff",
+          "characters": 145
+        },
+        {
+          "filename": "19-MS-RASTRO.md",
+          "sha256": "65b158a0e61e70eafc07eae2aefb6b9bdf94587162f8d526e1b056b7090737f3",
+          "characters": 23
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "b5cb672f6c9da73fb6cb82a6fa46c656640a805993513bd7924b6a49eb20a543",
+          "characters": 203
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-ambigua-followup-sem-historico",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "ambiguous",
+      "answer_sha256": "984b1a412b5c5e75ab9e2371da2121e788c5314504772fd2aabe4f0c8ae65f1a",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Pede identificação do antecedente/funcionalidade/fluxo; três esclarecimentos semanticamente adequados por braço.",
+      "evidence": [
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "fcf9b142967f3786c5f22ddd77508536bd16e3e4ddcfd85dac6edf7248460664",
+          "characters": 232
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "a8c3b16d10750256882aaea6fd3282e201d3a5a170fb55e8f5dc95523e7aa9da",
+          "characters": 161
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "3032e1acf68240a5e4a4cd9553284fb5a263b138e1a386035a281a00496f3aec",
+          "characters": 109
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "a2dba9504988bdc96ae28600e1c3472e2dfec5e2c30e44666a745df94f6e537d",
+          "characters": 259
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "32e5c2cf60f0c672b70716298161fca40c05cdfc4f89de66f7c8c331e5cbf88c",
+          "characters": 312
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "58c5776318a38684e3c95491f75d39a85522a5406527a60efe8296964677a85b",
+          "characters": 396
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "4a574bccd110becbd2d92ad5ff51760f82435baa4f786b20fd25b62b9c300a3d",
+          "characters": 109
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "095a0d6567dff04efec36de1f341a38955fca801dc6a3cebfc570688a05650b2",
+          "characters": 199
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "95fa39e9112bad46ee024c1d39e953ad59b5f5c77f254036c994f9be9cb9ddc5",
+          "characters": 369
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "a6d74bbf228585545ccf7b93b3e1ad24eeee14a73720364c7d12239c6c693ced",
+          "characters": 609
+        },
+        {
+          "filename": "16-SUPORTE-EXTRATOR.md",
+          "sha256": "551f1f411d5a0c9940d2656d3249f595ddefc866d3d68cd7ed9dd0310ac5dd23",
+          "characters": 762
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "994f0eb5221f2af9ae8cae793682195563332f80ff05dfbe7c6c485d63bc1b32",
+          "characters": 207
+        },
+        {
+          "filename": "19-MS-RASTRO.md",
+          "sha256": "b7501f665cc303a6f8e5ba965577dd6f04c1128ac61d2ac5692db537c57e5328",
+          "characters": 607
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "486cc860671859c75bf22de4e5e11958cfcf252aaecfd91981bbd13d3ae44ed6",
+          "characters": 162
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "9194a94e34f782fe202303d502353cd711cedc7d721699d29c60a679e873f1b7",
+          "characters": 200
+        },
+        {
+          "filename": "19-MS-RASTRO.md",
+          "sha256": "9bddc55eb6335e5322e8e752b23085139a3377d7af9bb8a7c606de8472a0fb87",
+          "characters": 633
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "d21bbbefb8ed45703970260c9e458f86d821780717eab3ed8185ad6b9882c45d",
+          "characters": 41
+        },
+        {
+          "filename": "20-MS-MAXPAG-FLUXO-NO-MAXPEDIDO.md",
+          "sha256": "7efd2b50ec796462cc45253cc1a165be3b886148591fd6240bfd1e905bca4578",
+          "characters": 328
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "7236abf94d58616b72d7ebf2ceb7581f7bddfbb92f55be96bbcfd6508297d158",
+          "characters": 276
+        },
+        {
+          "filename": "15-FLUXO-PEDIDOS-GERA.md",
+          "sha256": "0ffe374fe1335acdbaec19517758ee8d0365f9744f0e1da043468471124907b9",
+          "characters": 256
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "75fbd9d4941e27737f83105e66d848d3d21ab4240bd9f302d446935d5c0763fd",
+          "characters": 156
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "4d66b576975650505cec42d4ea1538037c982424588f59e6fc07964478c063ff",
+          "characters": 145
+        },
+        {
+          "filename": "19-MS-RASTRO.md",
+          "sha256": "65b158a0e61e70eafc07eae2aefb6b9bdf94587162f8d526e1b056b7090737f3",
+          "characters": 23
+        },
+        {
+          "filename": "23-CAMPANHA-PROGRESSIVA.md",
+          "sha256": "b5cb672f6c9da73fb6cb82a6fa46c656640a805993513bd7924b6a49eb20a543",
+          "characters": 203
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-sem-evidencia-erp-xptos",
+      "variant": "jev_rerank",
+      "answerability": "no_evidence",
+      "answer_sha256": "201d9cafc43e35dbef67ba6fbc245bc17f27f145478fa509d426459c5690aaf8",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Abstenção apropriada; não recomenda a tela/coluna fictícia.",
+      "evidence": [
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "494b8782de4c99c92d1e92f3984eb8cecfb5d4de9829993aef8a3678489a01d9",
+          "characters": 21
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "4954645f53d536cedc3b0b037a5de56b993e7bb52bd9d5be54a4ba8da902e9c8",
+          "characters": 413
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "dafeee8845d61e78646b8821517465d03d3892f3a17f5a95d1a41bc3dc8f85ba",
+          "characters": 34
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "f0366a93b45a5728ad4a680b31d47db761a24e47b6f37db1babf5f4fe0fe495b",
+          "characters": 1115
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "95aa125ff1064d8e9fd51c8a806284c9659e14b786171c654528d2e2359816b5",
+          "characters": 1169
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "3032e1acf68240a5e4a4cd9553284fb5a263b138e1a386035a281a00496f3aec",
+          "characters": 109
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "efa2a17eaef00f2ee8c8c295fd0b1a4bdbbab6d22604ab7ddbe0411c55201547",
+          "characters": 137
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "512ed60a2a9c8ecb65529514edcd0840140152d5dd1e5b503a3547754d8f93b6",
+          "characters": 1160
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "e4df3bac8dd5ab2ab95755fd8482c5610a62881aea6c1456ce4b4546dff72b77",
+          "characters": 488
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "88617042d75172ede944a950e7618b9763ba8b52158484fc654b90f2c5c609d5",
+          "characters": 96
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "9a8fd35027563466b061284e21ec702c77a61daa913d9f3eda0be9c74431315b",
+          "characters": 332
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "27b9a63246f50de0f69e7f338b08680a24f2bec5d20c7137c90dce8eb9e7bf8f",
+          "characters": 275
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "61a968f079f965d98d654160c127c79d54a81193adc65f731243bcf0aa434e17",
+          "characters": 495
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "c5887a7ab5e1a66b1eb68d82e0c34a252d99aedbc33e8adc175088b347464e03",
+          "characters": 91
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "41b28144a3a54a308598cd27a99324b6ccb0e33e63a10b77b7fa508e98814b6f",
+          "characters": 540
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "3d4e0c36e0a745231a5d110f4ee4395c363d9ee0e6b86039fe54ec603199c627",
+          "characters": 735
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "fee2b72f302b1f7f4f3f0d45b0f2f2b458c44cca2825a74ca29fdf61083d2b5b",
+          "characters": 46
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-sem-evidencia-erp-xptos",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "no_evidence",
+      "answer_sha256": "2ce1fe6c0f6d6423d203c02a81f9f06f7dab036d15760357977f710057bdf0ca",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Abstenção apropriada; não recomenda a tela/coluna fictícia.",
+      "evidence": [
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "494b8782de4c99c92d1e92f3984eb8cecfb5d4de9829993aef8a3678489a01d9",
+          "characters": 21
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "dafeee8845d61e78646b8821517465d03d3892f3a17f5a95d1a41bc3dc8f85ba",
+          "characters": 34
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "4954645f53d536cedc3b0b037a5de56b993e7bb52bd9d5be54a4ba8da902e9c8",
+          "characters": 413
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "4474cc6e014f0ae8da84cf0d8395414add00a626d1fb3aa6691dae19ad86cf9e",
+          "characters": 390
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "f0366a93b45a5728ad4a680b31d47db761a24e47b6f37db1babf5f4fe0fe495b",
+          "characters": 1115
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "95aa125ff1064d8e9fd51c8a806284c9659e14b786171c654528d2e2359816b5",
+          "characters": 1169
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "3032e1acf68240a5e4a4cd9553284fb5a263b138e1a386035a281a00496f3aec",
+          "characters": 109
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "512ed60a2a9c8ecb65529514edcd0840140152d5dd1e5b503a3547754d8f93b6",
+          "characters": 1160
+        },
+        {
+          "filename": "02-CONHECIMENTOS-GERAIS.md",
+          "sha256": "efa2a17eaef00f2ee8c8c295fd0b1a4bdbbab6d22604ab7ddbe0411c55201547",
+          "characters": 137
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "e4df3bac8dd5ab2ab95755fd8482c5610a62881aea6c1456ce4b4546dff72b77",
+          "characters": 488
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "88617042d75172ede944a950e7618b9763ba8b52158484fc654b90f2c5c609d5",
+          "characters": 96
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "9a8fd35027563466b061284e21ec702c77a61daa913d9f3eda0be9c74431315b",
+          "characters": 332
+        },
+        {
+          "filename": "05-PEDIDOS-E-VENDAS.md",
+          "sha256": "27b9a63246f50de0f69e7f338b08680a24f2bec5d20c7137c90dce8eb9e7bf8f",
+          "characters": 275
+        },
+        {
+          "filename": "22-MS-SUPORTE-WINTHOR-INTEGRACOES.md",
+          "sha256": "61a968f079f965d98d654160c127c79d54a81193adc65f731243bcf0aa434e17",
+          "characters": 495
+        },
+        {
+          "filename": "01-LAYOUT-INTEGRACAO.md",
+          "sha256": "c5887a7ab5e1a66b1eb68d82e0c34a252d99aedbc33e8adc175088b347464e03",
+          "characters": 91
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "41b28144a3a54a308598cd27a99324b6ccb0e33e63a10b77b7fa508e98814b6f",
+          "characters": 540
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "3d4e0c36e0a745231a5d110f4ee4395c363d9ee0e6b86039fe54ec603199c627",
+          "characters": 735
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "fee2b72f302b1f7f4f3f0d45b0f2f2b458c44cca2825a74ca29fdf61083d2b5b",
+          "characters": 46
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-sem-evidencia-modo-turbo",
+      "variant": "jev_rerank",
+      "answerability": "no_evidence",
+      "answer_sha256": "201d9cafc43e35dbef67ba6fbc245bc17f27f145478fa509d426459c5690aaf8",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Abstenção apropriada; não recomenda a tela/coluna fictícia.",
+      "evidence": [
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "af2b8756ea74e0f2c65985abf6fe4cdc310aea1edb2a6741e0adca7694e6b9ac",
+          "characters": 331
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "4817b73950e0798eab5496150d2a010e7943884079d5cba04c8d3fbff3b108c0",
+          "characters": 359
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "96ff04502c5e6f6016da6ace4a7af2d417b482cb1d2b7fb1f31be4e348389cf9",
+          "characters": 414
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "f6ccfb1fa77a7c8cf0fc17ea33ee064e08db2d1a46dc56c8fd09d6307824deb1",
+          "characters": 45
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "88871015d922c941e605254bcd13fbcdf69d889cd707045142cb91d2a12d8c29",
+          "characters": 203
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "256ec04123b38e481940e5e976bed03c36f965e7f85f509b686a42b629a4f163",
+          "characters": 35
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "30e6822ca2c95fbd0c454348373a39ef48784886227cb782e348b5a1a151c0d5",
+          "characters": 243
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "75148048e75deec3575912bac6504f4f5f855c68080bc951b4bdcb10a6ee4c95",
+          "characters": 35
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "67ff515cab095d1d963bfd9d351d159a3e72586c298eb856e09f483cee94101b",
+          "characters": 358
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    },
+    {
+      "case_id": "dev-sem-evidencia-modo-turbo",
+      "variant": "jev_rerank+evidence_gate",
+      "answerability": "no_evidence",
+      "answer_sha256": "7e630b9a29ed9374fc3a24e53887fddb72f0419c816ddae9f14b54cc5257de71",
+      "core_appropriate": true,
+      "flags": [],
+      "reason": "Abstenção apropriada; não recomenda a tela/coluna fictícia.",
+      "evidence": [
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "af2b8756ea74e0f2c65985abf6fe4cdc310aea1edb2a6741e0adca7694e6b9ac",
+          "characters": 331
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "4817b73950e0798eab5496150d2a010e7943884079d5cba04c8d3fbff3b108c0",
+          "characters": 359
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "96ff04502c5e6f6016da6ace4a7af2d417b482cb1d2b7fb1f31be4e348389cf9",
+          "characters": 414
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "f6ccfb1fa77a7c8cf0fc17ea33ee064e08db2d1a46dc56c8fd09d6307824deb1",
+          "characters": 45
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "88871015d922c941e605254bcd13fbcdf69d889cd707045142cb91d2a12d8c29",
+          "characters": 203
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "256ec04123b38e481940e5e976bed03c36f965e7f85f509b686a42b629a4f163",
+          "characters": 35
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "75148048e75deec3575912bac6504f4f5f855c68080bc951b4bdcb10a6ee4c95",
+          "characters": 35
+        },
+        {
+          "filename": "04-PARAMETROS-E-CONFIGURACAO.md",
+          "sha256": "30e6822ca2c95fbd0c454348373a39ef48784886227cb782e348b5a1a151c0d5",
+          "characters": 243
+        },
+        {
+          "filename": "00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "67ff515cab095d1d963bfd9d351d159a3e72586c298eb856e09f483cee94101b",
+          "characters": 358
+        },
+        {
+          "filename": "bootstrap/00-DOCUMENTO-PRINCIPAL.md",
+          "sha256": "6ad2e3b19014c50ebcc28d3be53b682988e0ee30695a02bf83848caa7be85c32",
+          "characters": 562
+        }
+      ],
+      "review_author": "Codex",
+      "human_response_review": "not_recorded_for_this_pair"
+    }
+  ]
+}

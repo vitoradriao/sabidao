@@ -22,6 +22,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 import unicodedata
+from urllib.parse import urlsplit
 
 import httpx
 from google import genai
@@ -1063,6 +1064,7 @@ def _openai_chat_generate(
             messages=messages,
             max_tokens=max_tokens,
             allow_compatibility_fallback=retry_transient,
+            stage=stage,
         )
 
     try:
@@ -1102,12 +1104,20 @@ def _openai_chat_generate_request(
     messages: list[dict],
     max_tokens: int = 2048,
     allow_compatibility_fallback: bool = True,
+    stage: str = "unspecified",
 ) -> _GeneratedTextResponse:
+    token_limit_field = (
+        "max_tokens"
+        if urlsplit(config.GENERATION_BASE_URL).hostname == "api.deepseek.com"
+        else "max_completion_tokens"
+    )
     payload = {
         "model": model,
         "messages": messages,
-        "max_completion_tokens": max_tokens,
+        token_limit_field: max_tokens,
     }
+    if stage == "rerank" and token_limit_field == "max_tokens":
+        payload["thinking"] = {"type": "disabled"}
     resp = _get_http_client().post(
         _openai_url(config.GENERATION_BASE_URL, "/chat/completions"),
         headers=_openai_headers(config.GENERATION_API_KEY, "GENERATION_API_KEY"),
@@ -1116,6 +1126,7 @@ def _openai_chat_generate_request(
     )
     if (
         allow_compatibility_fallback
+        and token_limit_field == "max_completion_tokens"
         and resp.status_code == 400
         and "max_completion_tokens" in (resp.text or "").lower()
     ):
@@ -2057,6 +2068,7 @@ def get_model_config() -> dict[str, Any]:
             config.RERANKER_MODEL,
             purpose="reformulation",
         ),
+        "reranker_thinking_policy": "official-deepseek-rerank-nonthinking-v1",
         "embedding_model": _resolve_embedding_model(),
         "context_selection_version": CONTEXT_SELECTION_VERSION,
         "token_counter_version": TOKEN_COUNTER_VERSION,

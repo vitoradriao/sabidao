@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "status": "ready",
+  "blockers": [],
+  "external_calls": 0,
+  "remaining_budget_sufficient_for_complete_pair": false,
+  "execution_status": "not_started_insufficient_budget_for_complete_pair",
+  "policy_status": "provisional_assistant_labeled_development",
+  "profile": "bc-v4.profile.json",
+  "snapshot_id": "jev93-20260930-5a07b8f135c8-e3b0c442",
+  "variants": [
+    "jev_rerank",
+    "jev_rerank+evidence_gate"
+  ],
+  "requirement_before_calls": "Revalidar HEAD/snapshot, registrar identidade e orçamento suficiente para o par completo, mantendo os custos anteriores. Política não aprovada para adoção/holdout."
+}
