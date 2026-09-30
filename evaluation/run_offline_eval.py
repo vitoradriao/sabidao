@@ -2867,7 +2867,7 @@ def _operational_failure(trace):
     semantic = trace.get("semantic_grounding") or {}
     reason = str(semantic.get("reason") or "")
     return bool(
-        trace.get("response_state") == "operational_error"
+        trace.get("response_state") in {"operational_error", "provider_error"}
         or semantic.get("status") == "inconclusive" and any(
             marker in reason for marker in ("provider", "timeout", "deadline", "budget", "capacity", "invalid_response", "extraction_unavailable")
         )

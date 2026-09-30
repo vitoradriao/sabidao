@@ -1,0 +1,241 @@
+{
+  "status": "approved_as_presented",
+  "reviewer": "vitoradriao",
+  "date": "2026-09-30",
+  "source": "Resposta do responsável nesta sessão: Revisado e aprovado",
+  "artifact": "revisao-respostas-rerank-ranking_ablation.md",
+  "response_count": 38,
+  "corrections_reported": [],
+  "categorical_context_labels": "not_supplied",
+  "limitation": "A aprovação global não fornece contagens tipadas de acerto, abstenção ou suficiência de contexto. Não substituir esses rótulos pelas categorias das perguntas.",
+  "responses": [
+    {
+      "case_id": "dev-fluxo-tabela-nuvem",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "743dc831ffb4d401472134ab03c9f142d311db343cd08847797a6f05bc8e43b8"
+    },
+    {
+      "case_id": "dev-fluxo-status-inicial",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "513ccc87b999fa8c4097fcdf4c9cf574d27ff344b04d259074c0176e62b8f5f9"
+    },
+    {
+      "case_id": "dev-fluxo-get-erp",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "9d0ca208b2bd9fe5a92d2b97e9eab534e6b1116d51a8e00bb8eaeb3d022051b6"
+    },
+    {
+      "case_id": "dev-fluxo-put-status",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "931439dd135af3fff8e72637678ce2eb5247f42323bf9cca7eed64fb54aaae26"
+    },
+    {
+      "case_id": "dev-parametros-cliente-bloqueado",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "cbc5164fed128a9be47ad4903469a27472f37ae73cc2c5013fa4a2c4060a465f"
+    },
+    {
+      "case_id": "dev-parametros-filial-retira",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "745c76944c490d19365361979c6aa0db03933b3d662944a903d02db3a2841276"
+    },
+    {
+      "case_id": "dev-parametros-conta-corrente",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "e5ab8845587cc1b581ba575c6a0d058af7048a17e828ce51591fbf91b12ce6cc"
+    },
+    {
+      "case_id": "dev-status-zero",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "d9611ccf17c8d7d861b07205b2744f83a19840026c82225f950e18037e6f0f8e"
+    },
+    {
+      "case_id": "dev-status-cinco",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "07152ca36b9b6941b5469a6e7ba3940d17e76a562da60b13fc99922fdd2e2c26"
+    },
+    {
+      "case_id": "dev-timeline-data-abertura",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "abdbb01a4ac1d94220f95f913d29f82897d0106d4328de1dbd7e3d09bc42c800"
+    },
+    {
+      "case_id": "dev-critica-historico",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "18ffd382115b1459c7cfdba31321112bd80e45b6e6a5500ffab656be9c153a60"
+    },
+    {
+      "case_id": "dev-followup-tabelas-log",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "e02c8e79bac1b9c3cc80a79c33d397c7f750fc1c479bb306183ab32fc9e2b9a2"
+    },
+    {
+      "case_id": "dev-followup-status-erro",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "18da00e600521dc70217c9f1d697a0531ba971d96e4b26a77dcff7a8d7e60fcc"
+    },
+    {
+      "case_id": "dev-ambigua-status",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "a69a47f3bf08c5033b9ab608fb09c750f655a87cd926368292c9060a8ef39ccc"
+    },
+    {
+      "case_id": "dev-ambigua-erro",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "458f045478172f1dd9312e7af9a580140d4c7375e659c7e99b040dd2e32623c6"
+    },
+    {
+      "case_id": "dev-ambigua-parametro",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "96027137028390a8625a427eaaff02686b5ae30674f1341d95db71821486e550"
+    },
+    {
+      "case_id": "dev-ambigua-followup-sem-historico",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "19dd7910d81c6a5e5d11d5186a76907a1528f4de610fa3b842c8734f3fd52065"
+    },
+    {
+      "case_id": "dev-sem-evidencia-erp-xptos",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "201d9cafc43e35dbef67ba6fbc245bc17f27f145478fa509d426459c5690aaf8"
+    },
+    {
+      "case_id": "dev-sem-evidencia-modo-turbo",
+      "variant": "jev_rerank_pointwise",
+      "mode": "ranking_ablation",
+      "answer_sha256": "358cc1757d8bb0d1dbdd44af4b71f60d9806d03e54a1b0b6941dcfbcb3df1f37"
+    },
+    {
+      "case_id": "dev-fluxo-tabela-nuvem",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "fa9587e88b018ce5de33c4f1565d61493369a7fda72af774b858953584618253"
+    },
+    {
+      "case_id": "dev-fluxo-status-inicial",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "4ba90fd6744dfc0e49749bb4ac5baeb82a3b1a22e081cf7bcdc1ff59cd9af99d"
+    },
+    {
+      "case_id": "dev-fluxo-get-erp",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "88c7a209e84c4b805f6253164fbcd3d6eca744eadf68c97456d57bf55c5985b0"
+    },
+    {
+      "case_id": "dev-fluxo-put-status",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "e2399e5e4b4476798f6f5f43d4167f78a76d11a06e16ddc48327c13d36a04194"
+    },
+    {
+      "case_id": "dev-parametros-cliente-bloqueado",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "01b4c6b262b4bf06dd2c337d26cae7ebb7cc4a553e479f2b66461b7695def686"
+    },
+    {
+      "case_id": "dev-parametros-filial-retira",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "fbe334f820524ed4582bb6e3d575755f0986caa1025fc290b014dcf2d50e7888"
+    },
+    {
+      "case_id": "dev-parametros-conta-corrente",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "5c0382935dba4842c441b6a6414f75c1cd7b5665aa944d5d89419ceadbbc0df0"
+    },
+    {
+      "case_id": "dev-status-zero",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "5c95cd6171c321245810948952df52bf767e8823343b4cb1dacf17f4e3ca1ea7"
+    },
+    {
+      "case_id": "dev-status-cinco",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "46f01c80de0f2e8049313eeabc0a92e6213cae47085e91ce708f78d890ff191c"
+    },
+    {
+      "case_id": "dev-timeline-data-abertura",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "ee54af22f803117149a6ea61d774112d48d8d89632d31ff22ae75c9bafa746c4"
+    },
+    {
+      "case_id": "dev-critica-historico",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "b827e50d6ab7f4c86a6090fabe38af2ad6ed1f93a92ae96c7e68457f2b851f8d"
+    },
+    {
+      "case_id": "dev-followup-tabelas-log",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "f0e132a8d5a5758ed27691521c425f2caf1a3d3f96c39e3001036746e41f7f2b"
+    },
+    {
+      "case_id": "dev-followup-status-erro",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "8f0406d33f30720d914b4bc4b220032bd283910752cc79014e7965dffef05e00"
+    },
+    {
+      "case_id": "dev-ambigua-status",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "e94fabc7940ea82e503db1b8d1d9bf4ff6977943b6d8e3f5a47206a103aa045f"
+    },
+    {
+      "case_id": "dev-ambigua-erro",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "e6e708922732a15b2b1bfc59c63c123c660a62373b1110c6d6aa32f880ada881"
+    },
+    {
+      "case_id": "dev-ambigua-parametro",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "645fb2fac399e993ca6145778f1481099639d133a5f71746b9a7fa9682e4796f"
+    },
+    {
+      "case_id": "dev-ambigua-followup-sem-historico",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "918fe813720976024f32bfcabb6026423736fc2f8a58dd7693596a59d60f52c2"
+    },
+    {
+      "case_id": "dev-sem-evidencia-erp-xptos",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "201d9cafc43e35dbef67ba6fbc245bc17f27f145478fa509d426459c5690aaf8"
+    },
+    {
+      "case_id": "dev-sem-evidencia-modo-turbo",
+      "variant": "jev_rerank_batch",
+      "mode": "ranking_ablation",
+      "answer_sha256": "bb9fc0dc3f00aba57f23d977dafac122ee955d3ef25f8c8ccd1326108181bc31"
+    }
+  ]
+}

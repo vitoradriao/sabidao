@@ -1,0 +1,148 @@
+{
+  "schema_version": 4,
+  "issue": 93,
+  "registered_at": "2026-09-30",
+  "status": "registered_before_ab_batch_trial",
+  "base_commit": "a779124872c26984e641450b0dadb015e20323a3",
+  "dataset": "docs/benchmarks/jev-active/20260930-development/development-v2.json",
+  "development_cases": 19,
+  "development_population": {
+    "answerable": 13,
+    "ambiguous": 4,
+    "no_evidence": 2
+  },
+  "historical_holdout": {
+    "cases": 10,
+    "execute_for_confirmation": false,
+    "role": "historical_regression_only"
+  },
+  "authorized_data": "Corpus MaxPedido elegível e development já revisado, conforme autorização do responsável nesta sessão.",
+  "human_reviewer": "vitoradriao",
+  "human_response_review_status": "pointwise_batch_38_approved_as_presented_ab_not_run",
+  "budget": {
+    "currency": "USD",
+    "authorized_total": 1.25,
+    "includes": [
+      "initial_embedding_of_isolated_corpus",
+      "query_embeddings",
+      "generation",
+      "reranking",
+      "evidence_gate",
+      "order_audit",
+      "retries_and_unknown_usage"
+    ],
+    "admission": "Reserve UTF-8 request bytes + 1024 input tokens and the explicit maximum output before each HTTP dispatch. Retain reservation when usage is unavailable; do not dispatch a new call when it would exceed the remaining ceiling.",
+    "account_billing_verified": false,
+    "price_basis": "Paid/peak ceilings; no assumed free tier or cache discount.",
+    "prices_per_million_tokens": {
+      "deepseek:deepseek-flash": {
+        "input": 0.3,
+        "output": 1.2
+      },
+      "gemini:gemini-2.5-flash": {
+        "input": 0.3,
+        "output": 2.5
+      },
+      "gemini:gemini-embedding-001": {
+        "input": 0.15,
+        "output": 0.0
+      },
+      "typesafe:jev-1.13.0": {
+        "input": 0.042,
+        "output": 0.0
+      }
+    },
+    "sources": [
+      "https://api-docs.deepseek.com/quick_start/pricing/",
+      "https://ai.google.dev/gemini-api/docs/pricing?hl=es",
+      "https://docs.typesafe.ai/models"
+    ],
+    "resume_book": "budget-v3.json",
+    "carry_forward": "Todas as chamadas/reservas anteriores, inclusive erro de gravação e chamada pendente, carregadas integralmente no mesmo teto US$ 1,25. Livro anterior bloqueado permanece preservado."
+  },
+  "development_criteria": {
+    "minimum_correct_answer_gain_absolute": 0.05,
+    "minimum_gain_reason": "Uma resposta adicional entre 13 respondíveis equivale a 7,69 pontos percentuais. Mantém-se o critério inicial de 5 pontos, sem alegar significância estatística.",
+    "critical_new_unsupported_or_false_absence_errors_max": 0,
+    "answerable_coverage_min": 0.8,
+    "correct_answers_min": 0.7,
+    "correct_abstentions_min": 0.8,
+    "necessary_clarifications_min": 0.8,
+    "recall_at_20_min": 0.8,
+    "pipeline_p95_absolute_max_seconds": 120,
+    "pipeline_p95_relative_max": {
+      "baseline_multiplier": 1.2,
+      "additional_seconds": 5
+    },
+    "p95_reason": "O limite absoluto usa metade do ASK_TIMEOUT_SECONDS=240 e mantém margem para o atendimento. A regra relativa limita o custo de latência ao acrescentar uma etapa Jev com budget de 8 segundos.",
+    "fallback_rate_max": 0.05,
+    "fallback_denominator": "Jev attempts actually triggered; skipped/non-triggered cases are separate.",
+    "fallback_reason": "Com 20 casos, 5% representa uma falha. Sempre publicar N e contagens; poucos acionamentos não sustentam taxa operacional estável.",
+    "pipeline_cost_ratio_max": 1.2,
+    "batch_selection": "Não introduzir erro crítico, não perder mais de 0.02 de Recall@20 e preferir menor custo/latência entre as configurações que respeitarem os critérios. Prompts pointwise/batch são distintos e permanecem confundidor.",
+    "threshold_status": "initial_predeclared_by_responsible_delegation_not_calibrated"
+  },
+  "execution_order": [
+    "Freeze permitted isolated corpus and feedback identity without touching historical holdout.",
+    "Diagnose reviewed coverage at 20/40 before widening Jev candidate cap.",
+    "Compare pointwise/batch at cap 20 with same pool/query/full text; run original/reversed/stable-rotation audit in development.",
+    "Choose rerank mode in development and run A/B with same configuration and snapshot.",
+    "Calibrate provisional gate candidates in development, then compare B/C; compare existing/existing+gate only if gate-only adoption is considered.",
+    "Review actual answers with human reviewer; freeze policy and selected D0 base before independent confirmation."
+  ],
+  "cap_40_rule": "Only schedule paid cap-40 ablation if reviewed mean candidate coverage@20 is below 0.80 and coverage@40 improves at least 0.05, with remaining budget sufficient for a complete pair. This is development selection, never confirmation tuning.",
+  "confirmation": {
+    "status": "not_ready",
+    "independent_reviewed_dataset": null,
+    "preregistered_comparisons_required": [
+      "existing_vs_jev_rerank",
+      "jev_rerank_vs_jev_rerank+evidence_gate",
+      "grounding_d0_vs_grounding_d1"
+    ],
+    "policy_frozen": false,
+    "human_review_required": true,
+    "adoption_decision": "incomplete_until_review_and_independent_confirmation"
+  },
+  "excluded": [
+    "deployment",
+    "default_changes",
+    "production_reindex",
+    "grounding_trial_96",
+    "paid_calls_above_authorized_budget"
+  ],
+  "excluded_development_cases": [
+    {
+      "case_id": "dev-sql-verificacao-inicial",
+      "reason": "Consulta e fonte candidata rejeitadas pelo responsável e removidas do corpus ativo; não substituir por outro SQL nem alterar o gabarito histórico."
+    }
+  ],
+  "source_review": {
+    "reviewer": "vitoradriao",
+    "date": "2026-09-30",
+    "approved_source_bindings": 13,
+    "scope": "13 vínculos de fontes aprovados; as 38 respostas pointwise/batch também foram aprovadas globalmente em revisão separada."
+  },
+  "supersedes_preparation_only": "protocol-v3.json (não modifica o registro nem os resultados do par pointwise/batch)",
+  "transport_correction": {
+    "endpoint": "api.deepseek.com",
+    "token_limit_parameter": "max_tokens",
+    "previous_parameter": "max_completion_tokens",
+    "reason": "Chamada http-1990 informou completion_tokens=371 para limite solicitado de 200; ensaio anterior interrompido. Não misturar resultados antes/depois da correção.",
+    "preserves": "Provider, modelos, limites numéricos, prompts, strict e configuração de geração/embeddings preservados. Apenas o campo de transporte passa a usar o contrato documentado.",
+    "documentation": "https://api-docs.deepseek.com/api/create-chat-completion/"
+  },
+  "ab_registration": {
+    "selected_rerank_mode": "batch",
+    "candidate_cap": 20,
+    "selection_basis": "Development: 0/19 fallback batch contra 4/19 pointwise; p95 10,921 s contra 22,250 s; Recall@20 0,8205 contra 0,7949; respostas globalmente aprovadas pelo responsável. Seleção de candidato não equivale a adoção.",
+    "views": [
+      "end_to_end_same_snapshot"
+    ],
+    "unexecuted_view": "ranking_ablation_same_pool existing/jev; o saldo conservador de US$ 0,263576402 é priorizado para 38 respostas do par operacional. O par pointwise/batch na mesma pool foi executado separadamente.",
+    "context_builder": "context-selection-v3",
+    "budget_policy": "Mesmo livro budget-v3.json e teto total US$ 1,25, carregando todas as chamadas anteriores. Não alterar limites numéricos para caber no saldo; parar despacho caso a reserva não caiba.",
+    "operational_failure_correction": "provider_error é falha operacional, nunca abstenção correta. Correção demonstrada pelo par anterior e validada antes do A/B. Preservar coleção anterior e reanalisar offline sob identidade da correção.",
+    "categorical_context_labels": "pending",
+    "human_ab_review": "pending_actual_answers"
+  }
+}
