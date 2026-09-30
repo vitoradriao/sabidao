@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "name": "maxpedido_baseline_v1",
+  "registered_at": "2026-09-19",
+  "dataset": "evaluation/datasets/maxpedido_eval_dataset.json",
+  "split_policy": {
+    "development": "Pode ser usado para calibrar a politica antes da comparacao.",
+    "holdout": "Executar sem ajustar prompts, limiares, fatos ou evidencias a partir dos resultados."
+  },
+  "comparison": {
+    "profile_version": 1,
+    "pair_id": "jev93-development-pointwise-batch-20260930",
+    "snapshot_id": null,
+    "variants": [
+      "jev_rerank_pointwise",
+      "jev_rerank_batch"
+    ],
+    "unavailable_variants": {},
+    "views": [
+      "ranking_ablation_same_pool"
+    ],
+    "controls": {
+      "same_dataset": true,
+      "same_snapshot": true,
+      "same_retrieval_pool_for_ranking_ablation": true,
+      "same_context_builder": "context-selection-v3",
+      "same_evidence_window": true,
+      "reranker_input_window": {
+        "existing": "up_to_500_characters_per_candidate",
+        "jev_rerank": "full_candidate_text_subject_to_state_cap",
+        "model_only_gain_attribution": "unavailable_until_equalized"
+      },
+      "evidence_window": {
+        "policy": "equalized_to_final_context",
+        "builder": "context-selection-v3",
+        "budget": "same_as_generation_context_budget",
+        "raw_text_persisted": false
+      },
+      "same_generation_and_embedding_configuration": true
+    },
+    "requirements": {
+      "active_variant_path": "rag.ask Jev rerank (#91)",
+      "human_and_operational_validation": "#53",
+      "adoption_decision": "#93/#96",
+      "prepare_only_has_no_external_calls": true
+    },
+    "jev_study": {
+      "schema_version": 1,
+      "dataset_role": "development",
+      "known_historical_dataset_ids": [
+        "maxpedido_baseline_v1",
+        "jev_paired_synthetic_fixture"
+      ],
+      "rerank": {
+        "arms": [
+          "jev_rerank_pointwise",
+          "jev_rerank_batch"
+        ],
+        "same_candidate_pool": true,
+        "same_reformulated_query": true,
+        "full_candidate_text": true,
+        "same_state_cap": true,
+        "pointwise_prompt_version": "jev-rerank-pt-v1",
+        "batch_prompt_version": "jev-rerank-batch-pt-v1",
+        "grouping_version": "consecutive-greedy-v1",
+        "estimator_version": "utf8-bytes-div2-ceil-v1",
+        "batch_composition": "ordered_groups_under_state_cap",
+        "historical_prompt_confounder": {
+          "present": true,
+          "reason": "Os prompts pointwise e batch têm contratos históricos distintos; a diferença permanece identificada como confundidor."
+        },
+        "coverage_cuts": [
+          20,
+          40
+        ],
+        "order_sensitivity_audit": {
+          "split": "development",
+          "compositions": [
+            "original",
+            "reversed",
+            "stable_rotation"
+          ],
+          "policy_effect": "diagnostic_only"
+        }
+      },
+      "gate": {
+        "arms": [
+          "existing",
+          "existing+evidence_gate"
+        ]
+      },
+      "grounding": {
+        "arms": [
+          "grounding_d0",
+          "grounding_d1"
+        ],
+        "base_variant": "existing",
+        "base_selection_development_run_id": null,
+        "development_run_id": null,
+        "frozen": {
+          "base_pipeline": true,
+          "gate_policy": true,
+          "models": true,
+          "common_prompts": true,
+          "corpus": true,
+          "feedback": true,
+          "strict_mode": true,
+          "budgets": true
+        },
+        "allowed_changes": [
+          "claim_extraction",
+          "judgment",
+          "regeneration"
+        ],
+        "fixed_response_judgment": {
+          "enabled": true,
+          "same_response": true,
+          "same_exact_envelope": true,
+          "label": "fixed_baseline_response_exact_envelope"
+        }
+      },
+      "confirmation": {
+        "independent_dataset_id": null,
+        "preregistered_comparisons": [],
+        "policy_frozen": false,
+        "policy_status": "not_frozen",
+        "status": "not_preregistered"
+      }
+    },
+    "execute_order_audit": true
+  },
+  "decision_policy": {
+    "version": "v1",
+    "calibration_split": "development",
+    "frozen_before_holdout": true,
+    "answer": "Responder quando a pergunta for respondível e houver evidencia suficiente.",
+    "clarify": "Pedir a entidade, erro, rotina ou contexto ausente quando a pergunta for ambigua.",
+    "abstain": "Usar a frase de no-answer quando a base nao sustentar uma resposta.",
+    "retrieval_scores": "Sinais de ranking; nao representam probabilidade de correcao."
+  },
+  "non_regression": [
+    {
+      "id": "critical-no-unsupported-answer",
+      "description": "Nenhuma resposta do holdout pode conter fato proibido ou erro de grounding.",
+      "critical": true,
+      "path": "outcomes.unsupported_answers.rate",
+      "operator": "<=",
+      "value": 0.0
+    },
+    {
+      "id": "critical-no-false-absence",
+      "description": "Nao declarar ausencia em perguntas respondiveis do holdout.",
+      "critical": true,
+      "path": "metrics.false_absence_claim.rate",
+      "operator": "<=",
+      "value": 0.0
+    },
+    {
+      "id": "answerable-coverage",
+      "description": "Responder pelo menos 80% das perguntas respondiveis do holdout.",
+      "critical": false,
+      "path": "outcomes.answerable_coverage.rate",
+      "operator": ">=",
+      "value": 0.8
+    },
+    {
+      "id": "correct-answer-rate",
+      "description": "Acertar os fatos obrigatorios em pelo menos 70% das perguntas respondiveis.",
+      "critical": false,
+      "path": "outcomes.correct_answers.rate",
+      "operator": ">=",
+      "value": 0.7
+    },
+    {
+      "id": "correct-abstention-rate",
+      "description": "Abster-se em pelo menos 80% dos casos sem evidencia.",
+      "critical": false,
+      "path": "outcomes.correct_abstentions.rate",
+      "operator": ">=",
+      "value": 0.8
+    },
+    {
+      "id": "clarification-rate",
+      "description": "Pedir esclarecimento em pelo menos 80% dos casos ambiguos.",
+      "critical": false,
+      "path": "outcomes.necessary_clarifications.rate",
+      "operator": ">=",
+      "value": 0.8
+    },
+    {
+      "id": "retrieval-recall-20",
+      "description": "Recuperar em media pelo menos 80% das evidencias esperadas ate a posicao 20.",
+      "critical": false,
+      "path": "metrics.recall_at_20.rate",
+      "operator": ">=",
+      "value": 0.8
+    }
+  ],
+  "judge_policy": {
+    "llm_as_judge_enabled": false,
+    "reason": "O baseline inicial usa verificacoes deterministicas reproduziveis.",
+    "limitations_if_enabled": [
+      "variacao entre modelos e versoes",
+      "sensibilidade ao prompt e a ordem",
+      "possivel preferencia pelo proprio provider",
+      "necessidade de concordancia contra revisao humana"
+    ]
+  }
+}
