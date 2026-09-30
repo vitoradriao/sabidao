@@ -1,0 +1,499 @@
+[
+  {
+    "id": "confirm-ferias-dados",
+    "question": "O RCA voltou de férias, mas o maxGestão continua sem mostrar seus dados. Em CONTROLE_MXSUSUARIOS, qual campo ausente mantém as férias vigentes?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [
+      "DATA_DESBLOQUEIO"
+    ],
+    "forbidden_facts": [],
+    "reference_evidence": [
+      {
+        "source": "18-SUPORTE-CONTROLE-MXSUSUARIOS-FERIAS.md",
+        "contains": [
+          "sem `DATA_DESBLOQUEIO`",
+          "ferias ainda vigentes"
+        ]
+      }
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "18-SUPORTE-CONTROLE-MXSUSUARIOS-FERIAS.md"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-ferias-menu",
+    "question": "Onde é feito o cadastro de férias depois da descontinuação da trigger de usuários?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [
+      "Central de Configuracoes",
+      "Cadastros",
+      "Ferias"
+    ],
+    "forbidden_facts": [],
+    "reference_evidence": [
+      {
+        "source": "18-SUPORTE-CONTROLE-MXSUSUARIOS-FERIAS.md",
+        "contains": [
+          "Central de Configuracoes > Cadastros > Ferias"
+        ]
+      }
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "18-SUPORTE-CONTROLE-MXSUSUARIOS-FERIAS.md"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-visita-chave",
+    "question": "No layout VisitaFv da ERP_MXSVISITAFV, quais três campos formam a chave primária da visita?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "sql_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [
+      "CODCLI",
+      "CODUSUR",
+      "DATA"
+    ],
+    "forbidden_facts": [],
+    "reference_evidence": [
+      {
+        "source": "01-LAYOUT-INTEGRACAO.md",
+        "contains": [
+          "7.104 VisitaFv — ERP_MXSVISITAFV",
+          "**CODCLI** (VARCHAR2, 50, obrigatório, PK)",
+          "**CODUSUR** (VARCHAR2, 50, obrigatório, PK)",
+          "**DATA** (DATE, obrigatório, PK)"
+        ]
+      }
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "01-LAYOUT-INTEGRACAO.md"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-rastro-km",
+    "question": "Qual é a diferença documentada entre KM total e KM trabalhado no rastreamento do maxPedido?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [
+      "check-out",
+      "check-in"
+    ],
+    "forbidden_facts": [],
+    "reference_evidence": [
+      {
+        "source": "19-MS-RASTRO.md",
+        "contains": [
+          "Todo o percurso capturado",
+          "Percurso entre um check-out e o proximo check-in"
+        ]
+      }
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "19-MS-RASTRO.md"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-campanha-parametro",
+    "question": "Qual pré-requisito deve estar habilitado na Central para usar Campanha Progressiva de Desconto?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "parameter_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [
+      "USAR_CAMPANHA_DESCONTO_PROGRESSIVO"
+    ],
+    "forbidden_facts": [],
+    "reference_evidence": [
+      {
+        "source": "23-CAMPANHA-PROGRESSIVA.md",
+        "contains": [
+          "USAR_CAMPANHA_DESCONTO_PROGRESSIVO",
+          "obrigatório"
+        ]
+      }
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "23-CAMPANHA-PROGRESSIVA.md"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-campanha-condicoes",
+    "question": "Na Campanha Progressiva, qual é a diferença entre os tipos Pedido e Acumulativa quanto ao período para cumprir os critérios?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [
+      "pedido atual",
+      "vigencia"
+    ],
+    "forbidden_facts": [],
+    "reference_evidence": [
+      {
+        "source": "23-CAMPANHA-PROGRESSIVA.md",
+        "contains": [
+          "pedido atual",
+          "período de vigência"
+        ]
+      }
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "23-CAMPANHA-PROGRESSIVA.md"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-pix-job",
+    "question": "Depois de cadastrar a cobrança de baixa automática do maxPag, qual parâmetro e qual ação no extrator habilitam a job?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "parameter_lookup",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [
+      "JOB_BAIXA_TITULOS",
+      "reiniciar"
+    ],
+    "forbidden_facts": [],
+    "reference_evidence": [
+      {
+        "source": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+        "contains": [
+          "JOB_BAIXA_TITULOS",
+          "reiniciar o extrator"
+        ]
+      }
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-pix-baixa-status",
+    "question": "Na MXSBAIXATITULOS, quais status o extrator busca para executar a baixa automática de títulos PIX?",
+    "expected_behavior": "exact_answer",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [
+      "0",
+      "2"
+    ],
+    "forbidden_facts": [],
+    "reference_evidence": [
+      {
+        "source": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md",
+        "contains": [
+          "procura registros",
+          "status `0` ou `2`"
+        ]
+      }
+    ],
+    "split": "holdout",
+    "answerability": "answerable",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "17-MAXPAG-FLUXOS-PIX-PRONTA-ENTREGA-REENVIO.md"
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-ambigua-ferias",
+    "question": "As férias estão erradas, o que eu altero?",
+    "expected_behavior": "clarify",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [],
+    "forbidden_facts": [],
+    "reference_evidence": [],
+    "split": "holdout",
+    "answerability": "ambiguous",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Sem fonte documentada; pergunta negativa intencional."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-ambigua-desconto",
+    "question": "Qual percentual eu devo cadastrar?",
+    "expected_behavior": "clarify",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [],
+    "forbidden_facts": [],
+    "reference_evidence": [],
+    "split": "holdout",
+    "answerability": "ambiguous",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Sem fonte documentada; pergunta negativa intencional."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-sem-fonte-quantum",
+    "question": "Qual parâmetro QUANTUM_PIX_AUTOFIX_V9 corrige automaticamente qualquer baixa PIX no maxPag?",
+    "expected_behavior": "abstain",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [],
+    "forbidden_facts": [],
+    "reference_evidence": [],
+    "split": "holdout",
+    "answerability": "no_evidence",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Sem fonte documentada; pergunta negativa intencional."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  },
+  {
+    "id": "confirm-sem-fonte-rastro",
+    "question": "Qual coluna INVISIBLE_GPS_OMEGA em MXS_RASTREAMENTOS força um percurso perfeito mesmo com GPS desligado?",
+    "expected_behavior": "abstain",
+    "expected_intent": "process",
+    "scope": {
+      "level": "global"
+    },
+    "source": "jev93-confirmation-new-v1",
+    "tags": [
+      "new_confirmation_candidate"
+    ],
+    "expected_facts": [],
+    "forbidden_facts": [],
+    "reference_evidence": [],
+    "split": "holdout",
+    "answerability": "no_evidence",
+    "provenance": {
+      "repository_path": "documentos/",
+      "locator": "Sem fonte documentada; pergunta negativa intencional."
+    },
+    "review": {
+      "status": "automated_source_review",
+      "reviewer": "Codex",
+      "method": "documentary_review_before_collection",
+      "reviewed_at": "2026-09-30",
+      "human_review": "approved",
+      "human_reviewer": "vitoradriao",
+      "human_reviewed_at": "2026-09-30",
+      "divergences": [
+        "Caso de RPMXSVISITAFV removido antes da coleta; substituído por chave de ERP_MXSVISITAFV confirmada na seção 7.104. Responsável aprovou os 12 casos atualizados."
+      ]
+    }
+  }
+]
