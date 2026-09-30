@@ -1,0 +1,1798 @@
+{
+  "schema_version": 1,
+  "status": "provisional_assistant_calibration",
+  "human_context_labels": false,
+  "independent_confirmation": false,
+  "rows": [
+    {
+      "case_id": "dev-fluxo-tabela-nuvem",
+      "label": "sufficient",
+      "state_sha256": "cc05bb78c4e3f80554446d4e6fa67e66d0a3e2f47e6028c5bdb5485aadabc8d8",
+      "context_envelope_sha256": "6fcdc2777e64c055bf8a0bd7ebc4093ba9849e7fb8f900e307f13fcef96b88dc",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.66,
+        "probabilities": {
+          "sufficient": 0.77,
+          "clarification_needed": 0.13,
+          "insufficient": 0.1
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "d7b4f92523dacfc5240e12614653c58a90a58e043ebcbb187bd3c4355b752a6a",
+        "reason": null,
+        "latency_ms": 984,
+        "estimated_cost_usd": 0.000346668,
+        "cost_complete": true,
+        "state_sha256": "cc05bb78c4e3f80554446d4e6fa67e66d0a3e2f47e6028c5bdb5485aadabc8d8",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-a45b150442f4005cd44f",
+          "call_id": "e92db6e27f8d46e0bfe93acfeabe47e6",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 968,
+          "usage": {
+            "input_tokens": 8254,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000346668,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-fluxo-status-inicial",
+      "label": "sufficient",
+      "state_sha256": "24c17040476c0d29f517f20f165a726c3f0f01f547bf40cda1f2eb8192361e93",
+      "context_envelope_sha256": "4535bcdec9bb25f53b9a4f686d46c745f9f576fa0a908f373373f7d3e554888a",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.88,
+        "probabilities": {
+          "sufficient": 0.92,
+          "clarification_needed": 0.07,
+          "insufficient": 0.01
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "25b72808bf41135eb864c7b1e2d5a0310f74df71b5dc696e171d87e0125ab594",
+        "reason": null,
+        "latency_ms": 781,
+        "estimated_cost_usd": 0.000337806,
+        "cost_complete": true,
+        "state_sha256": "24c17040476c0d29f517f20f165a726c3f0f01f547bf40cda1f2eb8192361e93",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-d784cafd66cba8b925ee",
+          "call_id": "dd7abbdb98c3413091e628bfbc255687",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 781,
+          "usage": {
+            "input_tokens": 8043,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000337806,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-fluxo-get-erp",
+      "label": "sufficient",
+      "state_sha256": "594d1cdebde20d3a477b273667dc4f03aa1dc8a8cb7cce510c6c547c318ec7fc",
+      "context_envelope_sha256": "3935d87c1fb6ca6cf5318ecc62a5ca3f19e88483e81236789d2c47bf5bcefc67",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.87,
+        "probabilities": {
+          "sufficient": 0.91,
+          "clarification_needed": 0.08,
+          "insufficient": 0.01
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "fb0a906e546029b1ed435caed601e72c74e72080d4dc990917ccb2ebe9daaae1",
+        "reason": null,
+        "latency_ms": 750,
+        "estimated_cost_usd": 0.000346962,
+        "cost_complete": true,
+        "state_sha256": "594d1cdebde20d3a477b273667dc4f03aa1dc8a8cb7cce510c6c547c318ec7fc",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-642cb4fe19c4ff4f29db",
+          "call_id": "13b455d7954448aa8b4d3e83285f3cdc",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 750,
+          "usage": {
+            "input_tokens": 8261,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000346962,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-fluxo-put-status",
+      "label": "sufficient",
+      "state_sha256": "882690b909326c48f9beb671739ab672936d47ea299e4563ee3bdf56e88f744c",
+      "context_envelope_sha256": "4d005a0c9c72cb6b6c745d1668e425942ba5907c56e94963f9cc968bcf07fee8",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.99,
+        "probabilities": {
+          "sufficient": 0.99,
+          "clarification_needed": 0.01,
+          "insufficient": 0.0
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "567b24b1cf0e20ba3d8adad052cb6ff88b07ded2acca4c29c0ee8d146016fcd0",
+        "reason": null,
+        "latency_ms": 750,
+        "estimated_cost_usd": 0.000374766,
+        "cost_complete": true,
+        "state_sha256": "882690b909326c48f9beb671739ab672936d47ea299e4563ee3bdf56e88f744c",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-216c948680d511932a19",
+          "call_id": "155d11fb62344c92ad3e8a5cdeaa157e",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 750,
+          "usage": {
+            "input_tokens": 8923,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000374766,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-parametros-cliente-bloqueado",
+      "label": "sufficient",
+      "state_sha256": "07c496b4f2ced708677921208f847af44eb1952d55480004f7494d671a49b17a",
+      "context_envelope_sha256": "e48d69b35208c394061ea585749c39d4f6b985adc10ea50783f2dd0c58aa08ed",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.97,
+        "probabilities": {
+          "sufficient": 0.98,
+          "clarification_needed": 0.02,
+          "insufficient": 0.0
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "1893c2bb57021e996ee44632580fcd884b9890e4a3e4b358691549fecbd35c82",
+        "reason": null,
+        "latency_ms": 735,
+        "estimated_cost_usd": 0.00031227,
+        "cost_complete": true,
+        "state_sha256": "07c496b4f2ced708677921208f847af44eb1952d55480004f7494d671a49b17a",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-6f136fcbc4fd8a163a4a",
+          "call_id": "dcd65dfb00d74763ab9fa570c6cb8485",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 735,
+          "usage": {
+            "input_tokens": 7435,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.00031227,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-parametros-filial-retira",
+      "label": "sufficient",
+      "state_sha256": "cc293a49099b48b4b499da25bb034981a4fad42e13cd71a41b2eb6d9814aff19",
+      "context_envelope_sha256": "b60b5f799b7c9bad7de4a332c6c0d02aef9bc44e52493246c44cb3086f7e6a4a",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.93,
+        "probabilities": {
+          "sufficient": 0.96,
+          "clarification_needed": 0.02,
+          "insufficient": 0.02
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "7aa3a2ff84fd39f1635c0dfe111d678ea4e10bb9cdff45dc9b2460f2a132b5fe",
+        "reason": null,
+        "latency_ms": 811,
+        "estimated_cost_usd": 0.000277284,
+        "cost_complete": true,
+        "state_sha256": "cc293a49099b48b4b499da25bb034981a4fad42e13cd71a41b2eb6d9814aff19",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-7b44cdab7afb1c6a53af",
+          "call_id": "3f2ddb7086784515b4097f1693dc0008",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 811,
+          "usage": {
+            "input_tokens": 6602,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000277284,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-parametros-conta-corrente",
+      "label": "sufficient",
+      "state_sha256": "5b45ab1fa4fc84036f55db641180784caa87d1b7a5c91ed39e462f79cdddaa6a",
+      "context_envelope_sha256": "fd89cdda02ce064fed7c55b1bf5eedc412e813739fde66be3d37e6e09aa2485e",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.98,
+        "probabilities": {
+          "sufficient": 0.98,
+          "clarification_needed": 0.01,
+          "insufficient": 0.01
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "9238cbb6c6c61c4257865a11904d6f0933c875d3db6f36d69b5c87f25d1b823a",
+        "reason": null,
+        "latency_ms": 765,
+        "estimated_cost_usd": 0.000284466,
+        "cost_complete": true,
+        "state_sha256": "5b45ab1fa4fc84036f55db641180784caa87d1b7a5c91ed39e462f79cdddaa6a",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-8ec3c219b9c5edcb6b7f",
+          "call_id": "454f6b583b6047d4956820752aa1898e",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 765,
+          "usage": {
+            "input_tokens": 6773,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000284466,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-status-zero",
+      "label": "sufficient",
+      "state_sha256": "a57b18be6d2b194268ba15a27a6c85386149b8c38c446f0bd12a426e4dc84347",
+      "context_envelope_sha256": "77c4b8431f76e695a0633fddd791f0307a058c49c84b3fd8c34c988bb250ddc6",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.79,
+        "probabilities": {
+          "sufficient": 0.86,
+          "clarification_needed": 0.13,
+          "insufficient": 0.01
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "4af6a0f2997208f4c67cef4c180ccfef11625b22cff6bd4c821abe378e7bd18a",
+        "reason": null,
+        "latency_ms": 781,
+        "estimated_cost_usd": 0.000375102,
+        "cost_complete": true,
+        "state_sha256": "a57b18be6d2b194268ba15a27a6c85386149b8c38c446f0bd12a426e4dc84347",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-1f7c93c05120af6e8e67",
+          "call_id": "d997bb867de04bb481d18b5161eeaed0",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 781,
+          "usage": {
+            "input_tokens": 8931,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000375102,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-status-cinco",
+      "label": "sufficient",
+      "state_sha256": "a99a72df712c9a333dbc568ce00627ae317914d780aaaa0459144b5ebf37a579",
+      "context_envelope_sha256": "3927bf9e70f1ad08eef37d5bd89f65af02f458e6677d1f24ee3e0337904d111e",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.98,
+        "probabilities": {
+          "sufficient": 0.99,
+          "clarification_needed": 0.01,
+          "insufficient": 0.0
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "cc79517629c13202f2782ae9432ebd74049a9b0f560e0d2c8e93f96ccd35cbd6",
+        "reason": null,
+        "latency_ms": 797,
+        "estimated_cost_usd": 0.000368298,
+        "cost_complete": true,
+        "state_sha256": "a99a72df712c9a333dbc568ce00627ae317914d780aaaa0459144b5ebf37a579",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-41dc2b57e353ae7f2155",
+          "call_id": "cbad63be7638477bab0e8d582c131021",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 797,
+          "usage": {
+            "input_tokens": 8769,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000368298,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-timeline-data-abertura",
+      "label": "sufficient",
+      "state_sha256": "67648bf871ff0c87cd871fad336629ffe7f8033495e90903da67ac5411349413",
+      "context_envelope_sha256": "8e7fdf536750cd5ff964400acdbbc1c5d56c44bf45cdda521206aad886b78a5a",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.99,
+        "probabilities": {
+          "sufficient": 1.0,
+          "clarification_needed": 0.0,
+          "insufficient": 0.0
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "af8e782c2f6862de27b56d68b3b75917e43102c641aca94fe6498dd8d3a04da7",
+        "reason": null,
+        "latency_ms": 796,
+        "estimated_cost_usd": 0.000315504,
+        "cost_complete": true,
+        "state_sha256": "67648bf871ff0c87cd871fad336629ffe7f8033495e90903da67ac5411349413",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-5a2f24ac97a0aa3db603",
+          "call_id": "b468d1d219f742ba9956e5a44dedca62",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 796,
+          "usage": {
+            "input_tokens": 7512,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000315504,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-critica-historico",
+      "label": "insufficient",
+      "state_sha256": "9be1caaeec2089d6afaa8263874746bbd9e93b908dd5f95bf77ae07e1cca5115",
+      "context_envelope_sha256": "bd6ae95a2e41741c993ef03b8f0b6723c57d8a81bd7fdb83977601723c2c6b87",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.47,
+        "probabilities": {
+          "sufficient": 0.65,
+          "clarification_needed": 0.26,
+          "insufficient": 0.09
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "b3bd2a95d92b2a9f11e6c03f6dac1c1dbde6b46fd21d7313e28bee553b6fa30c",
+        "reason": null,
+        "latency_ms": 1078,
+        "estimated_cost_usd": 0.000369138,
+        "cost_complete": true,
+        "state_sha256": "9be1caaeec2089d6afaa8263874746bbd9e93b908dd5f95bf77ae07e1cca5115",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-cc201c710992e21a4d80",
+          "call_id": "d39b4eba4b6243cdb2198432d253547b",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 1078,
+          "usage": {
+            "input_tokens": 8789,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000369138,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-followup-tabelas-log",
+      "label": "sufficient",
+      "state_sha256": "84d8a342d22fd67ea5c3159efe678e695e8a0a808d3d0c0430b0fb14a6526c15",
+      "context_envelope_sha256": "2e991163360829a80c922ebe600245b7c4a5e632b339d3c03cd41b4ea0182450",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.77,
+        "probabilities": {
+          "sufficient": 0.84,
+          "clarification_needed": 0.15,
+          "insufficient": 0.01
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "ddf45d687c3b75c3b80831fa57af89dc73eb29e419f91a220ac80483a134143b",
+        "reason": null,
+        "latency_ms": 765,
+        "estimated_cost_usd": 0.00037254,
+        "cost_complete": true,
+        "state_sha256": "84d8a342d22fd67ea5c3159efe678e695e8a0a808d3d0c0430b0fb14a6526c15",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-8a8c0a839a55fb8b2c78",
+          "call_id": "aa507fa85d2b4dcfbee9574f8263abc5",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 765,
+          "usage": {
+            "input_tokens": 8870,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.00037254,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-followup-status-erro",
+      "label": "sufficient",
+      "state_sha256": "88f3585522a1a39d3c22aeb8a3af425e1ddf1c40864a14f6174e780e40cbab26",
+      "context_envelope_sha256": "b68e05bc5a0c60caa746e65374bcbd9fae34b3c26588f48002b51fc746c66f7b",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "sufficient",
+        "confidence": 0.58,
+        "probabilities": {
+          "sufficient": 0.72,
+          "clarification_needed": 0.24,
+          "insufficient": 0.04
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "e596a0c336c16a0c1b801bdc6e86fc7c01154132f6fc030bf9f3fe01255fafc4",
+        "reason": null,
+        "latency_ms": 750,
+        "estimated_cost_usd": 0.000380478,
+        "cost_complete": true,
+        "state_sha256": "88f3585522a1a39d3c22aeb8a3af425e1ddf1c40864a14f6174e780e40cbab26",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-55ea13fa1106e3e14239",
+          "call_id": "8edada3019dc4cf8bf6731da8dac10e5",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 750,
+          "usage": {
+            "input_tokens": 9059,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000380478,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-ambigua-status",
+      "label": "clarification_needed",
+      "state_sha256": "6616815e303244593b45f47bf81864c4b6922b8a1c302d81e7cf1b94a75e17a5",
+      "context_envelope_sha256": "dcee5b6dac5832f03bd8aeb3f1484bdff2c92f874b11552a23ce3c0cdc3784d5",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "clarification_needed",
+        "confidence": 0.87,
+        "probabilities": {
+          "sufficient": 0.06,
+          "clarification_needed": 0.91,
+          "insufficient": 0.03
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "726bb87df7e02955f258e9ff9c7a093845da4988aed4dd238fcd39e6b37270c2",
+        "reason": null,
+        "latency_ms": 765,
+        "estimated_cost_usd": 0.000370524,
+        "cost_complete": true,
+        "state_sha256": "6616815e303244593b45f47bf81864c4b6922b8a1c302d81e7cf1b94a75e17a5",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-99662c3a41772ed65869",
+          "call_id": "71bf204a3ffe410ba1aa76f99679b0de",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 765,
+          "usage": {
+            "input_tokens": 8822,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000370524,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-ambigua-erro",
+      "label": "clarification_needed",
+      "state_sha256": "a67cd7e99097c16fa55f48d048cd76dfed00dfa02f8d121af1c907dc55720c1d",
+      "context_envelope_sha256": "e0399fba1ddc839599f8e33a28d1112961375572d1c2c2086a157a579a3eb881",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "inconclusive",
+        "decision": "clarification_needed",
+        "confidence": 0.25,
+        "probabilities": {
+          "sufficient": 0.47,
+          "clarification_needed": 0.5,
+          "insufficient": 0.03
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "b8b74b0f44205906ecbf6bd221197e8186afc42a3a8e344c1bba417afee953c6",
+        "reason": "below_policy_threshold",
+        "latency_ms": 750,
+        "estimated_cost_usd": 0.000275142,
+        "cost_complete": true,
+        "state_sha256": "a67cd7e99097c16fa55f48d048cd76dfed00dfa02f8d121af1c907dc55720c1d",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-94e2976914a3ba791704",
+          "call_id": "74e8d10a33424897b49289cb0f69f121",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 750,
+          "usage": {
+            "input_tokens": 6551,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000275142,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-ambigua-parametro",
+      "label": "clarification_needed",
+      "state_sha256": "2405ca9fe08d36e087347652d3a1f635f42fc667284226e97c993b269e2060d3",
+      "context_envelope_sha256": "2014d6d2de62b1ab38a627e34ad8da1a4c1d111f96c2467a7d981a68b9aa469e",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "clarification_needed",
+        "confidence": 0.61,
+        "probabilities": {
+          "sufficient": 0.22,
+          "clarification_needed": 0.74,
+          "insufficient": 0.04
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "ec859adfe16daf34cad7226b17121968ed881e8546babfcf874d1fd8555f8b5a",
+        "reason": null,
+        "latency_ms": 765,
+        "estimated_cost_usd": 0.000315504,
+        "cost_complete": true,
+        "state_sha256": "2405ca9fe08d36e087347652d3a1f635f42fc667284226e97c993b269e2060d3",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-dcb643e584c8c35c3a7e",
+          "call_id": "365b88c0a36b46e1a599696f074beab5",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 765,
+          "usage": {
+            "input_tokens": 7512,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000315504,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-ambigua-followup-sem-historico",
+      "label": "clarification_needed",
+      "state_sha256": "7d282edf0d66cf8eaae21c19453ba11ec951d7761e14df47b56ee91212f934bc",
+      "context_envelope_sha256": "602ee66f16df72fa749b2d13aaa2710452738179382bbbd5ced6c38b02a685c9",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "clarification_needed",
+        "confidence": 0.54,
+        "probabilities": {
+          "sufficient": 0.26,
+          "clarification_needed": 0.69,
+          "insufficient": 0.05
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "08f8b224fac3179c4590f4afd1ccbb632675b874fc355e8043962915102082da",
+        "reason": null,
+        "latency_ms": 702,
+        "estimated_cost_usd": 0.000284886,
+        "cost_complete": true,
+        "state_sha256": "7d282edf0d66cf8eaae21c19453ba11ec951d7761e14df47b56ee91212f934bc",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-9b39cbd81ec4154c5ef5",
+          "call_id": "6e5a1d0bd5aa42ae8120dc864eb6751d",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 702,
+          "usage": {
+            "input_tokens": 6783,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000284886,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-sem-evidencia-erp-xptos",
+      "label": "insufficient",
+      "state_sha256": "9fbda9bd1f88165b42e6c98d536f041535fffe418917e21f4013f8a4070b9807",
+      "context_envelope_sha256": "7bb1fe574e432a2189903f2333e7bf90a22bc26112fcd4f329017daf48ff2a77",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "insufficient",
+        "confidence": 0.93,
+        "probabilities": {
+          "sufficient": 0.0,
+          "clarification_needed": 0.04,
+          "insufficient": 0.96
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "e7cfe3978f98ab1378942823c81ef6fefed8ef455121223bb6570112512d86ed",
+        "reason": null,
+        "latency_ms": 734,
+        "estimated_cost_usd": 0.00032781,
+        "cost_complete": true,
+        "state_sha256": "9fbda9bd1f88165b42e6c98d536f041535fffe418917e21f4013f8a4070b9807",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-9d8d58e44417461ea713",
+          "call_id": "c422c631544a4699bf0ea8a608f54465",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 734,
+          "usage": {
+            "input_tokens": 7805,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.00032781,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    },
+    {
+      "case_id": "dev-sem-evidencia-modo-turbo",
+      "label": "insufficient",
+      "state_sha256": "d64b712070ad0cf7c00947aa8fec169776df316af462277c0a0f8e96d5846110",
+      "context_envelope_sha256": "ce5694ee4bd03d05d5eef5ea95ea8d42f2be8741b1d3b72028938e216f1c1c60",
+      "rerank_query_verified_by_state_sha256": true,
+      "reconstructed_rendering_evidence_spans_verified": true,
+      "result": {
+        "status": "applied",
+        "decision": "insufficient",
+        "confidence": 0.92,
+        "probabilities": {
+          "sufficient": 0.02,
+          "clarification_needed": 0.03,
+          "insufficient": 0.95
+        },
+        "policy_version": "53ce168fa197476cd85e529a6831e88d4c0df87ec5f8a08172192953b28920be",
+        "prompt_version": "jev-evidence-gate-pt-v1",
+        "evidence_fingerprint": "895b404b9fc6f52590ae2543874251726a661e0343d07096025db7d403e7ae79",
+        "reason": null,
+        "latency_ms": 688,
+        "estimated_cost_usd": 0.000147504,
+        "cost_complete": true,
+        "state_sha256": "d64b712070ad0cf7c00947aa8fec169776df316af462277c0a0f8e96d5846110",
+        "model_effective": "jev-1.13.0"
+      },
+      "model_calls": [
+        {
+          "provider": "typesafe",
+          "stage": "evidence_gate",
+          "request_id": "calib-a13a9e3718e119f8be1e",
+          "call_id": "4032c7a06af348469d332988daf373f9",
+          "candidate_id": null,
+          "attempt": 1,
+          "requested_model": "jev-1.13.0",
+          "model": "jev-1.13.0",
+          "status": "ok",
+          "latency_ms": 688,
+          "usage": {
+            "input_tokens": 3512,
+            "output_tokens": 53
+          },
+          "estimated_cost_usd": 0.000147504,
+          "cost_status": "estimated",
+          "pricing_version": "typesafe-2026-09-21",
+          "retry_after_seconds": null,
+          "error_code": null,
+          "completion_status": "completed",
+          "late_completion": false
+        }
+      ]
+    }
+  ],
+  "grid": [
+    {
+      "confidence": 0.5,
+      "margin": 0.0,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 5,
+        "clarification_needed": 3,
+        "inconclusive": 1,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 3
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 1
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.5,
+      "margin": 0.1,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 5,
+        "clarification_needed": 3,
+        "inconclusive": 1,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 3
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 1
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.5,
+      "margin": 0.2,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 5,
+        "clarification_needed": 3,
+        "inconclusive": 1,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 3
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 1
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.5,
+      "margin": 0.3,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 5,
+        "clarification_needed": 3,
+        "inconclusive": 1,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 3
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 1
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.5,
+      "margin": 0.5,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 4,
+        "clarification_needed": 2,
+        "inconclusive": 2,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 2
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 2
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.7,
+      "margin": 0.0,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.7,
+      "margin": 0.1,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.7,
+      "margin": 0.2,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.7,
+      "margin": 0.3,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.7,
+      "margin": 0.5,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.8,
+      "margin": 0.0,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.8,
+      "margin": 0.1,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.8,
+      "margin": 0.2,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.8,
+      "margin": 0.3,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.8,
+      "margin": 0.5,
+      "counts": {
+        "sufficient": 13,
+        "correct_negative": 3,
+        "clarification_needed": 1,
+        "inconclusive": 3,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "clarification_needed",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 3
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.9,
+      "margin": 0.0,
+      "counts": {
+        "sufficient": 13,
+        "inconclusive": 4,
+        "correct_negative": 2,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 4
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.9,
+      "margin": 0.1,
+      "counts": {
+        "sufficient": 13,
+        "inconclusive": 4,
+        "correct_negative": 2,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 4
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.9,
+      "margin": 0.2,
+      "counts": {
+        "sufficient": 13,
+        "inconclusive": 4,
+        "correct_negative": 2,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 4
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.9,
+      "margin": 0.3,
+      "counts": {
+        "sufficient": 13,
+        "inconclusive": 4,
+        "correct_negative": 2,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 4
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "confidence": 0.9,
+      "margin": 0.5,
+      "counts": {
+        "sufficient": 13,
+        "inconclusive": 4,
+        "correct_negative": 2,
+        "insufficient": 2
+      },
+      "matrix": [
+        {
+          "expected": "sufficient",
+          "observed": "sufficient",
+          "count": 12
+        },
+        {
+          "expected": "insufficient",
+          "observed": "sufficient",
+          "count": 1
+        },
+        {
+          "expected": "clarification_needed",
+          "observed": "inconclusive",
+          "count": 4
+        },
+        {
+          "expected": "insufficient",
+          "observed": "insufficient",
+          "count": 2
+        }
+      ],
+      "eligible": true
+    }
+  ],
+  "selected": {
+    "confidence": 0.5,
+    "margin": 0.3,
+    "counts": {
+      "sufficient": 13,
+      "correct_negative": 5,
+      "clarification_needed": 3,
+      "inconclusive": 1,
+      "insufficient": 2
+    },
+    "matrix": [
+      {
+        "expected": "sufficient",
+        "observed": "sufficient",
+        "count": 12
+      },
+      {
+        "expected": "insufficient",
+        "observed": "sufficient",
+        "count": 1
+      },
+      {
+        "expected": "clarification_needed",
+        "observed": "clarification_needed",
+        "count": 3
+      },
+      {
+        "expected": "clarification_needed",
+        "observed": "inconclusive",
+        "count": 1
+      },
+      {
+        "expected": "insufficient",
+        "observed": "insufficient",
+        "count": 2
+      }
+    ],
+    "eligible": true
+  },
+  "budget": {
+    "limit_usd": 1.25,
+    "calls": 3742,
+    "known_estimated_cost_usd": 0.542841636,
+    "committed_upper_bound_usd": 1.1959975139999999,
+    "usage_unknown_calls": 513,
+    "blocked": false,
+    "billing_verified": false
+  },
+  "adoption": "incomplete",
+  "limitation": "Política de development derivada de rótulos do assistente; sem par B/C, revisão humana tipada ou confirmação independente, não aprovar adoção."
+}
