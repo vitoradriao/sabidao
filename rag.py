@@ -22,6 +22,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 import unicodedata
+from urllib.parse import urlsplit
 
 import httpx
 from google import genai
@@ -1103,10 +1104,15 @@ def _openai_chat_generate_request(
     max_tokens: int = 2048,
     allow_compatibility_fallback: bool = True,
 ) -> _GeneratedTextResponse:
+    token_limit_field = (
+        "max_tokens"
+        if urlsplit(config.GENERATION_BASE_URL).hostname == "api.deepseek.com"
+        else "max_completion_tokens"
+    )
     payload = {
         "model": model,
         "messages": messages,
-        "max_completion_tokens": max_tokens,
+        token_limit_field: max_tokens,
     }
     resp = _get_http_client().post(
         _openai_url(config.GENERATION_BASE_URL, "/chat/completions"),
@@ -1116,6 +1122,7 @@ def _openai_chat_generate_request(
     )
     if (
         allow_compatibility_fallback
+        and token_limit_field == "max_completion_tokens"
         and resp.status_code == 400
         and "max_completion_tokens" in (resp.text or "").lower()
     ):

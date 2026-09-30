@@ -40,12 +40,6 @@ SET ATUALIZID = '-9999999999'
 
 ## 3. PEDIDOS NUVEM
 
-### Consultar pedidos na integracao
-
-```sql
-SELECT * FROM mxsintegracaopedido ORDER BY 3 DESC;
-```
-
 ### Registros pendentes de integracao
 
 ```sql

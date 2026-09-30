@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "status": "registered_candidates_not_calibrated",
+  "registered_at": "2026-09-30",
+  "development_dataset": "development-v2.json",
+  "model": "jev-1.13.0",
+  "prompt_version": "jev-evidence-gate-pt-v1",
+  "confidence_candidates": [0.5, 0.7, 0.8, 0.9],
+  "probability_margin_candidates": [0.0, 0.1, 0.2, 0.3, 0.5],
+  "negative_decisions": ["insufficient", "clarification_needed"],
+  "state": "Pergunta e envelope final exato do braço B, sem ampliar nem trocar evidências.",
+  "required_labels": "Revisão humana da suficiência do contexto de cada caso. A categoria da pergunta sozinha não comprova que o contexto recuperado seja suficiente.",
+  "selection": "Avaliar a grade somente em development; exigir zero rejeição indevida entre contextos suficientes e publicar contagens de insuficiência, esclarecimento, inconclusivos e falhas. Se nenhum candidato cumprir os critérios registrados, não adotar o gate.",
+  "policy_status": "Não há política calibrada ou frozen nesta preparação.",
+  "confirmation": "Congelar a política selecionada antes de abrir um novo conjunto independente; não calibrar no holdout histórico.",
+  "budget": "Compartilhar o livro e teto US$ 1,25 com as outras etapas. Não considerar uso ausente como custo zero.",
+  "human_review_status": "pending_actual_context_review"
+}

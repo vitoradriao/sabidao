@@ -1,19 +1,17 @@
 {
-  "schema_version": 1,
-  "issue": 93,
-  "run_id": "20260930-development",
+  "schema_version": 2,
   "status": "incomplete",
-  "base_commit": "a779124872c26984e641450b0dadb015e20323a3",
-  "snapshot_id": "jev93-20260930-74628fa92ed7-e3b0c442",
+  "issue": 93,
+  "snapshot_id": "jev93-20260930-5a07b8f135c8-e3b0c442",
   "database_identity": {
     "status": "verified",
     "reason": null,
     "schema_version": 1,
     "corpus": {
-      "sha256": "74628fa92ed7dbd49ab910d3c612fc7a43fc1bb14ce50e34c37c4dbab82cc76d",
+      "sha256": "5a07b8f135c8cf7790586c7138094425b670774d2671ae74718799abb1015e1e",
       "document_count": 21,
-      "section_count": 1772,
-      "chunk_count": 1887
+      "section_count": 1771,
+      "chunk_count": 1886
     },
     "feedback": {
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -44,140 +42,59 @@
       }
     ]
   },
-  "models": {
-    "llm_provider": "openai",
-    "embedding_provider": "gemini",
-    "generation_model": "deepseek-flash",
-    "generation_model_policy": "primary",
-    "reformulation_model": "deepseek-flash",
-    "contextual_model": "deepseek-flash",
-    "reranker_model": "deepseek-flash",
-    "embedding_model": "gemini-embedding-001",
-    "context_selection_version": "context-selection-v3",
-    "token_counter_version": "utf8-bytes-div2-ceil-v1"
+  "dataset_sha256": "d4042c8ebafe664b1bf7a6dc4b6d741f4f742d9e41018b772fc1bc38fa5637ca",
+  "protocol_v2_sha256": "faf8da9e3f3e70e77a8ae678b5783c28b7d8848f7d3d5a450b841d64431e04b8",
+  "development_cases": 19,
+  "answerable_cases": 13,
+  "source_bindings_reviewed": 13,
+  "excluded_invalid_sql_case": "dev-sql-verificacao-inicial",
+  "historical_dataset_and_holdout_unchanged": true,
+  "coverage_at_20": 0.8205153846153846,
+  "coverage_at_40": 0.8974384615384615,
+  "coverage_case_count": 13,
+  "cap_40_paid_ablation": false,
+  "pointwise_batch": {
+    "status": "incomplete",
+    "pointwise_results": 19,
+    "batch_results": 0,
+    "reason": "DeepSeek output bound exceeded; no paired comparison completed",
+    "human_answer_and_context_review": "pending"
   },
-  "dataset_sha256": "c59db398bde3aac94261121df22f3f7b4c0d67956193b41929539af605b7c6ef",
-  "protocol_sha256": "d0d4e5cee7589272ce95ab5e13d4f02e0688352ba29e65d520d5fe949d99ad5b",
-  "budget_guard_sha256": "ad32c512705e5d9b60857add7a940590d5f03fd786638c4fba9dc84ceb84f1af",
-  "dataset_reference_compatibility": {
-    "status": "blocked",
-    "development_cases": 20,
-    "answerable_cases": 14,
-    "references": 14,
-    "missing_active_sources": 14,
-    "current_literal_anchor_matches": 6,
-    "remaining_references_require_new_anchors": 8,
-    "proposed_binding_review": "pending",
-    "original_dataset_unchanged": true,
-    "historical_holdout_executed": false
+  "existing_jev": {
+    "status": "not_executed"
   },
-  "pre_jev_coverage": {
-    "queries_executed": 20,
-    "coverage_at_20": null,
-    "coverage_at_40": null,
-    "recall_at_20": null,
-    "unavailable_reason": "historical_reference_source_absent_from_active_corpus",
-    "candidate_counts": [
-      28,
-      32,
-      34,
-      29,
-      25,
-      25,
-      22,
-      26,
-      34,
-      33,
-      28,
-      31,
-      33,
-      32,
-      36,
-      28,
-      26,
-      34,
-      35,
-      34
-    ],
-    "raw_diagnostic_kept_private": true,
-    "cap_40_paid_ablation_executed": false
+  "jev_jev_gate": {
+    "status": "not_executed"
   },
   "budget": {
     "limit_usd": 1.25,
-    "http_calls": 402,
-    "ingestion_embedding_calls": 382,
-    "query_embedding_calls": 20,
-    "jev_calls": 0,
-    "generation_calls": 0,
-    "usage_unknown_calls": 402,
-    "estimated_total_cost_usd": null,
-    "committed_upper_bound_usd": 0.6005592,
-    "remaining_conservative_allowance_usd": 0.6494408,
-    "billing_verified": false,
-    "budget_blocked": false
+    "calls": 1990,
+    "known_estimated_cost_usd": 0.11389180199999979,
+    "committed_upper_bound_usd": 0.759262445999995,
+    "usage_unknown_calls": 467,
+    "blocked": true,
+    "violation_call_id": "http-1990",
+    "requested_output_limit": 200,
+    "reported_output_tokens": 371,
+    "billing_verified": false
   },
-  "comparisons": {
-    "pointwise_batch": {
-      "status": "incomplete",
-      "executed_cases": 0,
-      "human_response_review": "pending",
-      "p50_ms": null,
-      "p95_ms": null,
-      "fallback_rate": null,
-      "cost_ratio": null
-    },
-    "existing_jev": {
-      "status": "incomplete",
-      "executed_cases": 0,
-      "human_response_review": "pending",
-      "p50_ms": null,
-      "p95_ms": null,
-      "fallback_rate": null,
-      "cost_ratio": null
-    },
-    "jev_jev_gate": {
-      "status": "incomplete",
-      "executed_cases": 0,
-      "human_response_review": "pending",
-      "p50_ms": null,
-      "p95_ms": null,
-      "fallback_rate": null,
-      "cost_ratio": null
-    }
-  },
-  "gate_policy_calibrated": false,
-  "independent_confirmation_dataset_ready": false,
-  "decisions": {
-    "reranker": "incomplete",
-    "evidence_gate": "incomplete",
-    "adoption": "pending"
-  },
-  "validation": {
-    "python": "3.11",
+  "correction": {
+    "status": "implemented_pending_fresh_trial",
+    "endpoint": "api.deepseek.com",
+    "parameter": "max_tokens",
     "offline_suite": {
-      "tests": 412,
-      "skipped": 17,
+      "tests": 416,
+      "skips": 17,
       "exit_code": 0
-    },
-    "postgres_suite": {
-      "tests": 412,
-      "errors": 1,
-      "skipped": 0,
-      "exit_code": 1,
-      "environment_limitation": "Windows sem executável psql; única falha no launcher de feedback_scope_fixture.sql."
-    },
-    "postgres_fixtures_via_container": {
-      "feedback_scope_fixture.sql": "passed",
-      "hybrid_rrf_fixture.sql": "passed",
-      "canonical_retrieval_fixture.sql": "passed",
-      "evaluation_identity_fixture.sql": "passed"
     }
   },
-  "remaining": [
-    "Revisar os 14 vínculos de evidência no corpus atual e registrar nova identidade de development.",
-    "Revalidar cobertura 20/40 com denominadores compatíveis antes de comparar pointwise/batch e A/B.",
-    "Calibrar política do gate em development e executar B/C dentro do orçamento remanescente.",
-    "Revisar as respostas reais com vitoradriao e congelar políticas/configurações.",
-    "Preparar novo conjunto independente revisado, pré-registrar comparações e executar confirmação com orçamento disponível."
-  ]
+  "gate_policy_calibration": "pending",
+  "independent_confirmation": "not_ready",
+  "adoption": "incomplete",
+  "artifacts": {
+    "preparation": "report-preparation.json",
+    "pointwise_before_fix": "pointwise-v2-interrupted.json",
+    "budget_before_fix": "budget-calls-v2.json",
+    "fresh_trial_protocol": "protocol-v3.json"
+  }
 }
