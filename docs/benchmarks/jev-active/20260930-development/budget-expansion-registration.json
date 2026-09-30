@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-09-30",
+  "collection_base_commit": "968fa0dcf68c67a62be948c8ca287cc118456775",
+  "authorization": {
+    "date": "2026-09-30",
+    "previous_limit_usd": 1.25,
+    "new_working_limit_usd": 10.0,
+    "user_instruction": "Pode aumentar o orçamento, conclua logo a comparação independente do orçamento",
+    "interpretation": "Ampliação autorizada; US$ 10 é limite de trabalho escolhido pelo assistente, não valor exato indicado pelo responsável. Não gastar sem finalidade experimental.",
+    "previous_book_sha256": "bb016b69703aba8839160bc3fe7c44253aec887226c48cc9bf95895f48bbbb66",
+    "calls_carried": 3742
+  },
+  "same_corpus_feedback": "jev93-20260930-5a07b8f135c8-e3b0c442",
+  "first_comparison": "bc-v4.profile.json",
+  "gate_policy_sha256": "c8c27f5c6989f417e616448f1684154c75d4644f6014c6c3fb89b878c8ebd22e",
+  "gate_policy_status": "provisional_development_no_threshold_changes",
+  "budget_guard_sha256": "ad32c512705e5d9b60857add7a940590d5f03fd786638c4fba9dc84ceb84f1af",
+  "prices_per_million_tokens": {
+    "deepseek:deepseek-flash": {
+      "input": 0.3,
+      "output": 1.2
+    },
+    "gemini:gemini-2.5-flash": {
+      "input": 0.3,
+      "output": 2.5
+    },
+    "gemini:gemini-embedding-001": {
+      "input": 0.15,
+      "output": 0.0
+    },
+    "typesafe:jev-1.13.0": {
+      "input": 0.042,
+      "output": 0.0
+    }
+  },
+  "rules": [
+    "Carregar todas as 3742 chamadas/reservas anteriores; nunca reiniciar custos.",
+    "B/C completo em development, com política e configuração v4 preservadas.",
+    "Diagnosticar existing sem saída; qualquer mudança requer protocolo/identidade separados antes de nova coleta.",
+    "Congelar políticas antes de confirmação; não ajustar limiares ou gabaritos a partir dela.",
+    "Novos casos precisam de revisão real; análise do assistente não será atribuída ao responsável.",
+    "Não executar deploy, alterar defaults ou reindexar produção."
+  ]
+}
