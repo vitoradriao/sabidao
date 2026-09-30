@@ -1,0 +1,1701 @@
+{
+  "schema_version": 4,
+  "issue": 93,
+  "status": "incomplete",
+  "dataset": "development-v2.json",
+  "snapshot": {
+    "snapshot_id": "jev93-20260930-5a07b8f135c8-e3b0c442",
+    "database": {
+      "status": "verified",
+      "reason": null,
+      "schema_version": 1,
+      "corpus": {
+        "sha256": "5a07b8f135c8cf7790586c7138094425b670774d2671ae74718799abb1015e1e",
+        "document_count": 21,
+        "section_count": 1771,
+        "chunk_count": 1886
+      },
+      "feedback": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "item_count": 0,
+        "chunk_count": 0
+      },
+      "persisted_vector_identities": [
+        {
+          "model": "gemini-embedding-001",
+          "provider": "gemini",
+          "dimensions": 1536,
+          "index_scope": "corpus",
+          "preprocessing_version": "rag-text-v1"
+        },
+        {
+          "model": "gemini-embedding-001",
+          "provider": "gemini",
+          "dimensions": 1536,
+          "index_scope": "feedback",
+          "preprocessing_version": "rag-text-v1"
+        },
+        {
+          "model": "gemini-embedding-001",
+          "provider": "gemini",
+          "dimensions": 1536,
+          "index_scope": "sections",
+          "preprocessing_version": "rag-text-v1"
+        }
+      ]
+    },
+    "models": {
+      "llm_provider": "openai",
+      "embedding_provider": "gemini",
+      "generation_model": "deepseek-flash",
+      "generation_model_policy": "primary",
+      "reformulation_model": "deepseek-flash",
+      "contextual_model": "deepseek-flash",
+      "reranker_model": "deepseek-flash",
+      "embedding_model": "gemini-embedding-001",
+      "context_selection_version": "context-selection-v3",
+      "token_counter_version": "utf8-bytes-div2-ceil-v1"
+    },
+    "embedding_identity": {
+      "provider": "gemini",
+      "model": "gemini-embedding-001",
+      "dimensions": 1536,
+      "preprocessing_version": "rag-text-v1"
+    },
+    "dataset_sha256": "d4042c8ebafe664b1bf7a6dc4b6d741f4f742d9e41018b772fc1bc38fa5637ca",
+    "protocol_sha256": "cd94f51507b1303cb3c32a71d610d4721d776045dd12be3853c054b42c9b8a62",
+    "budget_guard_sha256": "ad32c512705e5d9b60857add7a940590d5f03fd786638c4fba9dc84ceb84f1af",
+    "registered_before_jev_and_generation_calls": true
+  },
+  "coverage_before_jev": {
+    "snapshot_id": "jev93-20260930-5a07b8f135c8-e3b0c442",
+    "rows": [
+      {
+        "case_id": "dev-fluxo-tabela-nuvem",
+        "candidate_count": 30,
+        "metrics": {
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 0.5,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 30,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 3
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 30,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 3
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 30,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 3
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 30,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 3
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 30,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 3
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 30,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 3
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 30,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 3
+            },
+            "coverage_weight_sum": 0.5
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 30,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 3
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-fluxo-status-inicial",
+        "candidate_count": 32,
+        "metrics": {
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 0.4307,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 32,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 4
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 4
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 4
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 4
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 4
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 4
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 4
+            },
+            "coverage_weight_sum": 0.4307
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 4
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-fluxo-get-erp",
+        "candidate_count": 34,
+        "metrics": {
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 1.0,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 34,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 1
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "coverage_weight_sum": 1.0
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-fluxo-put-status",
+        "candidate_count": 29,
+        "metrics": {
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 0.6309,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 29,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 2
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 29,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 2
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 29,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 2
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 29,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 2
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 29,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 2
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 29,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 2
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 29,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 2
+            },
+            "coverage_weight_sum": 0.6309
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 29,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 2
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-parametros-cliente-bloqueado",
+        "candidate_count": 25,
+        "metrics": {
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 1.0,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 25,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 1
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 25,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 25,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 25,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 25,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 25,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 25,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "coverage_weight_sum": 1.0
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 25,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-parametros-filial-retira",
+        "candidate_count": 22,
+        "metrics": {
+          "recall_at_10": 0.5,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 0.3155,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 22,
+          "reference_count": 2,
+          "matched_evidence": {
+            "1": 13,
+            "2": 2
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 22,
+            "reference_count": 2,
+            "matched_evidence": {
+              "1": 13,
+              "2": 2
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 22,
+            "reference_count": 2,
+            "matched_evidence": {
+              "1": 13,
+              "2": 2
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 22,
+            "reference_count": 2,
+            "matched_evidence": {
+              "1": 13,
+              "2": 2
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 22,
+            "reference_count": 2,
+            "matched_evidence": {
+              "1": 13,
+              "2": 2
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 22,
+            "reference_count": 2,
+            "matched_evidence": {
+              "1": 13,
+              "2": 2
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 22,
+            "reference_count": 2,
+            "matched_evidence": {
+              "1": 13,
+              "2": 2
+            },
+            "coverage_weight_sum": 0.6309
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 22,
+            "reference_count": 2,
+            "matched_evidence": {
+              "1": 13,
+              "2": 2
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-parametros-conta-corrente",
+        "candidate_count": 26,
+        "metrics": {
+          "recall_at_10": 0.6667,
+          "recall_at_20": 0.6667,
+          "recall_at_40": 0.6667,
+          "evidence_coverage_at_20": 0.6667,
+          "evidence_coverage_at_40": 0.6667,
+          "evidence_discounted_coverage_at_10": 0.2341,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 26,
+          "reference_count": 3,
+          "matched_evidence": {
+            "1": 5,
+            "2": 8
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 3,
+            "matched_evidence": {
+              "1": 5,
+              "2": 8
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 3,
+            "matched_evidence": {
+              "1": 5,
+              "2": 8
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 3,
+            "matched_evidence": {
+              "1": 5,
+              "2": 8
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 3,
+            "matched_evidence": {
+              "1": 5,
+              "2": 8
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 3,
+            "matched_evidence": {
+              "1": 5,
+              "2": 8
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 3,
+            "matched_evidence": {
+              "1": 5,
+              "2": 8
+            },
+            "coverage_weight_sum": 0.7023
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 3,
+            "matched_evidence": {
+              "1": 5,
+              "2": 8
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-status-zero",
+        "candidate_count": 34,
+        "metrics": {
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 1.0,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 34,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 1
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "coverage_weight_sum": 1.0
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-status-cinco",
+        "candidate_count": 33,
+        "metrics": {
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 1.0,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 33,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 1
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "coverage_weight_sum": 1.0
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 1
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-timeline-data-abertura",
+        "candidate_count": 28,
+        "metrics": {
+          "recall_at_10": 0.0,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 0.0,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 28,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 15
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 15
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 15
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 15
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 15
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 15
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 15
+            },
+            "coverage_weight_sum": 0
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 15
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-critica-historico",
+        "candidate_count": 31,
+        "metrics": {
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_40": 0.0,
+          "evidence_coverage_at_20": 0.0,
+          "evidence_coverage_at_40": 0.0,
+          "evidence_discounted_coverage_at_10": 0.0,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 31,
+          "reference_count": 1,
+          "matched_evidence": {},
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 31,
+            "reference_count": 1,
+            "matched_evidence": {}
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 31,
+            "reference_count": 1,
+            "matched_evidence": {}
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 31,
+            "reference_count": 1,
+            "matched_evidence": {}
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 31,
+            "reference_count": 1,
+            "matched_evidence": {},
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 31,
+            "reference_count": 1,
+            "matched_evidence": {},
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 31,
+            "reference_count": 1,
+            "matched_evidence": {},
+            "coverage_weight_sum": 0
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 31,
+            "reference_count": 1,
+            "matched_evidence": {},
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-followup-tabelas-log",
+        "candidate_count": 33,
+        "metrics": {
+          "recall_at_10": 1.0,
+          "recall_at_20": 1.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 1.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 0.3869,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 33,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 5
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 5
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 5
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 5
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 5
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 5
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 5
+            },
+            "coverage_weight_sum": 0.3869
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 33,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 5
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-followup-status-erro",
+        "candidate_count": 32,
+        "metrics": {
+          "recall_at_10": 0.0,
+          "recall_at_20": 0.0,
+          "recall_at_40": 1.0,
+          "evidence_coverage_at_20": 0.0,
+          "evidence_coverage_at_40": 1.0,
+          "evidence_discounted_coverage_at_10": 0.0,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "retrieved_depth": 32,
+          "reference_count": 1,
+          "matched_evidence": {
+            "1": 21
+          },
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 21
+            }
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 21
+            }
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 21
+            }
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 21
+            },
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 21
+            },
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 21
+            },
+            "coverage_weight_sum": 0
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 32,
+            "reference_count": 1,
+            "matched_evidence": {
+              "1": 21
+            },
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-ambigua-status",
+        "candidate_count": 36,
+        "metrics": {
+          "recall_at_10": null,
+          "recall_at_20": null,
+          "recall_at_40": null,
+          "evidence_coverage_at_20": null,
+          "evidence_coverage_at_40": null,
+          "evidence_discounted_coverage_at_10": null,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "reason": "missing_reference_evidence",
+          "unavailable_reason": "missing_reference_evidence",
+          "retrieved_depth": 36,
+          "reference_count": 0,
+          "matched_evidence": {},
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 36,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 36,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 36,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 36,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 36,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 36,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 36,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-ambigua-erro",
+        "candidate_count": 28,
+        "metrics": {
+          "recall_at_10": null,
+          "recall_at_20": null,
+          "recall_at_40": null,
+          "evidence_coverage_at_20": null,
+          "evidence_coverage_at_40": null,
+          "evidence_discounted_coverage_at_10": null,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "reason": "missing_reference_evidence",
+          "unavailable_reason": "missing_reference_evidence",
+          "retrieved_depth": 28,
+          "reference_count": 0,
+          "matched_evidence": {},
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 28,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-ambigua-parametro",
+        "candidate_count": 26,
+        "metrics": {
+          "recall_at_10": null,
+          "recall_at_20": null,
+          "recall_at_40": null,
+          "evidence_coverage_at_20": null,
+          "evidence_coverage_at_40": null,
+          "evidence_discounted_coverage_at_10": null,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "reason": "missing_reference_evidence",
+          "unavailable_reason": "missing_reference_evidence",
+          "retrieved_depth": 26,
+          "reference_count": 0,
+          "matched_evidence": {},
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 26,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-ambigua-followup-sem-historico",
+        "candidate_count": 34,
+        "metrics": {
+          "recall_at_10": null,
+          "recall_at_20": null,
+          "recall_at_40": null,
+          "evidence_coverage_at_20": null,
+          "evidence_coverage_at_40": null,
+          "evidence_discounted_coverage_at_10": null,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "reason": "missing_reference_evidence",
+          "unavailable_reason": "missing_reference_evidence",
+          "retrieved_depth": 34,
+          "reference_count": 0,
+          "matched_evidence": {},
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-sem-evidencia-erp-xptos",
+        "candidate_count": 35,
+        "metrics": {
+          "recall_at_10": null,
+          "recall_at_20": null,
+          "recall_at_40": null,
+          "evidence_coverage_at_20": null,
+          "evidence_coverage_at_40": null,
+          "evidence_discounted_coverage_at_10": null,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "reason": "missing_reference_evidence",
+          "unavailable_reason": "missing_reference_evidence",
+          "retrieved_depth": 35,
+          "reference_count": 0,
+          "matched_evidence": {},
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 35,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 35,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 35,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 35,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 35,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 35,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 35,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      },
+      {
+        "case_id": "dev-sem-evidencia-modo-turbo",
+        "candidate_count": 34,
+        "metrics": {
+          "recall_at_10": null,
+          "recall_at_20": null,
+          "recall_at_40": null,
+          "evidence_coverage_at_20": null,
+          "evidence_coverage_at_40": null,
+          "evidence_discounted_coverage_at_10": null,
+          "ndcg_at_10": null
+        },
+        "details": {
+          "definition_version": 4,
+          "reason": "missing_reference_evidence",
+          "unavailable_reason": "missing_reference_evidence",
+          "retrieved_depth": 34,
+          "reference_count": 0,
+          "matched_evidence": {},
+          "recall_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "recall_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "evidence_coverage_at_20": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_coverage_at_40": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence",
+            "references_reviewed": true
+          },
+          "evidence_discounted_coverage_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "unavailable_reason": "missing_reference_evidence"
+          },
+          "ndcg_at_10": {
+            "definition_version": 4,
+            "retrieved_depth": 34,
+            "reference_count": 0,
+            "matched_evidence": {},
+            "judged_universe_id": null,
+            "corpus_fingerprint": null,
+            "qrels_sha256": null,
+            "judged_count": 0,
+            "unavailable_reason": "missing_qrels"
+          }
+        }
+      }
+    ],
+    "budget": {
+      "limit_usd": 1.25,
+      "calls": 446,
+      "known_estimated_cost_usd": 0.0,
+      "committed_upper_bound_usd": 0.6415353,
+      "usage_unknown_calls": 446,
+      "blocked": false,
+      "billing_verified": false
+    }
+  },
+  "pointwise_batch": {
+    "file": "pointwise-batch-v3.json",
+    "responses": 38,
+    "human_review": "human-review-rerank-v3.json",
+    "assistant_context_review": "assistant-context-review-v3.json",
+    "selected_candidate": "batch",
+    "adoption": "incomplete"
+  },
+  "ab": {
+    "file": "ab-batch-v4.json",
+    "responses": 38,
+    "execution_status": "complete",
+    "view": "end_to_end_same_snapshot",
+    "ranking_ablation_existing_jev_executed": false,
+    "human_review": "not_recorded_for_this_pair",
+    "assistant_review": "assistant-ab-review-v4.json",
+    "existing_rerank_empty_responses": 19,
+    "adoption": "incomplete"
+  },
+  "gate": {
+    "file": "gate-calibration-v4.json",
+    "calls": 19,
+    "label_author": "Codex",
+    "policy_status": "provisional",
+    "selected_thresholds": {
+      "min_confidence": 0.5,
+      "min_probability_margin": 0.3
+    },
+    "sufficient_false_rejections": 0,
+    "sufficient_denominator": 12,
+    "correct_negative": 5,
+    "negative_denominator": 7,
+    "bc_executed": false,
+    "adoption": "incomplete"
+  },
+  "budget": {
+    "limit_usd": 1.25,
+    "calls": 3742,
+    "known_estimated_cost_usd": 0.542841636,
+    "committed_upper_bound_usd": 1.1959975139999999,
+    "usage_unknown_calls": 513,
+    "blocked": false,
+    "billing_verified": false
+  },
+  "pending": [
+    "Par B/C real completo; saldo conservador atual não comporta nova rodada completa de 38 respostas nos custos observados.",
+    "Revisão semântica das respostas A/B e validação humana tipada/independente dos contextos; aprovação humana global cobre somente pointwise/batch.",
+    "Novo conjunto independente revisado, pré-registro e confirmação; holdout histórico não foi alterado/executado.",
+    "Custo total por requisição/razão de custos incompletos por ausência de usage/preço nativo; não aprovar enquanto obrigatórios indisponíveis.",
+    "Os critérios de esclarecimento e falsa ausência ainda não são atendidos; seleção de candidato não é adoção."
+  ],
+  "production": {
+    "default_changed": false,
+    "deployed": false,
+    "operational_corpus_reindexed": false
+  }
+}

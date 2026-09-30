@@ -1,87 +1,66 @@
-# Ensaio Jev — development de 30/09/2026
+# Ensaio Jev — development e confirmação de 30/09/2026
 
-**Adoção incompleta; #93 aberta.** Foram coletadas 38 respostas pointwise/batch, 38 respostas A/B e 19 decisões de calibração do gate. O responsável aprovou globalmente as primeiras 38 respostas e pediu ao assistente que analisasse a qualidade e os contextos. A análise foi realizada, identificada como análise do assistente. Correções e artefatos fazem parte do PR de rascunho #120, ainda não integrado à master. Não houve mudança de default, deploy ou reindexação operacional.
+**Comparações coletadas; adoção de reranker e gate rejeitada pelos critérios registrados. A #93 permanece aberta pelas pendências de revisão/protocolo e integração.** Na confirmação, existing e Jev acertaram os fatos esperados em 8/8 perguntas respondíveis: ganho observado zero, abaixo dos 5 pontos percentuais exigidos. O gate acertou esclarecimento em 1/2 perguntas ambíguas, abaixo de 0,80. Manter existing e gate desligado. Resultados e correções pertencem ao PR de rascunho #120, ainda não integrado; nenhuma mudança de default, deploy ou reindexação operacional.
 
-## Corpus, fontes e critérios
+## Protocolo e identidade
 
-O responsável autorizou US$ 1,25, o corpus MaxPedido elegível e development, delegou os critérios iniciais e assumiu a revisão humana. [protocol.json](protocol.json) registra, antes das chamadas: ganho absoluto mínimo de 5 pontos percentuais, nenhum erro crítico novo, p95 até 120 segundos e `1,20 × p95(A) + 5 segundos`, fallback até 5% dos acionamentos e custo até `1,20 × custo(A)`. São critérios iniciais delegados, não calibração ou prova estatística. Uma resposta entre os 13 respondíveis representa 7,69 pontos.
+O responsável autorizou o corpus MaxPedido e development, delegou os critérios iniciais e depois autorizou ampliar o orçamento para concluir a comparação. US$ 10 é o limite de trabalho escolhido pelo assistente, não o valor originalmente informado pelo responsável. [Registro da ampliação](budget-expansion-registration.json), [protocolo v5](protocol-v5.json) e [pré-registro da confirmação](confirmation-registration-v1.json) preservam a sequência anterior às chamadas. Critérios: ganho factual absoluto ≥0,05; nenhum erro crítico novo; coverage ≥0,80; acerto ≥0,70; abstenção/esclarecimento ≥0,80; Recall@20 ≥0,80; p95 ≤120 s e ≤1,20 × baseline + 5 s; fallback ≤5%; razão de custo ≤1,20. Não relaxados após resultados.
 
-Banco persistente isolado `sabidao_jev93`, contêiner `sabidao-jev93-postgres`, PostgreSQL 16/pgvector 0.8.6, somente `127.0.0.1:55493`. As 14 migrações foram aplicadas no banco vazio, na ordem do CI. Feedback vazio, contextualização desativada, Logística e backups fora da ingestão.
+Banco Docker persistente isolado `sabidao_jev93`, PostgreSQL 16/pgvector 0.8.6, em `127.0.0.1:55493`. Snapshot `jev93-20260930-5a07b8f135c8-e3b0c442`: 21 documentos, 1.771 seções, 1.886 chunks; feedback vazio, contextualização desligada, Logística/backups excluídos. Corpus/feedback/identidades detalhados no [relatório](report.json). Geração/reformulação e rerank existing `deepseek-flash` em `api.deepseek.com`; alias mutável. Jev `jev-1.13.0`; embeddings `gemini-embedding-001`, 1536 dimensões. Mesmo gerador, embeddings, builder, strict e limites entre braços.
 
-O primeiro snapshot tinha 21 documentos, 1.772 seções e 1.887 chunks. As 14 referências respondíveis históricas usavam `MAXIMA_RAG_UNIFICADO.md`, ausente do corpus ativo. Os zeros do primeiro diagnóstico não medem falha de recuperação e não entram na decisão. Dataset histórico e backup preservados; preparação em [report-preparation.json](report-preparation.json).
+O primeiro diagnóstico usava referências de uma fonte ausente e não mede falha de recuperação. Responsável aprovou 13 vínculos válidos, rejeitou `ORDER BY 3 DESC` e autorizou remover esse SQL da documentação. Caso excluído de [development](development-v2.json), sem alterar gabarito histórico: 19 casos, 13 respondíveis/4 ambíguos/2 sem evidência. Os dez casos históricos de holdout foram preservados e não executados nesta confirmação. Cobertura média pré-Jev, N=13: top-20 **0,820515**, top-40 **0,897438**. Pela regra pré-registrada, cap 20 suficiente; ablação paga cap 40 não indicada.
 
-Vitoradriao aprovou 13 vínculos de fontes, incluindo `StatusPedidos (PUT)`, status 5, e rejeitou a consulta `ORDER BY 3 DESC`. Ela foi removida do documento SQL existente a seu pedido. Não se recomendou outro SQL nem se mudou o gabarito para aprovar uma substituição. O caso sem fonte válida ficou excluído de [development-v2.json](development-v2.json): 19 casos, 13 respondíveis/4 ambíguos/2 sem evidência. Os dez casos de holdout históricos não foram alterados ou executados.
+## Development completo
 
-Snapshot atualizado: 21 documentos, 1.771 seções, 1.886 chunks, `jev93-20260930-5a07b8f135c8-e3b0c442`. Cobertura média pré-Jev: top-20 **0,820515** e top-40 **0,897438**, N=13. Pela regra registrada, manter cap 20: a ablação paga cap 40 não foi executada porque top-20 já atende 0,80. Identidades e diagnóstico em [report.json](report.json).
+| Par/view | Respostas | p95 baseline/candidato | Acertos pelo proxy de fatos |
+|---|---:|---:|---:|
+| Pointwise/batch, pool congelada v3 | 38 | 22,250 / 10,921 s | Consultar artefato v3 |
+| Existing/Jev, pool congelada v5 | 38 | 25,078 / 12,859 s | 8/13 / 9/13 |
+| Existing/Jev, ponta a ponta v5 | 38 | 24,390 / 13,750 s | 9/13 / 10/13 |
+| Jev/Jev+gate, ponta a ponta v4 | 38 | 10,545 / 16,812 s | 10/13 / 8/13 |
 
-## Pointwise/batch e revisão
+p95 do pipeline `rag.ask`, nearest-rank, N=19 por braço, exclui auditoria de permutações. [Pointwise/batch](pointwise-batch-v3.json): pointwise aplicado 15/19 com três timeouts/um erro; batch 19/19, zero fallback. Recall@20 0,7949/0,8205. Prompts distintos são confundidor; não atribuir tudo a batching. Auditoria original/reversed/stable_rotation mudou ordem em 19/19 por modo, sem recomendar ensemble. Batch foi candidato selecionado em development, sem adoção.
 
-Coleta `ad2c91a`, [protocolo v3](protocol-v3.json), mesma pool, consulta, conteúdo integral e cap. Há 19 respostas por braço. Execução completa; status nativo `incomplete` por fallbacks pointwise. [pointwise-batch-v3.json](pointwise-batch-v3.json) preserva estados, decisões, usage, referências sanitizadas e métricas por estágio/contexto final.
+[A/B v5](ab-corrected-existing-v5.json) tem **76/76 respostas**, ambos os views completos e rerank aplicado 19/19 por braço/view, sem fallback. `state_sha256` real nas chamadas Jev, evidência da #91. A/B v4 anterior tinha 19/19 rankings existing vazios pelo raciocínio consumir o limite de 200 tokens. Foi preservado como diagnóstico e substituído por coleta com nova identidade, nunca usado como prova de superioridade contra baseline funcional.
 
-| Pipeline, N=19 | Pointwise | Batch |
-|---|---:|---:|
-| Jev aplicado | 15/19 | 19/19 |
-| Fallback acionado | 4/19 (21,05%) | 0/19 |
-| p50 | 12,765 s | 5,922 s |
-| p95 | 22,250 s | 10,921 s |
-| Recall@20, N=13 | 0,7949 | 0,8205 |
+Correção demonstrada: transporte usa `max_tokens` no host oficial DeepSeek; no estágio `rerank`, `thinking.type=disabled`, conforme o [contrato oficial](https://api-docs.deepseek.com/api/create-chat-completion/). Mesmos prompt/modelo/candidatos/limite 200. Geração/reformulação mantêm seu comportamento. Configuração versiona `official-deepseek-rerank-nonthinking-v1`. Prova real anterior ao novo A/B mostrou ranking válido; o par corrigido confirma a aplicação.
 
-Latência do trace de `rag.ask`, nearest-rank, sem auditoria. Tempos do callback completo do avaliador ficam separados. Fallback: três timeouts e um erro de provider; falha não conta como aplicação bem-sucedida.
+[B/C v4](bc-batch-v4.json): **38/38 respostas**, rerank 19/19 nos dois braços, zero fallback. Gate 18 aplicações e um inconclusivo (confiança abaixo da política): 13 suficientes/3 esclarecimentos/2 insuficientes. Proxy de esclarecimento 3/4, abaixo de 0,80.
 
-Auditoria original/reversed/stable_rotation: composição integral aplicada em 15/19 pointwise e 19/19 batch. A ordem de saída variou em 19/19 nos dois modos; desempates pela posição original e ruído entre chamadas também podem explicar variação. Não recomenda ensemble. Prompts históricos diferentes são confundidor: o efeito não isola apenas batching. Batch foi escolhido como candidato de development por latência/fallback/Recall, sem aprovar default.
+A pedido do responsável, o assistente comparou respostas reais e contexto retido: [A/B v5](assistant-ab-review-v5.json), núcleo esperado 11/13 existing e 12/13 Jev; esclarecimento 2/4 e 3/4; abstenção 2/2. [B/C](assistant-bc-review-v4.json), núcleo 12/13 ambos; esclarecimento 3/4 ambos; abstenção 2/2. Essas análises identificam omissões, cenário presumido e mapas de status conflitantes; não validam cada afirmação periférica nem são revisão humana independente. Em A/B v5, a referência de críticas foi retida em A mas omitida pelo gerador; faltou em B. As 38 respostas pointwise/batch têm [aprovação humana global](human-review-rerank-v3.json), sem rótulos humanos tipados.
 
-[human-review-rerank-v3.json](human-review-rerank-v3.json) registra a aprovação humana global das 38 respostas, vinculada aos hashes privados; não fornece contagens tipadas de acerto/suficiência. A análise solicitada ao assistente está em [assistant-context-review-v3.json](assistant-context-review-v3.json): **12 contextos suficientes, 4 que exigem esclarecimento e 3 insuficientes**.
+## Gate congelado e confirmação independente
 
-Achados: duas perguntas vagas receberam cenário assumido; a pergunta sobre críticas não reteve `MXSHISTORICOCRITICA`; “campos principais” não prova lista exaustiva nem inexistência de coluna oculta. O arquivo privado de análise contém uma resposta de referência por caso. Não substitui a resposta coletada, não modifica prompts/gabaritos e não equivale a confirmação independente.
+Calibração somente em development: [19 decisões reais](gate-calibration-v4.json), contra rótulos provisórios do assistente; confiança 0,50/margem 0,30 em ambas as decisões negativas. Preservou 12/12 suficientes, identificou 3/4 esclarecimentos e 2/3 insuficientes. [Política congelada](gate-policy-frozen-confirmation-v1.json) antes das novas chamadas, sem retuning após confirmação. Follow-ups não fornecem histórico separado ao gate; limitação preservada.
 
-## A/B operacional
+[12 casos novos](confirmation-v1.json): 8 respondíveis, 2 ambíguos, 2 sem evidência, propostos a partir de documentos e **aprovados pelo especialista antes da coleta**. Após correção solicitada, caso duvidoso de RPMXSVISITAFV substituído por chave CODCLI/CODUSUR/DATA da ERP_MXSVISITAFV, seção 7.104 do layout. Não se mudou/reindexou o corpus durante a confirmação; menções duvidosas do documento de rastros permanecem fora desse fato testado. Nenhum ID/pergunta histórica reutilizado. Mesma base documental; não tickets aleatórios nem amostra representativa do suporte. Comparações e política congeladas no commit `a7050b2`, código `6a2dabe`, antes da abertura.
 
-Coleta `1af344d`, [protocolo v4](protocol-v4.json), batch/cap 20, mesmo builder/snapshot e geração/embeddings/strict/limites preservados. Preparação sem calls. O saldo foi priorizado para `end_to_end_same_snapshot`; ablação existing/Jev em pool congelada não executada. O par pointwise/batch separado usa pool congelada.
+| Confirmação/view, N=12 por braço | Respostas | p95 baseline/candidato | Fatos esperados corretos |
+|---|---:|---:|---:|
+| Existing/Jev, pool congelada | 24 | 9,938 / 7,046 s | 8/8 / 8/8 |
+| Existing/Jev, ponta a ponta | 24 | 9,860 / 9,250 s | 8/8 / 8/8 |
+| Jev/Jev+gate, ponta a ponta | 24 | 11,344 / 8,407 s | 8/8 / 8/8 |
 
-[ab-batch-v4.json](ab-batch-v4.json) tem execução completa e identidades compatíveis. Há `state_sha256` real nas 19 aplicações Jev, evidência operacional solicitada pela #91. Isso não aprova adoção da #93.
+[A/B confirmação](confirmation-ab-v1-results.json): 48/48 respostas. Existing aplicado 11/12 por view; uma seleção intencionalmente não acionada fora da zona prevista, sem fallback. Jev 12/12. [B/C confirmação](confirmation-bc-v1-results.json): 24/24 respostas, gate aplicado 12/12, nove suficientes/um esclarecimento/duas insuficiências; zero fallback. As respostas B de A/B e B/C são gerações distintas, não combinar como um único braço. Status nativo `incomplete` preservado por métricas/usage/variant_success: não significa coleta interrompida. Os views nativos têm status `complete` e zero resultados ausentes.
 
-| Indicador | Existing | Jev batch |
-|---|---:|---:|
-| Respostas | 19 | 19 |
-| Rankings aplicados | 0/19 | 19/19 |
-| p50 do pipeline | 7,875 s | 6,561 s |
-| p95 do pipeline | 15,625 s | 13,531 s |
-| Acertos pelo proxy de frases | 8/13 | 10/13 |
-| Esclarecimentos pelo proxy | 0/4 | 2/4 |
-| Abstenções corretas pelo proxy | 2/2 | 2/2 |
+Diferença factual pareada observada A/B e B/C: oito acertos conjuntos, zero ganho/perda, **0 pontos percentuais**, abaixo de 5 exigidos. IC Wilson 95% individual de 8/8: **67,56%–100%**; não é intervalo da diferença pareada. N pequeno não demonstra equivalência populacional nem superioridade. Recall@20=1 nos oito casos em todos os braços; nDCG continua indisponível sem qrels graduados válidos.
 
-**Limitação de A:** 19/19 chamadas do reranker DeepSeek terminaram `empty_response`, `finish_reason=length`, 200 tokens de raciocínio e zero tokens de texto. O pipeline conservou o ranking recuperado. A comparação representa o funcionamento atual, incluindo essa falha; não comprova superioridade contra existing com saída válida. Thinking e limites não foram alterados para melhorar o resultado. Corrigir esse comportamento exige nova identidade/protocolo e nova coleta.
+[Análise documental do assistente](assistant-confirmation-review-v1.json) das 48 respostas ponta a ponta: núcleo esperado 8/8, esclarecimento 1/2 e abstenção qualificada 2/2 em todos os braços. Caso ambíguo de férias recebeu SQL abrangente antes de obter cenário; o gate o classificou `sufficient`. SQL não foi executado. Caso de desconto pediu contexto sem inventar percentual. **8/8 mede núcleo esperado, não qualidade integral de cada resposta.** Os proxies de esclarecimento/abstenção divergem da análise semântica e permanecem inalterados no artefato. Sinais lexicais de falsa ausência em frases condicionais (campanha/PIX) não comprovam erro crítico; gravidade exaustiva não aferida.
 
-As 38 respostas A/B foram analisadas pelo assistente em [assistant-ab-review-v4.json](assistant-ab-review-v4.json): núcleo sustentado/completo 10/13 em A e 12/13 em B; esclarecimento adequado 2/4 e 3/4; abstenção adequada 2/2 em ambos. Em A, um log foi omitido apesar de estar no contexto; a referência de críticas faltou nos dois contextos. Essas contagens são julgamentos do assistente, não revisão humana independente, e não validam cada afirmação periférica.
+Revisão humana das 72 respostas de confirmação solicitada e pendente. [Registro de revisão](human-review-confirmation-v1.json). O material privado contém as 72 respostas, referências aprovadas e contexto efetivamente enviado; aprovação dos casos é distinta. Não há revisão humana registrada das novas 38 respostas A/B e 38 B/C de development; a análise do assistente está disponível. Não inventar revisão claim a claim.
 
-Proxies determinísticos permanecem separados: frase equivalente a “ERP faz GET” pode falhar na busca por “ERP realiza GET”. Não alterar gabarito para fazer resultado passar. Esclarecimento 0,80 ainda não é atendido, há sinais de falsa ausência e custo nativo completo/razão de custos indisponíveis. nDCG indisponível sem julgamentos graduados; nenhum gate nDCG inventado.
+**Decisões separadas:** reranker `rejected` pelo ganho zero/esclarecimento insuficiente; evidence gate `rejected` pelo esclarecimento 1/2 <0,80, sem melhora do núcleo factual. Gate isolado sobre existing não avaliado nem proposto para adoção. Métricas obrigatórias ausentes impediriam aprovação, mesmo com demais gates satisfeitos. Rejeição não declara todos os critérios aprovados.
 
-## Gate provisório
+## Custos, reprodução e validação
 
-[Plano de candidatos](gate-calibration-plan.json) e [registro dos 19 estados antes das calls](gate-calibration-v4-registration.json). Apenas chunks retidos do braço batch: renderização determinística com o renderer da coleta, spans/hashes conferidos e consulta conferida contra o state do rerank. Sem nova seleção/ampliação de contexto. Os dois follow-ups mantiveram pergunta original: o gate não recebe histórico separado, embora o gerador o receba; limitação registrada.
+**4.201 chamadas HTTP** incluindo ingestão, tentativas, auditoria e ensaios; estimativa conhecida **US$ 1,340475138**, comprometido com reservas **US$ 2,005457016**, **575 chamadas com usage desconhecido**. Gasto faturado não verificado. [Livro v4](budget-calls-v4.json) acrescenta calls 3743–4201 e carrega o [livro v3](budget-calls-v3.json), que referencia v2. Não somar livros completos sobrepostos. Ratio de custo por pipeline indisponível: custo nativo incompleto/embeddings sem usage/cache compartilhado. Não assumir zero nem aprovar razão ≤1,20 por inferência do total agregado.
 
-[gate-calibration-v4.json](gate-calibration-v4.json) tem 19 decisões reais e a grade avaliada contra **rótulos provisórios do assistente**, conforme pedido do responsável. Candidato: confiança **0,50**, margem **0,30**, ambas as decisões negativas. Preservou 12/12 suficientes e identificou corretamente 3/4 esclarecimentos e 2/3 insuficientes. Erro genérico inconclusivo; falta da referência de críticas julgada suficiente. Falhas/inconclusivos não contam como sucesso.
+[ExperimentBudget](../../../../evaluation/experiment_budget.py) é opt-in, wrapper de `httpx.Client.send`, reserva antes do despacho, um processo por livro, sem lock entre processos. Só scripts privados o instalam. Credentials, conexão, respostas/contextos brutos ficam em `runtime/issue-93/`, ignorado pelo Git; não executar CLI pago supondo proteção automática. Perfis públicos são templates: preparação preenche snapshot/configuração e verifica sem calls; `dry_run` do avaliador não é execução offline.
 
-[Política provisional](gate-policy-provisional-v4.json) exclusivamente de development; não frozen, não confirmada, sem adoção. [Perfil B/C](bc-v4.profile.json) e [preparação local sem calls](bc-v4-preparation.json) validados: `ready`, sem bloqueio de código. **B/C real não executado pelo saldo insuficiente para o par completo.** Gate isolado exige par próprio; não inferir efeito da calibração ou A/B.
+Sequência privada executada: `run_development_v3.py prepare/rerank`; `run_development_v4.py prepare/ab`; `calibrate_gate.py prepare/run`; `run_expanded_v4.py bc`; `probe_existing_v5.py probe`; `run_development_v5.py prepare/ab`; `run_confirmation_v1.py prepare/ab/bc`. Perfis [A/B v5](ab-v5.profile.json), [confirmação A/B](confirmation-ab-v1.profile.json), [confirmação B/C](confirmation-bc-v1.profile.json). Resultados publicados são sanitizados, sem respostas ou conteúdo bruto. [Relatório histórico de 3.742 chamadas](report-development-legacy-3742.json) preservado; seu estado não é o atual.
 
-## Correções, orçamento e reprodução
+Python 3.11 após última mudança de código: **420 testes, 17 skips, exit 0**, incluindo orçamento, transporte e classificação de falha operacional (`provider_error` não é abstenção correta). Quatro fixtures SQL passaram no banco descartável. [CI unit-tests/postgres-tests aprovada em a7050b2](https://github.com/vitoradriao/sabidao/actions/runs/36741117575); conferir checks do commit posterior de relatório. JSON, links, hashes, completude, encadeamento de custos e ausência de credenciais validados localmente. CodeRabbit não executou revisão por ser PR de rascunho.
 
-Uma tentativa privada perdeu uma resposta por serialização UUID/datetime; não entra no par e suas chamadas continuam contabilizadas. A seguinte coletou 19 pointwise e parou na `http-1990`: 371 tokens de saída para limite de 200. Livro bloqueado preservado; coleta separada em [pointwise-v2-interrupted.json](pointwise-v2-interrupted.json).
+## Pendências explícitas
 
-Correção pequena: enviar `max_tokens` desde a primeira chamada ao host exato `api.deepseek.com`, seguindo o [contrato oficial](https://api-docs.deepseek.com/api/create-chat-completion/). Antes enviava `max_completion_tokens`, com fallback somente após HTTP 400, mas a chamada retornou 200. Outros hosts preservam o contrato/fallback; modelos, prompts e limites numéricos mantidos. Teste real restritivo retornou 16 tokens para limite 16.
-
-O avaliador também passou a reconhecer `provider_error` como falha operacional. No v3, evita classificar a falha do follow-up ambíguo como abstenção de qualidade. Outcomes reanalisados offline; coleta e análise identificadas separadamente, sem repetir chamadas pagas.
-
-Total: **3.742 chamadas HTTP**, **US$ 0,542841636** conhecido estimado nas tarifas registradas, **US$ 1,195997514** comprometido com reservas, **513 chamadas com uso desconhecido**, **US$ 0,054002486** de saldo conservador. Gasto faturado não verificado. O saldo não comporta novo B/C completo pela estimativa baseada no braço B observado (US$ 0,086915214 sozinho). Não iniciar par incompleto para gastar o restante.
-
-[Livro v3](budget-calls-v3.json): somente calls após 1.990, referência/hash do [livro anterior](budget-calls-v2.json), carregado integralmente no mesmo teto. [Livro inicial](budget-calls.json) preservado. Pendentes/erros/timeouts/usage ausente conservam reserva. A e B compartilham cache de embeddings; aquecimento limita comparação de custo isolado.
-
-[ExperimentBudget](../../../../evaluation/experiment_budget.py) é opt-in: wrapper `httpx.Client.send`, instalado somente nos scripts privados, reserva antes do despacho. Não é automático no bot/CLI. Um processo por livro, sem lock entre processos. Scripts, respostas/contextos brutos e conexão ficam em `runtime/issue-93/`, ignorado pelo Git. Não executar CLI pago desprotegido supondo teto aplicado.
-
-Perfis v1–v4 são templates; `snapshot_id=null` não é identidade verificada. A preparação preenche/verifica sem calls. Scripts privados executados: `run_development_v3.py prepare/rerank`, `run_development_v4.py prepare/ab`, `calibrate_gate.py prepare/run`. `dry_run=True` impede persistência do avaliador, mas a execução chamou banco/modelos. Alias `deepseek-flash` mutável; Jev `jev-1.13.0`; embeddings `gemini-embedding-001`, 1536 dimensões.
-
-## Validação e pendências
-
-Python 3.11: **418 testes, 17 skips, exit 0** após as correções: oito do wrapper, quatro do transporte e dois de falha operacional. Oito testes documentais passaram. A suíte local anterior com banco teve uma falha por ausência de `psql` Windows; as quatro fixtures SQL passaram pelo cliente do contêiner, em `sabidao_jev93_tests`. [CI unit-tests/postgres-tests passou em 1af344d](https://github.com/vitoradriao/sabidao/actions/runs/36725636772), última mudança de código; isso não declara checks posteriores.
-
-Restam B/C completo, validação independente dos julgamentos/revisão humana de A/B, critérios atendidos, congelamento e novo conjunto independente revisado/pré-registrado para confirmação. Holdout histórico não aberto para ajustar resultado. Considerar a falha do reranker DeepSeek antes de atribuir ganho/repetir. #20 reutiliza os achados, #53 acompanha revisão/identidade; grounding #96 separado. Reranker e gate permanecem `incomplete`, mantendo o funcionamento publicado e gate desligado.
+Coleta A/B e B/C e decisão de rejeição estão realizadas; orçamento deixou de bloquear. Revisão humana das respostas ainda pendente conforme acima, assim como integração do PR. Base D0 da #96 = existing escolhida antes da abertura; D1 planejado como mesma base + grounding. **D0/D1 não foi calibrado ou pré-registrado como ensaio executável completo:** esse requisito compartilhado #53/#96 permanece pendente, e estes casos abertos não devem confirmar grounding após tuning. Não declarar #93/#53 integralmente concluídas. #20 reutiliza os achados; #91 recebe evidência real de hashes, ainda no PR. Grounding não é inferido de B/C.

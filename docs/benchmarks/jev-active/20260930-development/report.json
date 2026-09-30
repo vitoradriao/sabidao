@@ -1,8 +1,13 @@
 {
-  "schema_version": 4,
+  "schema_version": 3,
   "issue": 93,
-  "status": "incomplete",
-  "dataset": "development-v2.json",
+  "status": "comparisons_collected_adoption_rejected_issue_pending",
+  "component_decisions": {
+    "reranker": "rejected",
+    "evidence_gate": "rejected",
+    "gate_only": "not_evaluated"
+  },
+  "decision_reason": "Ganho de acertos 0 < 0,05 na confirmação; esclarecimento semanticamente adequado 1/2 < 0,80. Manter existing/gate desligado. Não aprovar com métricas obrigatórias ausentes.",
   "snapshot": {
     "snapshot_id": "jev93-20260930-5a07b8f135c8-e3b0c442",
     "database": {
@@ -1642,60 +1647,1827 @@
       "billing_verified": false
     }
   },
-  "pointwise_batch": {
-    "file": "pointwise-batch-v3.json",
-    "responses": 38,
-    "human_review": "human-review-rerank-v3.json",
-    "assistant_context_review": "assistant-context-review-v3.json",
-    "selected_candidate": "batch",
-    "adoption": "incomplete"
-  },
-  "ab": {
-    "file": "ab-batch-v4.json",
-    "responses": 38,
-    "execution_status": "complete",
-    "view": "end_to_end_same_snapshot",
-    "ranking_ablation_existing_jev_executed": false,
-    "human_review": "not_recorded_for_this_pair",
-    "assistant_review": "assistant-ab-review-v4.json",
-    "existing_rerank_empty_responses": 19,
-    "adoption": "incomplete"
-  },
-  "gate": {
-    "file": "gate-calibration-v4.json",
-    "calls": 19,
-    "label_author": "Codex",
-    "policy_status": "provisional",
-    "selected_thresholds": {
-      "min_confidence": 0.5,
-      "min_probability_margin": 0.3
+  "executions": {
+    "bc-batch-v4.json": {
+      "responses": 38,
+      "execution_complete": true,
+      "native_comparison_status": "incomplete",
+      "mode_summaries": {
+        "end_to_end_same_snapshot": {
+          "jev_rerank": {
+            "n": 19,
+            "pipeline_latency": {
+              "p50_ms": 7125,
+              "p95_ms": 10545,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 19,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "ok": 19
+              },
+              "finish_reasons": {}
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 10,
+                "denominator": 13,
+                "rate": 0.7692,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.4974,
+                  "high": 0.9182,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 0,
+                "denominator": 17,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.1843,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 2,
+                "denominator": 2,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3424,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 17,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.1843,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 0,
+                "denominator": 4,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.4899,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 15,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2039,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 13,
+                "denominator": 13,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.7719,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 13,
+                "ambiguous": 4,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 19
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 19
+              }
+            },
+            "recall_at_20": {
+              "sum": 10.6667,
+              "evaluated": 13,
+              "not_evaluated": 6,
+              "rate": 0.8205
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 19,
+              "rate": null
+            }
+          },
+          "jev_rerank+evidence_gate": {
+            "n": 19,
+            "pipeline_latency": {
+              "p50_ms": 5719,
+              "p95_ms": 16812,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 19,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "ok": 19
+              },
+              "finish_reasons": {}
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 8,
+                "denominator": 13,
+                "rate": 0.6154,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3552,
+                  "high": 0.8229,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 0,
+                "denominator": 14,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2153,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 2,
+                "denominator": 2,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3424,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 17,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.1843,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 3,
+                "denominator": 4,
+                "rate": 0.75,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3006,
+                  "high": 0.9544,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 15,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2039,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 13,
+                "denominator": 13,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.7719,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 13,
+                "ambiguous": 4,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 18,
+                "inconclusive": 1,
+                "unavailable": 0,
+                "skipped": 0
+              },
+              "applied_decisions": {
+                "sufficient": 13,
+                "clarification_needed": 3,
+                "insufficient": 2
+              },
+              "reasons": {
+                "below_policy_threshold": 1
+              }
+            },
+            "recall_at_20": {
+              "sum": 10.6667,
+              "evaluated": 13,
+              "not_evaluated": 6,
+              "rate": 0.8205
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 19,
+              "rate": null
+            }
+          }
+        }
+      }
     },
-    "sufficient_false_rejections": 0,
-    "sufficient_denominator": 12,
-    "correct_negative": 5,
-    "negative_denominator": 7,
-    "bc_executed": false,
-    "adoption": "incomplete"
+    "ab-corrected-existing-v5.json": {
+      "responses": 76,
+      "execution_complete": true,
+      "native_comparison_status": "complete",
+      "mode_summaries": {
+        "ranking_ablation_same_pool": {
+          "existing": {
+            "n": 19,
+            "pipeline_latency": {
+              "p50_ms": 6813,
+              "p95_ms": 25078,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 19,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "success": 19
+              },
+              "finish_reasons": {
+                "stop": 19
+              }
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 8,
+                "denominator": 13,
+                "rate": 0.6154,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3552,
+                  "high": 0.8229,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 1,
+                "denominator": 17,
+                "rate": 0.0588,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0105,
+                  "high": 0.2698,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 1,
+                "denominator": 2,
+                "rate": 0.5,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0945,
+                  "high": 0.9055,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 1,
+                "denominator": 17,
+                "rate": 0.0588,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0105,
+                  "high": 0.2698,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 0,
+                "denominator": 4,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.4899,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 15,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2039,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 13,
+                "denominator": 13,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.7719,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 13,
+                "ambiguous": 4,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 19
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 19
+              }
+            },
+            "recall_at_20": {
+              "sum": 11.6667,
+              "evaluated": 13,
+              "not_evaluated": 6,
+              "rate": 0.8974
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 19,
+              "rate": null
+            }
+          },
+          "jev_rerank": {
+            "n": 19,
+            "pipeline_latency": {
+              "p50_ms": 6203,
+              "p95_ms": 12859,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 19,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "ok": 19
+              },
+              "finish_reasons": {}
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 9,
+                "denominator": 13,
+                "rate": 0.6923,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.4237,
+                  "high": 0.8732,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 0,
+                "denominator": 17,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.1843,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 2,
+                "denominator": 2,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3424,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 17,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.1843,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 0,
+                "denominator": 4,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.4899,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 15,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2039,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 13,
+                "denominator": 13,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.7719,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 13,
+                "ambiguous": 4,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 19
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 19
+              }
+            },
+            "recall_at_20": {
+              "sum": 10.6667,
+              "evaluated": 13,
+              "not_evaluated": 6,
+              "rate": 0.8205
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 19,
+              "rate": null
+            }
+          }
+        },
+        "end_to_end_same_snapshot": {
+          "existing": {
+            "n": 19,
+            "pipeline_latency": {
+              "p50_ms": 6437,
+              "p95_ms": 24390,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 19,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "success": 19
+              },
+              "finish_reasons": {
+                "stop": 19
+              }
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 9,
+                "denominator": 13,
+                "rate": 0.6923,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.4237,
+                  "high": 0.8732,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 0,
+                "denominator": 17,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.1843,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 2,
+                "denominator": 2,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3424,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 17,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.1843,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 0,
+                "denominator": 4,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.4899,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 15,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2039,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 13,
+                "denominator": 13,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.7719,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 13,
+                "ambiguous": 4,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 19
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 19
+              }
+            },
+            "recall_at_20": {
+              "sum": 11.6667,
+              "evaluated": 13,
+              "not_evaluated": 6,
+              "rate": 0.8974
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 19,
+              "rate": null
+            }
+          },
+          "jev_rerank": {
+            "n": 19,
+            "pipeline_latency": {
+              "p50_ms": 5609,
+              "p95_ms": 13750,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 19,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "ok": 19
+              },
+              "finish_reasons": {}
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 10,
+                "denominator": 13,
+                "rate": 0.7692,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.4974,
+                  "high": 0.9182,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 0,
+                "denominator": 16,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.1936,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 2,
+                "denominator": 2,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3424,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 17,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.1843,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 1,
+                "denominator": 4,
+                "rate": 0.25,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0456,
+                  "high": 0.6994,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 15,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2039,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 13,
+                "denominator": 13,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.7719,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 13,
+                "ambiguous": 4,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 19
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 19
+              }
+            },
+            "recall_at_20": {
+              "sum": 10.6667,
+              "evaluated": 13,
+              "not_evaluated": 6,
+              "rate": 0.8205
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 19,
+              "rate": null
+            }
+          }
+        }
+      }
+    },
+    "confirmation-ab-v1-results.json": {
+      "responses": 48,
+      "execution_complete": true,
+      "native_comparison_status": "incomplete",
+      "mode_summaries": {
+        "ranking_ablation_same_pool": {
+          "existing": {
+            "n": 12,
+            "pipeline_latency": {
+              "p50_ms": 4953,
+              "p95_ms": 9938,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 11,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "success": 11
+              },
+              "finish_reasons": {
+                "stop": 11
+              }
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 1,
+                "denominator": 11,
+                "rate": 0.0909,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0162,
+                  "high": 0.3774,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 1,
+                "denominator": 2,
+                "rate": 0.5,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0945,
+                  "high": 0.9055,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 0,
+                "denominator": 2,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.6576,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 8,
+                "ambiguous": 2,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 12
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 12
+              }
+            },
+            "recall_at_20": {
+              "sum": 8.0,
+              "evaluated": 8,
+              "not_evaluated": 4,
+              "rate": 1.0
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 12,
+              "rate": null
+            }
+          },
+          "jev_rerank": {
+            "n": 12,
+            "pipeline_latency": {
+              "p50_ms": 4594,
+              "p95_ms": 7046,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 12,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "ok": 12
+              },
+              "finish_reasons": {}
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 0,
+                "denominator": 8,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.3244,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 2,
+                "denominator": 2,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3424,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 2,
+                "denominator": 2,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3424,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 8,
+                "ambiguous": 2,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 12
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 12
+              }
+            },
+            "recall_at_20": {
+              "sum": 8.0,
+              "evaluated": 8,
+              "not_evaluated": 4,
+              "rate": 1.0
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 12,
+              "rate": null
+            }
+          }
+        },
+        "end_to_end_same_snapshot": {
+          "existing": {
+            "n": 12,
+            "pipeline_latency": {
+              "p50_ms": 4655,
+              "p95_ms": 9860,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 11,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "success": 11
+              },
+              "finish_reasons": {
+                "stop": 11
+              }
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 1,
+                "denominator": 10,
+                "rate": 0.1,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0179,
+                  "high": 0.4042,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 1,
+                "denominator": 2,
+                "rate": 0.5,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0945,
+                  "high": 0.9055,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 1,
+                "denominator": 2,
+                "rate": 0.5,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0945,
+                  "high": 0.9055,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 8,
+                "ambiguous": 2,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 12
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 12
+              }
+            },
+            "recall_at_20": {
+              "sum": 8.0,
+              "evaluated": 8,
+              "not_evaluated": 4,
+              "rate": 1.0
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 12,
+              "rate": null
+            }
+          },
+          "jev_rerank": {
+            "n": 12,
+            "pipeline_latency": {
+              "p50_ms": 5000,
+              "p95_ms": 9250,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 12,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "ok": 12
+              },
+              "finish_reasons": {}
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 2,
+                "denominator": 12,
+                "rate": 0.1667,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.047,
+                  "high": 0.448,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 0,
+                "denominator": 2,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.6576,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 0,
+                "denominator": 2,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.6576,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 8,
+                "ambiguous": 2,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 12
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 12
+              }
+            },
+            "recall_at_20": {
+              "sum": 8.0,
+              "evaluated": 8,
+              "not_evaluated": 4,
+              "rate": 1.0
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 12,
+              "rate": null
+            }
+          }
+        }
+      }
+    },
+    "confirmation-bc-v1-results.json": {
+      "responses": 24,
+      "execution_complete": true,
+      "native_comparison_status": "incomplete",
+      "mode_summaries": {
+        "end_to_end_same_snapshot": {
+          "jev_rerank": {
+            "n": 12,
+            "pipeline_latency": {
+              "p50_ms": 4656,
+              "p95_ms": 11344,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 12,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "ok": 12
+              },
+              "finish_reasons": {}
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 1,
+                "denominator": 10,
+                "rate": 0.1,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0179,
+                  "high": 0.4042,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 1,
+                "denominator": 2,
+                "rate": 0.5,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0945,
+                  "high": 0.9055,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 1,
+                "denominator": 2,
+                "rate": 0.5,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0945,
+                  "high": 0.9055,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 8,
+                "ambiguous": 2,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 0,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 12
+              },
+              "applied_decisions": {
+                "sufficient": 0,
+                "clarification_needed": 0,
+                "insufficient": 0
+              },
+              "reasons": {
+                "disabled": 12
+              }
+            },
+            "recall_at_20": {
+              "sum": 8.0,
+              "evaluated": 8,
+              "not_evaluated": 4,
+              "rate": 1.0
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 12,
+              "rate": null
+            }
+          },
+          "jev_rerank+evidence_gate": {
+            "n": 12,
+            "pipeline_latency": {
+              "p50_ms": 4125,
+              "p95_ms": 8407,
+              "method": "nearest_rank",
+              "audit_included": false
+            },
+            "rerank": {
+              "applied": 12,
+              "fallback_count": 0,
+              "model_call_statuses": {
+                "ok": 12
+              },
+              "finish_reasons": {}
+            },
+            "outcomes": {
+              "correct_answers": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "unsupported_answers": {
+                "count": 0,
+                "denominator": 9,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2992,
+                  "method": "wilson"
+                }
+              },
+              "correct_abstentions": {
+                "count": 2,
+                "denominator": 2,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.3424,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "incorrect_abstentions": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "necessary_clarifications": {
+                "count": 1,
+                "denominator": 2,
+                "rate": 0.5,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0945,
+                  "high": 0.9055,
+                  "method": "wilson"
+                }
+              },
+              "unnecessary_clarifications": {
+                "count": 0,
+                "denominator": 10,
+                "rate": 0.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.0,
+                  "high": 0.2775,
+                  "method": "wilson"
+                }
+              },
+              "answerable_coverage": {
+                "count": 8,
+                "denominator": 8,
+                "rate": 1.0,
+                "confidence_interval": {
+                  "level": 0.95,
+                  "low": 0.6756,
+                  "high": 1.0,
+                  "method": "wilson"
+                }
+              },
+              "population": {
+                "answerable": 8,
+                "ambiguous": 2,
+                "no_evidence": 2
+              }
+            },
+            "evidence_gate": {
+              "statuses": {
+                "applied": 12,
+                "inconclusive": 0,
+                "unavailable": 0,
+                "skipped": 0
+              },
+              "applied_decisions": {
+                "sufficient": 9,
+                "clarification_needed": 1,
+                "insufficient": 2
+              },
+              "reasons": {}
+            },
+            "recall_at_20": {
+              "sum": 8.0,
+              "evaluated": 8,
+              "not_evaluated": 4,
+              "rate": 1.0
+            },
+            "ndcg_at_10": {
+              "sum": 0,
+              "evaluated": 0,
+              "not_evaluated": 12,
+              "rate": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "confirmation_paired_factual_results": {
+    "confirmation-ab-v1-results.json": {
+      "n": 8,
+      "both_correct": 8,
+      "candidate_only_correct": 0,
+      "baseline_only_correct": 0,
+      "both_incorrect": 0,
+      "absolute_gain": 0.0,
+      "minimum_registered_gain": 0.05,
+      "rate_wilson_95": {
+        "low": 0.6756,
+        "high": 1.0
+      },
+      "paired_difference_interval": null,
+      "uncertainty": "Empate observado; amostra pequena não demonstra equivalência populacional nem superioridade. Não fabricar intervalo pareado.",
+      "cases": [
+        {
+          "case_id": "confirm-ferias-dados",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-ferias-menu",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-visita-chave",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-rastro-km",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-campanha-parametro",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-campanha-condicoes",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-pix-job",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-pix-baixa-status",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        }
+      ]
+    },
+    "confirmation-bc-v1-results.json": {
+      "n": 8,
+      "both_correct": 8,
+      "candidate_only_correct": 0,
+      "baseline_only_correct": 0,
+      "both_incorrect": 0,
+      "absolute_gain": 0.0,
+      "minimum_registered_gain": 0.05,
+      "rate_wilson_95": {
+        "low": 0.6756,
+        "high": 1.0
+      },
+      "paired_difference_interval": null,
+      "uncertainty": "Empate observado; amostra pequena não demonstra equivalência populacional nem superioridade. Não fabricar intervalo pareado.",
+      "cases": [
+        {
+          "case_id": "confirm-ferias-dados",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-ferias-menu",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-visita-chave",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-rastro-km",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-campanha-parametro",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-campanha-condicoes",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-pix-job",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        },
+        {
+          "case_id": "confirm-pix-baixa-status",
+          "baseline_correct": true,
+          "candidate_correct": true,
+          "difference": 0
+        }
+      ]
+    }
+  },
+  "assistant_review": {
+    "ab": {
+      "existing": {
+        "answerable": {
+          "correct": 8,
+          "n": 8
+        },
+        "ambiguous": {
+          "correct": 1,
+          "n": 2
+        },
+        "no_evidence": {
+          "correct": 2,
+          "n": 2
+        }
+      },
+      "jev_rerank": {
+        "answerable": {
+          "correct": 8,
+          "n": 8
+        },
+        "ambiguous": {
+          "correct": 1,
+          "n": 2
+        },
+        "no_evidence": {
+          "correct": 2,
+          "n": 2
+        }
+      }
+    },
+    "bc": {
+      "jev_rerank": {
+        "answerable": {
+          "correct": 8,
+          "n": 8
+        },
+        "ambiguous": {
+          "correct": 1,
+          "n": 2
+        },
+        "no_evidence": {
+          "correct": 2,
+          "n": 2
+        }
+      },
+      "jev_rerank+evidence_gate": {
+        "answerable": {
+          "correct": 8,
+          "n": 8
+        },
+        "ambiguous": {
+          "correct": 1,
+          "n": 2
+        },
+        "no_evidence": {
+          "correct": 2,
+          "n": 2
+        }
+      }
+    }
+  },
+  "human_review": {
+    "status": "pending",
+    "response_count": 72,
+    "case_review_status": "approved_12_updated_cases_before_collection",
+    "response_review_distinct": true,
+    "requested_artifact_sha256": "72f6a51c984362a68056434bb94c20ff0d83027161ea71e2c96460a9b33f63a2",
+    "limitation": "Aprovação dos casos não equivale à revisão das 72 respostas; análise documental do assistente identificada separadamente."
   },
   "budget": {
-    "limit_usd": 1.25,
-    "calls": 3742,
-    "known_estimated_cost_usd": 0.542841636,
-    "committed_upper_bound_usd": 1.1959975139999999,
-    "usage_unknown_calls": 513,
-    "blocked": false,
-    "billing_verified": false
+    "http_calls": 4201,
+    "known_estimated_usd": 1.340475138,
+    "committed_with_unknown_reservations_usd": 2.005457016,
+    "unknown_usage_calls": 575,
+    "working_ceiling_usd": 10,
+    "account_billing_verified": false,
+    "authorization": "Responsável autorizou ampliar orçamento e concluir comparação; US$ 10 é limite de trabalho escolhido pelo assistente.",
+    "pipeline_cost_ratio": null,
+    "pipeline_cost_ratio_reason": "Custo nativo incompleto, uso de embeddings ausente e cache compartilhado. Livro agregado não comprova razão isolada por pipeline.",
+    "ledger": "budget-calls-v4.json"
   },
   "pending": [
-    "Par B/C real completo; saldo conservador atual não comporta nova rodada completa de 38 respostas nos custos observados.",
-    "Revisão semântica das respostas A/B e validação humana tipada/independente dos contextos; aprovação humana global cobre somente pointwise/batch.",
-    "Novo conjunto independente revisado, pré-registro e confirmação; holdout histórico não foi alterado/executado.",
-    "Custo total por requisição/razão de custos incompletos por ausência de usage/preço nativo; não aprovar enquanto obrigatórios indisponíveis.",
-    "Os critérios de esclarecimento e falsa ausência ainda não são atendidos; seleção de candidato não é adoção."
+    "Revisão humana das respostas de confirmação solicitada; aprovação dos casos já registrada.",
+    "Revisão humana dos 38 A/B corrigidos e 38 B/C de development não registrada; análise do assistente disponível.",
+    "Integração do PR ainda não autorizada/realizada.",
+    "D0=existing selecionado antes da confirmação; D0/D1 de grounding não calibrado ou pré-registrado como ensaio executável. Requisito compartilhado #53/#96 permanece pendente; não reutilizar estes casos para confirmar grounding após abertura."
   ],
   "production": {
-    "default_changed": false,
+    "defaults_changed": false,
     "deployed": false,
-    "operational_corpus_reindexed": false
-  }
+    "operational_reindex": false
+  },
+  "native_status_note": "Status nativo incomplete preservado: completude métrica/uso/variant_success não equivale a parada. Todas as respostas esperadas dos quatro pares foram coletadas.",
+  "legacy_report": "report-development-legacy-3742.json"
 }
